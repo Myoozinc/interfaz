@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #FAF7F2;
+    --bg-card: #FFFFFF;
+    --bg-subtle: #F4EFEA;
+    --border-main: #E7E0D6;
+    --border-subtle: #F0EAE2;
+    --accent-bronze: #A86B32;
+    --accent-bronze-hover: #8F5622;
+    --accent-cream: #F8F2EC;
+    --text-primary: #1C1917;
+    --text-secondary: #57534E;
+    --text-muted: #8C827A;
+  }
+
+  body {
+    background-color: #FAF7F2;
+    color: #1C1917;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #DDD5CA;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C4BAAC;
+}
+
+/* Monaco container overrides */
+.monaco-editor, .monaco-editor .overflow-guard {
+  border-radius: 0 0 12px 12px;
+}
+
+/* Pulse animation for AI streaming */
+@keyframes warm-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(168, 107, 50, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(168, 107, 50, 0.35);
+  }
+}
+
+.animate-warm-glow {
+  animation: warm-glow 2.5s infinite ease-in-out;
+}
