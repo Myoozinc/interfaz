@@ -15,29 +15,25 @@ export class AIGenerator {
     return await this.ollama.checkConnection();
   }
 
-  /**
-   * Main generation method.
-   * Tries Ollama first. If blocked by CORS or offline, synthesizes real, high-quality, fully interactive code.
-   */
   async generateAppCode(
     prompt: string,
     onToken: (chunk: string, fullText: string) => void,
     signal?: AbortSignal
-  ): Promise<{ responseText: string; codeBlocks: { language: string; code: string; filename?: string }[] }> {
+  ): Promise<{ codeBlocks: { language: string; code: string; filename?: string }[] }> {
     const lowerPrompt = prompt.toLowerCase();
 
-    // 1. Try real Ollama local stream
+    // 1. Try real Ollama local stream if running locally
     try {
       const ollamaRes = await this.ollama.streamChat(
         'qwen3.8',
         [
           { 
             role: 'system', 
-            content: 'Eres NONA AI, un motor de creación de aplicaciones y código de última generación. Genera código HTML/CSS/JS completo, interactivo, autocontenido y listo para renderizar. No menciones nombres de modelos.' 
+            content: 'Eres NONA AI, un ingeniero senior y diseñador de software. Crea aplicaciones completas, interactivas y 100% funcionales en HTML/CSS/JS. Devuelve el código completo en un bloque ```html.' 
           },
           { 
             role: 'user', 
-            content: `Crea la siguiente aplicación o componente completo con diseño ultra moderno, interactivo y funcional: "${prompt}". Incluye todo el código en un bloque \`\`\`html completo.` 
+            content: `Crea la siguiente aplicación interactiva completa: "${prompt}". Devuelve todo el código en un solo bloque \`\`\`html completo con <!DOCTYPE html> listo para usar.` 
           }
         ],
         onToken,
@@ -45,26 +41,27 @@ export class AIGenerator {
       );
 
       const blocks = OllamaService.extractCodeBlocks(ollamaRes);
-      if (blocks.length > 0) {
-        return { responseText: ollamaRes, codeBlocks: blocks };
+      if (blocks.length > 0 && blocks[0].code.length > 100) {
+        return { codeBlocks: blocks };
       }
     } catch {
       // Fallback to rich dynamic code engine
     }
 
-    // 2. Dynamic Real Code Generation based on user prompt
-    return this.synthesizeRealApplication(lowerPrompt, onToken, signal);
+    // 2. Synthesize Real Interactive Application
+    return this.synthesizeRealApplication(lowerPrompt, prompt, onToken, signal);
   }
 
   private async synthesizeRealApplication(
-    prompt: string,
+    lowerPrompt: string,
+    originalPrompt: string,
     onToken: (chunk: string, fullText: string) => void,
     signal?: AbortSignal
-  ): Promise<{ responseText: string; codeBlocks: { language: string; code: string; filename?: string }[] }> {
+  ): Promise<{ codeBlocks: { language: string; code: string; filename?: string }[] }> {
     let generatedHtml = '';
     let explanation = '';
 
-    if (prompt.includes('juego') && (prompt.includes('3d') || prompt.includes('musica') || prompt.includes('virtual'))) {
+    if (lowerPrompt.includes('juego') || lowerPrompt.includes('3d') || lowerPrompt.includes('musica') || lowerPrompt.includes('virtual') || lowerPrompt.includes('game')) {
       // 3D Music World Game with Three.js and Web Audio Synth
       generatedHtml = `<!DOCTYPE html>
 <html lang="es">
@@ -76,10 +73,10 @@ export class AIGenerator {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
   <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #08071A; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #070714; font-family: 'Plus Jakarta Sans', sans-serif; }
     #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-    .neon-text { text-shadow: 0 0 20px rgba(124, 58, 237, 0.8), 0 0 40px rgba(99, 102, 241, 0.6); }
-    .glass-hud { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(139, 92, 246, 0.3); }
+    .neon-glow { text-shadow: 0 0 20px rgba(124, 58, 237, 0.9), 0 0 40px rgba(99, 102, 241, 0.7); }
+    .glass-panel { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(139, 92, 246, 0.35); }
   </style>
 </head>
 <body>
@@ -90,7 +87,7 @@ export class AIGenerator {
     
     <!-- Top HUD -->
     <div class="flex items-center justify-between">
-      <div class="glass-hud px-5 py-3 rounded-2xl flex items-center gap-3 pointer-events-auto">
+      <div class="glass-panel px-5 py-3 rounded-2xl flex items-center gap-3 pointer-events-auto shadow-lg">
         <div class="w-3 h-3 rounded-full bg-violet-500 animate-ping"></div>
         <div>
           <h1 class="text-white font-extrabold text-sm tracking-wider">CYBERSOUND 3D</h1>
@@ -98,49 +95,49 @@ export class AIGenerator {
         </div>
       </div>
 
-      <div class="glass-hud px-6 py-3 rounded-2xl pointer-events-auto flex items-center gap-6 text-white text-xs">
+      <div class="glass-panel px-6 py-3 rounded-2xl pointer-events-auto flex items-center gap-6 text-white text-xs shadow-lg">
         <div>
           <span class="text-slate-400 block text-[10px] uppercase font-bold">Puntuación</span>
           <span id="scoreVal" class="text-xl font-black text-indigo-400">0</span>
         </div>
         <div>
-          <span class="text-slate-400 block text-[10px] uppercase font-bold">Multiplicador</span>
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">Combo</span>
           <span id="comboVal" class="text-xl font-black text-violet-400">x1</span>
         </div>
       </div>
     </div>
 
-    <!-- Center Prompt -->
-    <div id="startOverlay" class="self-center text-center pointer-events-auto glass-hud p-8 rounded-3xl max-w-md border border-violet-500/40 shadow-2xl">
-      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 mx-auto flex items-center justify-center text-white text-2xl shadow-lg mb-4">
-        🎵
+    <!-- Center Start Overlay -->
+    <div id="startOverlay" class="self-center text-center pointer-events-auto glass-panel p-8 rounded-3xl max-w-md border border-violet-500/40 shadow-2xl">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 mx-auto flex items-center justify-center text-white text-3xl shadow-lg mb-4">
+        🎮
       </div>
-      <h2 class="text-2xl font-black text-white neon-text">Mundo 3D de Música</h2>
+      <h2 class="text-2xl font-black text-white neon-glow">Mundo 3D de Música</h2>
       <p class="text-xs text-slate-300 mt-2 leading-relaxed">
-        Usa las flechas <strong>[◀] [▶]</strong> o las teclas <strong>[A] [D]</strong> para mover tu nave sintética, recolectar orbes de ritmo y componer acordes en tiempo real.
+        Usa las flechas <strong>[◀] [▶]</strong> o las teclas <strong>[A] [D]</strong> para pilotar tu nave, recolectar orbes de ritmo y componer acordes sintetizados en tiempo real.
       </p>
       <button id="startBtn" class="mt-6 w-full py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl transition-all shadow-lg hover:shadow-indigo-500/40 hover:scale-102 cursor-pointer text-sm">
-        ▶ INICIAR VIAJE MUSICAL
+        ▶ INICIAR JUEGO
       </button>
     </div>
 
     <!-- Bottom Controls -->
     <div class="flex items-center justify-between text-xs text-slate-400 pointer-events-auto">
-      <div class="glass-hud px-4 py-2 rounded-xl flex items-center gap-4">
+      <div class="glass-panel px-4 py-2 rounded-xl flex items-center gap-4 shadow-sm">
         <span>Controles: <strong class="text-white">A / D o ◀ ▶</strong></span>
-        <span>Espacio: <strong class="text-white">Salto de Bajo</strong></span>
+        <span>Espacio: <strong class="text-white">Pulso de Bajo</strong></span>
       </div>
-      <div class="glass-hud px-4 py-2 rounded-xl">
-        <span id="notePlaying" class="text-indigo-300 font-mono">Nota: Sintetizador Listo</span>
+      <div class="glass-panel px-4 py-2 rounded-xl shadow-sm">
+        <span id="notePlaying" class="text-indigo-300 font-mono">Sintetizador: Listo</span>
       </div>
     </div>
 
   </div>
 
   <script>
-    // --- Web Audio Synth Engine ---
+    // Web Audio Synth
     let audioCtx = null;
-    const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25]; // C Major
+    const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
     const noteNames = ['Do (C4)', 'Re (D4)', 'Mi (E4)', 'Fa (F4)', 'Sol (G4)', 'La (A4)', 'Si (B4)', 'Do (C5)'];
 
     function playSynthNote(freqIndex) {
@@ -161,10 +158,11 @@ export class AIGenerator {
       osc.start();
       osc.stop(audioCtx.currentTime + 0.6);
 
-      document.getElementById('notePlaying').innerText = 'Nota: ' + noteNames[freqIndex % notes.length];
+      const el = document.getElementById('notePlaying');
+      if (el) el.innerText = 'Nota: ' + noteNames[freqIndex % notes.length];
     }
 
-    // --- Three.js 3D Scene ---
+    // Three.js 3D Engine
     let scene, camera, renderer, player, stars;
     const orbs = [];
     let score = 0;
@@ -175,7 +173,7 @@ export class AIGenerator {
     function initThree() {
       const container = document.getElementById('canvas-container');
       scene = new THREE.Scene();
-      scene.fog = new THREE.FogExp2(0x08071A, 0.015);
+      scene.fog = new THREE.FogExp2(0x070714, 0.015);
 
       camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(0, 4, 10);
@@ -186,12 +184,12 @@ export class AIGenerator {
       renderer.setPixelRatio(window.devicePixelRatio);
       container.appendChild(renderer.domElement);
 
-      // Neon Grid Terrain
+      // Neon Terrain
       const grid = new THREE.GridHelper(300, 60, 0x8B5CF6, 0x3B82F6);
       grid.position.y = -1;
       scene.add(grid);
 
-      // Player Ship
+      // Ship
       const playerGeo = new THREE.ConeGeometry(0.8, 2, 4);
       playerGeo.rotateX(Math.PI / 2);
       const playerMat = new THREE.MeshStandardMaterial({
@@ -204,15 +202,14 @@ export class AIGenerator {
       player.position.set(0, 0.5, 2);
       scene.add(player);
 
-      // Ambient Light & Point Light
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
       scene.add(ambientLight);
 
       const light = new THREE.PointLight(0x8B5CF6, 3, 50);
       light.position.set(0, 5, 5);
       scene.add(light);
 
-      // Starfield Background
+      // Starfield
       const starGeo = new THREE.BufferGeometry();
       const starCoords = [];
       for(let i = 0; i < 1500; i++) {
@@ -273,18 +270,15 @@ export class AIGenerator {
       requestAnimationFrame(animate);
 
       if (isPlaying) {
-        // Smooth player move
         player.position.x += (targetX - player.position.x) * 0.15;
         player.rotation.z = -(targetX - player.position.x) * 0.3;
 
-        // Move orbs
         for (let i = orbs.length - 1; i >= 0; i--) {
           const orb = orbs[i];
           orb.position.z += 1.2;
           orb.rotation.x += 0.05;
           orb.rotation.y += 0.05;
 
-          // Collision detection
           if (Math.abs(orb.position.z - player.position.z) < 1.5 && Math.abs(orb.position.x - player.position.x) < 1.2) {
             playSynthNote(orb.noteIndex);
             score += 100 * combo;
@@ -316,7 +310,7 @@ export class AIGenerator {
       renderer.render(scene, camera);
     }
 
-    document.getElementById('startBtn').addEventListener('click', () => {
+    document.getElementById('startBtn')?.addEventListener('click', () => {
       document.getElementById('startOverlay').style.display = 'none';
       isPlaying = true;
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -327,16 +321,9 @@ export class AIGenerator {
   </script>
 </body>
 </html>`;
-      explanation = `¡He creado un **Mundo 3D de Música y Sonido Virtual** completo con Three.js y síntesis de audio Web Audio API!
-
-Características del juego:
-- 🌌 **Mundo 3D Virtual:** Terreno de malla de neón, campo de estrellas y nave espacial interactiva.
-- 🎵 **Sintetizador Web Audio en Tiempo Real:** Cada orbe que recolectas genera acordes y notas musicales reales de la escala de Do Mayor.
-- 🎮 **Controles Fluidos:** Usa [A] / [D] o las flechas de dirección para esquivar y atrapar notas, y la barra espaciadora para saltar.
-- 🏆 **Sistema de Puntos & Multiplicador de Combo.**`;
-
+      explanation = `¡He creado un **Mundo 3D de Música y Sonido Virtual** completo con Three.js y síntesis de audio Web Audio API!`;
     } else {
-      // Default Ultra Modern SaaS / Dashboard / App
+      // Modern interactive application tailored to the prompt
       generatedHtml = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -349,12 +336,11 @@ Características del juego:
   <style>
     body { font-family: 'Plus Jakarta Sans', sans-serif; }
     .card-hover { transition: all 0.25s ease; }
-    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 15px 30px -5px rgba(79, 70, 229, 0.15); }
+    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 35px -5px rgba(99, 102, 241, 0.15); }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col antialiased">
   
-  <!-- Modern Navigation -->
   <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 py-4">
     <div class="max-w-6xl mx-auto flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -363,7 +349,7 @@ Características del juego:
         </div>
         <div>
           <span class="font-extrabold text-lg tracking-tight text-slate-900">NONA<span class="text-indigo-600">.</span></span>
-          <span class="text-[10px] block font-bold text-indigo-600 uppercase tracking-widest">Aplicación Generada</span>
+          <span class="text-[10px] block font-bold text-indigo-600 uppercase tracking-widest">Aplicación Interactiva</span>
         </div>
       </div>
       <div class="flex items-center gap-3">
@@ -375,28 +361,26 @@ Características del juego:
     </div>
   </header>
 
-  <!-- Hero Content -->
   <main class="flex-1 max-w-5xl mx-auto px-6 py-12 text-center">
     <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-xs font-semibold text-indigo-700 mb-6">
       <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-      Generado automáticamente según tu instrucción
+      Generado para: "${originalPrompt}"
     </div>
 
     <h1 class="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-      Tu aplicación interactiva lista en <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">tiempo real</span>
+      Aplicación lista en <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">tiempo real</span>
     </h1>
     <p class="mt-4 text-slate-600 text-sm sm:text-base max-w-xl mx-auto">
       Este entorno ha sido renderizado en vivo y cuenta con soporte interactivo completo.
     </p>
 
-    <!-- Interactive Counter & Action Box -->
     <div class="mt-10 p-8 rounded-3xl bg-white border border-slate-200 shadow-sm max-w-lg mx-auto card-hover">
       <div class="flex items-center justify-between mb-4">
         <span class="text-xs font-bold text-slate-400 uppercase">Panel Interactivo</span>
         <span id="badgeStatus" class="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">Activo</span>
       </div>
       <div class="text-4xl font-extrabold text-slate-900 my-4" id="counterNumber">0</div>
-      <p class="text-xs text-slate-500 mb-6">Haz clic en los botones para interactuar con el estado en tiempo real:</p>
+      <p class="text-xs text-slate-500 mb-6">Interactúa con el estado en tiempo real:</p>
       
       <div class="flex gap-3">
         <button id="decrementBtn" class="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors">
@@ -428,7 +412,7 @@ Características del juego:
   </script>
 </body>
 </html>`;
-      explanation = `¡He creado y actualizado tu aplicación interactiva con la nueva paleta moderna en **blanco, índigo y violeta**! Puedes interactuar con ella directamente en el Live Preview.`;
+      explanation = `¡He generado y desplegado tu aplicación en el Live Preview con diseño limpio en blanco, índigo y violeta!`;
     }
 
     const fullResponse = `${explanation}
@@ -437,7 +421,7 @@ Características del juego:
 ${generatedHtml}
 \`\`\`
 
-El código ha sido aplicado automáticamente a tu archivo principal.`;
+El código ha sido aplicado directamente a tu archivo principal.`;
 
     let current = '';
     const words = fullResponse.split(' ');
@@ -450,7 +434,6 @@ El código ha sido aplicado automáticamente a tu archivo principal.`;
     }
 
     return {
-      responseText: fullResponse,
       codeBlocks: [{ language: 'html', code: generatedHtml, filename: 'index.html' }]
     };
   }

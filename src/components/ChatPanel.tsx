@@ -17,6 +17,8 @@ interface ChatPanelProps {
   onApplyCodeToFile: (filename: string, code: string) => void;
   onDeductCredit: (amount: number) => boolean;
   onGenerationStart?: () => void;
+  pendingPrompt?: string | null;
+  onClearPendingPrompt?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -24,6 +26,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onApplyCodeToFile,
   onDeductCredit,
   onGenerationStart,
+  pendingPrompt,
+  onClearPendingPrompt,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -46,6 +50,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages, isGenerating]);
+
+  // If a prompt was sent from the Hero Chat view
+  useEffect(() => {
+    if (pendingPrompt && pendingPrompt.trim()) {
+      handleSendMessage(pendingPrompt);
+      if (onClearPendingPrompt) onClearPendingPrompt();
+    }
+  }, [pendingPrompt]);
 
   const quickPrompts = [
     '🎮 Crear juego 3D de música en un mundo virtual',

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { Header } from './components/Header';
@@ -13,26 +13,18 @@ import type { FileItem, ProjectTemplate, UserCredits } from './types';
 import { STARTER_TEMPLATES } from './services/templates';
 
 export function App() {
-  // Navigation & View Mode: 'chat' | 'split' | 'preview' | 'editor'
   const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('chat');
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 
   // Project state
   const [projectName, setProjectName] = useState('NONA App');
   const [files, setFiles] = useState<FileItem[]>(() => {
-    const saved = localStorage.getItem('nona_files');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
     return STARTER_TEMPLATES[0].files;
   });
   const [activeFileId, setActiveFileId] = useState<string>(() => files[0]?.id || '1');
 
   // Credits state
   const [credits, setCredits] = useState<UserCredits>(() => {
-    const saved = localStorage.getItem('nona_credits');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
     return {
       balance: 50,
       maxFree: 50,
@@ -44,19 +36,7 @@ export function App() {
   // Modals state
   const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-
-  // Ollama endpoint
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
-
-  // Save files to localStorage
-  useEffect(() => {
-    localStorage.setItem('nona_files', JSON.stringify(files));
-  }, [files]);
-
-  // Save credits to localStorage
-  useEffect(() => {
-    localStorage.setItem('nona_credits', JSON.stringify(credits));
-  }, [credits]);
 
   // Handlers for Files
   const handleSelectFile = (fileId: string) => {
@@ -160,18 +140,9 @@ export function App() {
     saveAs(blob, `${projectName.toLowerCase().replace(/\s+/g, '-')}-nona.zip`);
   };
 
-  // Handler when starting generation from Hero Chat
   const handleStartFromHero = (prompt: string) => {
+    setPendingPrompt(prompt);
     setViewMode('split');
-    // Trigger generation in chat panel
-    setTimeout(() => {
-      const chatInput = document.querySelector('textarea') as HTMLTextAreaElement;
-      if (chatInput) {
-        chatInput.value = prompt;
-        const sendBtn = chatInput.parentElement?.querySelector('button') as HTMLButtonElement;
-        sendBtn?.click();
-      }
-    }, 100);
   };
 
   return (
@@ -194,7 +165,7 @@ export function App() {
       <div className="flex-1 flex overflow-hidden">
         
         {viewMode === 'chat' ? (
-          /* Mode 1: Central Hero Chat View (Chat-first flow) */
+          /* Mode 1: Central Hero Chat View */
           <HeroChatView
             onStartGeneration={handleStartFromHero}
             creditsBalance={credits.balance}
@@ -238,6 +209,8 @@ export function App() {
               files={files}
               onApplyCodeToFile={handleApplyCodeToFile}
               onDeductCredit={handleDeductCredit}
+              pendingPrompt={pendingPrompt}
+              onClearPendingPrompt={() => setPendingPrompt(null)}
             />
 
           </div>
