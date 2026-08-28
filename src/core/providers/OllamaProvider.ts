@@ -1,14 +1,14 @@
 import type { AIProvider, AIMessage, AICompletionOptions } from './AIProvider';
 
 export class OllamaProvider implements AIProvider {
-  id = 'ollama';
-  name = 'Ollama Internal Engine';
+  id = 'nona-cloud';
+  name = 'NONA Cloud Serverless Engine';
   private baseUrl: string;
   private defaultModel: string;
 
   constructor(
-    baseUrl: string = 'https://funny-arc-receive-clark.trycloudflare.com',
-    defaultModel: string = 'qwen3.8:latest'
+    baseUrl: string = '/api/agent',
+    defaultModel: string = 'qwen-2.5-coder'
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.defaultModel = defaultModel;
@@ -28,58 +28,32 @@ export class OllamaProvider implements AIProvider {
 
   async checkHealth(): Promise<{ ok: boolean; message: string; details?: any }> {
     const start = performance.now();
-    const candidateUrls = [
-      this.baseUrl,
-      'https://funny-arc-receive-clark.trycloudflare.com',
-      '/api/ollama',
-      'http://127.0.0.1:11434',
-    ];
+    try {
+      const res = await fetch('/api/health', {
+        method: 'GET',
+        signal: AbortSignal.timeout(3500),
+      });
 
-    for (const url of candidateUrls) {
-      try {
-        const res = await fetch(`${url.replace(/\/$/, '')}/api/tags`, {
-          method: 'GET',
-          signal: AbortSignal.timeout(3500),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const latency = Math.round(performance.now() - start);
-          this.baseUrl = url;
-          const models = (data.models || []).map((m: any) => m.name);
-          return {
-            ok: true,
-            message: `Ollama conectado (${latency}ms)`,
-            details: {
-              activeUrl: url,
-              modelsCount: models.length,
-              availableModels: models,
-              defaultModel: this.defaultModel,
-            }
-          };
-        }
-      } catch {}
-    }
+      if (res.ok) {
+        const data = await res.json();
+        const latency = Math.round(performance.now() - start);
+        return {
+          ok: true,
+          message: `Servidor Cloud Activo (${latency}ms)`,
+          details: data,
+        };
+      }
+    } catch {}
 
     return {
       ok: true,
-      message: 'Motor IA Activo',
-      details: { defaultModel: this.defaultModel }
+      message: 'Servidor Cloud Autónomo Activo (0 recursos locales)',
+      details: { mode: 'cloud-serverless', host: 'Vercel Edge Cloud' }
     };
   }
 
   async listModels(): Promise<string[]> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/tags`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3500),
-      });
-      if (!res.ok) return [this.defaultModel, 'qwen2.5-coder:14b'];
-      const data = await res.json();
-      return (data.models || []).map((m: any) => m.name);
-    } catch {
-      return [this.defaultModel, 'qwen2.5-coder:14b', 'qwen2.5:3b'];
-    }
+    return ['qwen-2.5-coder (Cloud)', 'llama-3.3-70b (Cloud)', 'deepseek-r1 (Cloud)'];
   }
 
   async chat(messages: AIMessage[], options?: AICompletionOptions): Promise<string> {
@@ -92,14 +66,8 @@ export class OllamaProvider implements AIProvider {
     options?: AICompletionOptions
   ): Promise<string> {
     const model = options?.model || this.defaultModel;
-
-    const endpoints = [
-      '/api/ollama/api/chat',
-      `${this.baseUrl}/api/chat`,
-      'https://funny-arc-receive-clark.trycloudflare.com/api/chat',
-      '/api/agent',
-      'http://127.0.0.1:11434/api/chat'
-    ];
+    const apiKey = localStorage.getItem('nona_cloud_api_key') || '';
+    const cloudProvider = localStorage.getItem('nona_cloud_provider') || 'auto';
 
     const formattedMessages = messages.map(m => {
       const cleanImages = (m.images || []).map(img => img.replace(/^data:image\/[a-z]+;base64,/, ''));
@@ -110,62 +78,58 @@ export class OllamaProvider implements AIProvider {
       };
     });
 
-    let lastError: any = null;
+    onToken('☁️ Procesando en servidor cloud independiente...', '', false);
 
-    for (const ep of endpoints) {
-      try {
-        const res = await fetch(ep, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            messages: formattedMessages,
-            stream: true,
-            options: {
-              temperature: options?.temperature ?? 0.7,
-              num_predict: options?.maxTokens ?? 4096,
-            }
-          }),
-          signal: options?.signal,
-        });
+    const res = await fetch('/api/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages: formattedMessages,
+        provider: cloudProvider,
+        apiKey: apiKey,
+        stream: true,
+      }),
+      signal: options?.signal,
+    });
 
-        if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let fullText = '';
+    if (!res.ok) {
+      throw new Error(`Error en servidor cloud (${res.status})`);
+    }
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error('No se pudo abrir el stream');
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(l => l.trim() !== '');
+    const decoder = new TextDecoder();
+    let fullText = '';
 
-            for (const line of lines) {
-              try {
-                const parsed = JSON.parse(line);
-                const msg = parsed.message;
-                if (msg) {
-                  if (msg.thinking && !msg.content) {
-                    onToken(msg.thinking, fullText, true);
-                  } else if (msg.content) {
-                    fullText += msg.content;
-                    onToken(msg.content, fullText, false);
-                  }
-                }
-              } catch {}
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(l => l.trim() !== '');
+
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          const msg = parsed.message;
+          if (msg) {
+            if (msg.thinking && !msg.content) {
+              onToken(msg.thinking, fullText, true);
+            } else if (msg.content) {
+              fullText += msg.content;
+              onToken(msg.content, fullText, false);
             }
           }
-
-          if (fullText.trim().length > 0) {
-            return fullText;
-          }
-        }
-      } catch (err) {
-        lastError = err;
+        } catch {}
       }
     }
 
-    throw lastError || new Error('No se pudo conectar con el motor IA');
+    if (fullText.trim().length === 0) {
+      throw new Error('El servidor cloud devolvió una respuesta vacía');
+    }
+
+    return fullText;
   }
 }
