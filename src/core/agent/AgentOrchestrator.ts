@@ -35,26 +35,29 @@ export class AgentOrchestrator {
     // 1. Gather Project Context
     const existingFileNames = Object.keys(project.files);
     const mainFile = project.files['index.html'] || project.files['src/App.tsx'] || Object.values(project.files)[0];
-    const currentCode = mainFile?.content || '';
+    let currentCode = mainFile?.content || '';
+
+    // If code is overly large (> 12000 chars), trim comments or compress slightly to prevent TPM limits
+    if (currentCode.length > 14000) {
+      currentCode = currentCode.slice(0, 14000) + '\n<!-- [rest of codebase] -->';
+    }
 
     const hasImages = (options?.images || []).length > 0;
     const hasLinks = (options?.links || []).length > 0;
 
     let instructionAugmented = userInstruction;
     if (hasLinks) {
-      instructionAugmented += `\nENLACES Y REFERENCIAS DE INSPIRACIÓN / DISEÑO: ${options!.links!.join(', ')}`;
+      instructionAugmented += `\nENLACES Y REFERENCIAS: ${options!.links!.join(', ')}`;
     }
     if (hasImages) {
-      instructionAugmented += `\n[El usuario ha adjuntado ${options!.images!.length} captura(s) o imagen(es) de referencia. Analízalas visualmente, detecta los componentes, colores y errores que deban corregirse en el código]`;
+      instructionAugmented += `\n[El usuario ha adjuntado ${options!.images!.length} imagen(es) de referencia. Analiza los componentes visualmente y replica/corrige el diseño]`;
     }
 
     const systemPrompt = `Eres NONA AGENT, una fábrica de software e inteligencia artificial de clase mundial.
-REGLAS OBLIGATORIAS:
-1. Analiza con máxima fidelidad lo que pide el usuario (juegos interactivos con Three.js, e-commerce, apps de reservas, dashboards, etc.).
-2. Si el usuario adjunta capturas de pantalla, analiza visualmente el diseño y corrige o replica la estructura fielmente.
-3. Devuelve TODO el código HTML/CSS/JS autocontenido en un ÚNICO bloque \`\`\`html con <!DOCTYPE html> con Tailwind CSS (https://cdn.tailwindcss.com) y Lucide Icons (https://unpkg.com/lucide@latest).
-4. NUNCA copies textos de depuración en los títulos. Pon títulos profesionales.
-5. El código debe ser 100% interactivo y ejecutable de inmediato.`;
+REGLAS:
+1. Crea aplicaciones web completas, interactivas y profesionales con Tailwind CSS y Lucide Icons.
+2. Devuelve TODO el código HTML/CSS/JS autocontenido en un ÚNICO bloque \`\`\`html con <!DOCTYPE html>.
+3. El código debe ser 100% interactivo y ejecutable de inmediato sin placeholders ni funciones vacías.`;
 
     const userPrompt = existingFileNames.length > 0 && currentCode.length > 30 && !currentCode.includes('Nuevo Archivo')
       ? `MODIFICACIÓN SOBRE CÓDIGO EXISTENTE:
@@ -65,9 +68,9 @@ ${currentCode}
 INSTRUCCIÓN DEL USUARIO:
 ${instructionAugmented}
 
-Genera la versión completa actualizada del código con los cambios integrados en un bloque \`\`\`html.`
+Genera la versión completa actualizada del código con los cambios solicitados en un único bloque \`\`\`html.`
       : `CREACIÓN DESDE CERO:
-Desarrolla la siguiente aplicación web completa, profesional, interactiva y con diseño moderno: "${instructionAugmented}". Devuelve todo el código en un único bloque \`\`\`html listo para renderizar.`;
+Desarrolla la siguiente aplicación web completa, profesional e interactiva: "${instructionAugmented}". Devuelve todo el código en un único bloque \`\`\`html listo para renderizar.`;
 
     agentEvents.emit('agent.thinking', hasImages ? 'Analizando imagen multimodal y programando...' : 'Razonando y programando aplicación...');
 
@@ -100,32 +103,38 @@ Desarrolla la siguiente aplicación web completa, profesional, interactiva y con
     while ((match = codeBlockRegex.exec(fullText)) !== null) {
       blocksFound++;
       const lang = match[1] || 'html';
-      const customFilename = match[2];
+      const filename = match[2];
       const code = match[3].trim();
 
-      const filename = customFilename || (lang === 'sql' ? 'schema.sql' : lang === 'json' ? 'package.json' : 'index.html');
-      
+      const targetPath = filename || (
+        lang === 'sql' ? 'schema.sql' : 
+        lang === 'json' ? 'package.json' : 
+        'index.html'
+      );
+
       const toolCall: ToolCall = {
         id: 'tc_' + Date.now() + '_' + blocksFound,
         name: 'project_write_file',
-        arguments: { path: filename, content: code }
+        arguments: { path: targetPath, content: code }
       };
 
       await this.toolRegistry.executeTool(toolCall, project);
     }
 
+    // Fallback: If no codeblocks found but fullText is valid HTML
     if (blocksFound === 0 && (fullText.includes('<!DOCTYPE html>') || fullText.includes('<html'))) {
-      const start = fullText.indexOf('<!DOCTYPE html>') !== -1 ? fullText.indexOf('<!DOCTYPE html>') : fullText.indexOf('<html');
-      const end = fullText.lastIndexOf('</html>') !== -1 ? fullText.lastIndexOf('</html>') + 7 : fullText.length;
-      const code = fullText.slice(start, end).trim();
+      const htmlStart = fullText.indexOf('<!DOCTYPE html>') === -1 ? fullText.indexOf('<html') : fullText.indexOf('<!DOCTYPE html>');
+      const htmlEnd = fullText.lastIndexOf('</html>') === -1 ? fullText.length : fullText.lastIndexOf('</html>') + 7;
+      const cleanHtml = fullText.slice(htmlStart, htmlEnd).trim();
 
       await this.toolRegistry.executeTool({
         id: 'tc_' + Date.now(),
         name: 'project_write_file',
-        arguments: { path: 'index.html', content: code }
+        arguments: { path: 'index.html', content: cleanHtml }
       }, project);
     }
 
+    // 3. Build & Validation Step
     const buildResult = await this.toolRegistry.executeTool({
       id: 'tc_build_' + Date.now(),
       name: 'build_project',

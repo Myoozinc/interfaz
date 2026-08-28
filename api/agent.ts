@@ -25,16 +25,16 @@ export default async function handler(req: Request) {
 
     if (!token) {
       return new Response(JSON.stringify({ 
-        error: '⚠️ Claves no configuradas. Agrega GROQ_API_KEY y OPENROUTER_API_KEY en Vercel o en Ajustes (⚙️).' 
+        error: '⚠️ Claves no configuradas en Vercel o en Ajustes (⚙️).' 
       }), { status: 401 });
     }
 
     const isGroq = token.startsWith('gsk_') && !hasImages;
-    const endpoint = isGroq 
+    let endpoint = isGroq 
       ? 'https://api.groq.com/openai/v1/chat/completions'
       : 'https://openrouter.ai/api/v1/chat/completions';
 
-    const targetModel = isGroq
+    let targetModel = isGroq
       ? 'qwen/qwen3.8-27b'
       : (hasImages ? 'google/gemini-2.0-flash-001' : 'qwen/qwen-2.5-coder-32b-instruct');
 
@@ -54,7 +54,7 @@ export default async function handler(req: Request) {
       return { role: m.role, content: m.content };
     });
 
-    const aiResponse = await fetch(endpoint, {
+    let aiResponse = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -70,6 +70,27 @@ export default async function handler(req: Request) {
         max_tokens: 4096,
       }),
     });
+
+    // Auto-fallback: If Groq hit its 8000 TPM limit or rate limit, automatically fallback to OpenRouter!
+    if (!aiResponse.ok && isGroq && process.env.OPENROUTER_API_KEY) {
+      console.warn('Groq TPM rate limit hit, automatically switching to OpenRouter Qwen 2.5 Coder 32B...');
+      aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
+          'X-Title': 'NONA AI Software Factory',
+        },
+        body: JSON.stringify({
+          model: 'qwen/qwen-2.5-coder-32b-instruct',
+          messages: formattedMessages,
+          stream: true,
+          temperature: 0.7,
+          max_tokens: 4096,
+        }),
+      });
+    }
 
     if (!aiResponse.ok) {
       const errText = await aiResponse.text();
