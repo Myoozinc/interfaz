@@ -7,12 +7,11 @@ import {
   Zap, 
   RefreshCw,
   Check,
-  GitCommit
+  BrainCircuit
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { ChatMessage, FileItem } from '../types';
 import { aiEngine } from '../services/aiGenerator';
-import { SmartDiffEngine } from '../services/diffEngine';
 
 interface ChatPanelProps {
   files: FileItem[];
@@ -37,6 +36,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const [inputPrompt, setInputPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [thinkingText, setThinkingText] = useState('');
   const [appliedSnippets, setAppliedSnippets] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -47,7 +47,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isGenerating]);
+  }, [messages, isGenerating, thinkingText]);
 
   // Handle pending prompt from Hero Chat view
   useEffect(() => {
@@ -58,10 +58,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   }, [pendingPrompt]);
 
   const quickPrompts = [
-    '🎮 Añade sistema de pausa [P] y sonido',
-    '🎨 Cambia los colores a azul eléctrico y cian',
-    '📊 Agrega un marcador de mejores puntuaciones',
-    '⚡ Haz que la nave se mueva más rápido',
+    '🎮 Crear un juego 3D con Three.js y sonidos',
+    '📊 Crear un dashboard de finanzas moderno',
+    '🎨 Cambiar diseño a modo oscuro con acentos violetas',
+    '⚡ Añadir sistema de puntuación y botón de reinicio',
   ];
 
   const handleSendMessage = async (customPrompt?: string) => {
@@ -92,20 +92,31 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     setMessages(prev => [...prev, userMessage, assistantMessage]);
     setInputPrompt('');
     setIsGenerating(true);
+    setThinkingText('');
 
     abortControllerRef.current = new AbortController();
+
+    // Get current HTML code to send as context for surgical edits
+    const currentHtmlFile = files.find(f => f.name.endsWith('.html')) || files[0];
+    const currentCode = currentHtmlFile?.content || '';
 
     try {
       const { codeBlocks } = await aiEngine.generateAppCode(
         promptToSend,
-        (_chunk, fullText) => {
-          setMessages(prev =>
-            prev.map(msg =>
-              msg.id === assistantPlaceholderId
-                ? { ...msg, content: fullText }
-                : msg
-            )
-          );
+        currentCode,
+        (chunk, fullText, isThinking) => {
+          if (isThinking) {
+            setThinkingText(chunk);
+          } else {
+            setThinkingText('');
+            setMessages(prev =>
+              prev.map(msg =>
+                msg.id === assistantPlaceholderId
+                  ? { ...msg, content: fullText }
+                  : msg
+              )
+            );
+          }
         },
         abortControllerRef.current.signal
       );
@@ -114,20 +125,29 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         const primaryBlock = codeBlocks[0];
         const targetFilename = primaryBlock.filename || 'index.html';
 
-        // Apply targeted surgical patch using SmartDiffEngine
-        const diff = SmartDiffEngine.applySmartPatch(
-          files,
-          promptToSend,
-          primaryBlock.code,
-          targetFilename
+        // Update files directly with generated code
+        const updatedFiles = files.map(f =>
+          f.name.toLowerCase() === targetFilename.toLowerCase()
+            ? { ...f, content: primaryBlock.code, isModified: true }
+            : f
         );
 
-        onUpdateFiles(diff.updatedFiles);
+        if (!updatedFiles.some(f => f.name.toLowerCase() === targetFilename.toLowerCase())) {
+          updatedFiles.push({
+            id: Date.now().toString(),
+            name: targetFilename,
+            language: 'html',
+            content: primaryBlock.code,
+            isModified: true,
+          });
+        }
+
+        onUpdateFiles(updatedFiles);
 
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, codeSnippets: codeBlocks, diffSummary: diff.diffSummary }
+              ? { ...msg, codeSnippets: codeBlocks }
               : msg
           )
         );
@@ -143,18 +163,29 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        console.error('Error generating:', err);
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === assistantPlaceholderId
+              ? { ...msg, content: `⚠️ Error de conexión: ${err.message}. Asegúrate de que Ollama esté ejecutándose en tu Mac.` }
+              : msg
+          )
+        );
       }
     } finally {
       setIsGenerating(false);
+      setThinkingText('');
       abortControllerRef.current = null;
     }
   };
 
   const handleManualApplySnippet = (snippetKey: string, code: string, suggestedFilename?: string) => {
     const target = suggestedFilename || 'index.html';
-    const diff = SmartDiffEngine.applySmartPatch(files, 'manual apply', code, target);
-    onUpdateFiles(diff.updatedFiles);
+    const updatedFiles = files.map(f =>
+      f.name.toLowerCase() === target.toLowerCase()
+        ? { ...f, content: code, isModified: true }
+        : f
+    );
+    onUpdateFiles(updatedFiles);
     setAppliedSnippets(prev => ({ ...prev, [snippetKey]: true }));
     setTimeout(() => {
       setAppliedSnippets(prev => ({ ...prev, [snippetKey]: false }));
@@ -175,7 +206,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
         <span className="text-[10px] flex items-center gap-1.5 text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-          Memoria Activa
+          Generador Real Activo
         </span>
       </div>
 
@@ -208,16 +239,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 }`}
               >
                 <div className="whitespace-pre-wrap font-sans text-xs">
-                  {msg.content}
+                  {msg.content || (isGenerating && msg.id === messages[messages.length - 1]?.id ? (
+                    <div className="flex items-center gap-2 text-indigo-600 font-semibold text-[11px] animate-pulse">
+                      <BrainCircuit className="w-4 h-4 animate-spin" />
+                      <span>{thinkingText || 'Generando código en tiempo real con Qwen...'}</span>
+                    </div>
+                  ) : '')}
                 </div>
-
-                {/* Diff summary badge if targeted modification */}
-                {msg.diffSummary && (
-                  <div className="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[10px] text-indigo-700 font-semibold">
-                    <GitCommit className="w-3 h-3 text-indigo-600" />
-                    <span>{msg.diffSummary}</span>
-                  </div>
-                )}
 
                 {/* Code snippets action block */}
                 {msg.codeSnippets && msg.codeSnippets.length > 0 && (
@@ -243,12 +271,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                               ) : (
                                 <>
                                   <ArrowDownToLine className="w-3 h-3" />
-                                  <span>Re-aplicar</span>
+                                  <span>Re-aplicar al Editor</span>
                                 </>
                               )}
                             </button>
                           </div>
-                          <pre className="text-[10px] font-mono text-slate-600 max-h-20 overflow-y-auto bg-white p-1.5 rounded-lg border border-slate-200">
+                          <pre className="text-[10px] font-mono text-slate-600 max-h-24 overflow-y-auto bg-white p-1.5 rounded-lg border border-slate-200">
                             {snippet.code.slice(0, 200)}...
                           </pre>
                         </div>
@@ -288,7 +316,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 handleSendMessage();
               }
             }}
-            placeholder="Pídele a NONA modificar líneas o añadir funciones..."
+            placeholder="Pídele a NONA crear o modificar cualquier app, juego o componente..."
             rows={2}
             className="w-full resize-none bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl p-2.5 pr-10 text-xs text-slate-900 outline-none transition-all placeholder-slate-400"
           />
@@ -302,7 +330,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400 px-1">
-          <span>Edición quirúrgica inteligente activa</span>
+          <span>Enter para enviar • Modificación continua activa</span>
           <span className="flex items-center gap-0.5 text-indigo-600 font-semibold">
             <Zap className="w-2.5 h-2.5" /> 1 Crédito
           </span>

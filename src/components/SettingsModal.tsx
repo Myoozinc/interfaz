@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Settings, 
@@ -7,9 +7,11 @@ import {
   RefreshCw, 
   CheckCircle2, 
   AlertCircle, 
-  ExternalLink
+  ExternalLink,
+  Zap
 } from 'lucide-react';
 import { aiEngine } from '../services/aiGenerator';
+import type { OllamaModelInfo } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -26,6 +28,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [availableModels, setAvailableModels] = useState<OllamaModelInfo[]>([]);
+  const [selectedModel, setSelectedModel] = useState(aiEngine.getModel());
+
+  useEffect(() => {
+    if (isOpen) {
+      aiEngine.getAvailableModels().then(setAvailableModels);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -35,7 +45,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     aiEngine.setOllamaUrl(ollamaUrl);
     const res = await aiEngine.checkOllamaStatus();
     setTestResult(res);
+    aiEngine.getAvailableModels().then(setAvailableModels);
     setTesting(false);
+  };
+
+  const handleModelChange = (model: string) => {
+    setSelectedModel(model);
+    aiEngine.setModel(model);
+    localStorage.setItem('nona_selected_model', model);
   };
 
   return (
@@ -49,7 +66,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Settings className="w-4 h-4" />
             </div>
             <h2 className="text-sm font-extrabold text-slate-900">
-              Ajustes de Plataforma & Servidor IA
+              Ajustes del Motor IA
             </h2>
           </div>
           <button
@@ -60,30 +77,67 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
           
+          {/* Model Selector */}
+          <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-indigo-600" />
+                Modelo IA Activo
+              </span>
+              <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">
+                Local en tu Mac
+              </span>
+            </div>
+
+            <p className="text-[11px] text-indigo-900/70">
+              Elige el modelo instalado en Ollama para generar el código:
+            </p>
+
+            <select
+              value={selectedModel}
+              onChange={(e) => handleModelChange(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-semibold text-slate-900 outline-none cursor-pointer"
+            >
+              {availableModels.length > 0 ? (
+                availableModels.map(m => (
+                  <option key={m.name} value={m.name}>
+                    {m.name} ({Math.round(m.size / (1024 * 1024 * 1024))} GB) {m.name.includes('coder') ? '⚡ Ultra Rápido' : '🧠 Razonamiento Profundo'}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="qwen3.8:latest">qwen3.8:latest (27B - Razonamiento Profundo)</option>
+                  <option value="qwen2.5-coder:14b">qwen2.5-coder:14b (14B - Código Ultra Rápido)</option>
+                  <option value="qwen2.5:3b">qwen2.5:3b (3B - Instantáneo)</option>
+                </>
+              )}
+            </select>
+          </div>
+
           {/* AI Server Endpoint */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-900 flex items-center gap-1.5">
                 <Cpu className="w-4 h-4 text-indigo-600" />
-                Endpoint del Motor IA (Cloud / Túnel)
+                Endpoint del Motor IA
               </span>
-              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-100">
-                Personalizado
+              <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
+                127.0.0.1:11434
               </span>
             </div>
 
             <div>
               <label className="text-[11px] text-slate-500 block mb-1">
-                URL del servidor o túnel HTTPS:
+                URL del endpoint:
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={ollamaUrl}
                   onChange={(e) => setOllamaUrl(e.target.value)}
-                  placeholder="https://tu-tunel.loca.lt o http://127.0.0.1:11434"
+                  placeholder="http://127.0.0.1:11434"
                   className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900"
                 />
                 <button
@@ -100,10 +154,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className={`p-2.5 rounded-xl border flex items-center gap-2 ${
                 testResult.ok 
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-                  : 'bg-indigo-50 border-indigo-200 text-indigo-800'
+                  : 'bg-amber-50 border-amber-200 text-amber-800'
               }`}>
-                {testResult.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-indigo-600 shrink-0" />}
-                <span className="text-[11px] leading-tight">{testResult.message}</span>
+                {testResult.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />}
+                <span className="text-[11px] leading-tight font-medium">{testResult.message}</span>
               </div>
             )}
           </div>
@@ -117,9 +171,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               Repositorio GitHub
             </span>
 
-            <p className="text-[11px] text-slate-600">
-              El proyecto está vinculado al repositorio:
-            </p>
             <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-[11px]">
               <span className="font-mono font-semibold text-slate-900">Myoozinc/interfaz</span>
               <a
@@ -139,7 +190,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               Despliegue Vercel
             </span>
             <p className="text-[11px] text-slate-600">
-              Cada actualización que realizamos se publica automáticamente en Vercel al hacer commit en GitHub.
+              Sincronizado automáticamente con tu cuenta de Vercel.
             </p>
           </div>
 
