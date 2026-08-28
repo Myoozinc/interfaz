@@ -208,7 +208,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         )
       );
 
-      creditLedger.deductCredits(5, `Generación Qwen Cloud: "${promptToSend.slice(0, 30)}..."`);
+      creditLedger.deductCredits(5, `Generación Qwen 3.8: "${promptToSend.slice(0, 30)}..."`);
 
       confetti({
         particleCount: 50,
@@ -249,7 +249,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
         <span className="text-[10px] flex items-center gap-1.5 text-indigo-700 font-bold bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" />
-          Qwen 2.5 Coder 32B Cloud
+          Qwen 3.8 Cloud (Groq LPU)
         </span>
       </div>
 
@@ -268,7 +268,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-3 h-3 text-indigo-600" />
-                    <span className="font-semibold text-indigo-600">Qwen 2.5 Coder 32B</span>
+                    <span className="font-semibold text-indigo-600">Qwen 3.8 Cloud</span>
                   </>
                 )}
                 <span>• {msg.timestamp}</span>
@@ -311,7 +311,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   {msg.content || (isGenerating && msg.id === messages[messages.length - 1]?.id ? (
                     <div className="flex items-center gap-2 text-indigo-600 font-semibold text-[11px] animate-pulse">
                       <BrainCircuit className="w-4 h-4 animate-spin" />
-                      <span>{thinkingText || 'Qwen 2.5 Coder razonando y programando arquitectura...'}</span>
+                      <span>{thinkingText || 'Qwen 3.8 razonando y programando arquitectura...'}</span>
                     </div>
                   ) : '')}
                 </div>
@@ -419,7 +419,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400 px-1">
-          <span>Servidor Cloud Activo (0% uso de tu Mac)</span>
+          <span>Qwen 3.8 Groq LPU Activo (0% Mac)</span>
           <span className="flex items-center gap-0.5 text-indigo-600 font-bold">
             <Zap className="w-2.5 h-2.5" /> 5 Créditos / Run
           </span>
