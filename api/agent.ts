@@ -10,10 +10,13 @@ export default async function handler(req: Request) {
   try {
     const authHeader = req.headers.get('Authorization');
     const { messages, apiKey } = await req.json();
-    const token = apiKey || (authHeader ? authHeader.replace('Bearer ', '') : '') || process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY;
+
+    const token = (apiKey && apiKey.trim()) || (authHeader ? authHeader.replace('Bearer ', '').trim() : '') || process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY;
 
     if (!token) {
-      return new Response(JSON.stringify({ error: 'Falta configurar API KEY de Groq o OpenRouter en los Ajustes' }), { status: 401 });
+      return new Response(JSON.stringify({ 
+        error: '⚠️ Clave no configurada. Abre Ajustes (⚙️) en la esquina superior derecha y pega tu clave de Groq (gsk_...) o añade GROQ_API_KEY en Vercel.' 
+      }), { status: 401 });
     }
 
     const isGroq = token.startsWith('gsk_');
@@ -21,11 +24,12 @@ export default async function handler(req: Request) {
       ? 'https://api.groq.com/openai/v1/chat/completions'
       : 'https://openrouter.ai/api/v1/chat/completions';
 
+    const hasImages = messages.some((m: any) => m.images && m.images.length > 0);
     const targetModel = isGroq
       ? 'qwen/qwen3.8-27b'
-      : 'qwen/qwen-2.5-coder-32b-instruct';
+      : (hasImages ? 'google/gemini-2.0-flash-001' : 'qwen/qwen-2.5-coder-32b-instruct');
 
-    // Format messages
+    // Format messages for OpenAI / OpenRouter / Groq schema
     const formattedMessages = messages.map((m: any) => {
       if (m.images && m.images.length > 0 && !isGroq) {
         const contentParts: any[] = [{ type: 'text', text: m.content }];

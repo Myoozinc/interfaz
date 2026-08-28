@@ -2,13 +2,13 @@ import type { AIProvider, AIMessage, AICompletionOptions } from './AIProvider';
 
 export class OllamaProvider implements AIProvider {
   id = 'nona-cloud';
-  name = 'Qwen 2.5 Coder 32B Cloud Engine';
+  name = 'Qwen 3.8 / Groq Cloud Engine';
   private baseUrl: string;
   private defaultModel: string;
 
   constructor(
     baseUrl: string = '/api/agent',
-    defaultModel: string = 'qwen/qwen-2.5-coder-32b-instruct'
+    defaultModel: string = 'qwen/qwen3.8-27b'
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.defaultModel = defaultModel;
@@ -39,7 +39,7 @@ export class OllamaProvider implements AIProvider {
         const latency = Math.round(performance.now() - start);
         return {
           ok: true,
-          message: `OpenRouter Cloud Activo (${latency}ms)`,
+          message: `Groq LPU Cloud Activo (${latency}ms)`,
           details: data,
         };
       }
@@ -47,16 +47,16 @@ export class OllamaProvider implements AIProvider {
 
     return {
       ok: true,
-      message: 'Qwen 2.5 Coder 32B Cloud Activo',
-      details: { model: 'qwen/qwen-2.5-coder-32b-instruct', host: 'OpenRouter Cloud' }
+      message: 'Qwen 3.8 Cloud Activo',
+      details: { model: 'qwen/qwen3.8-27b', host: 'Groq Cloud' }
     };
   }
 
   async listModels(): Promise<string[]> {
     return [
+      'qwen/qwen3.8-27b (Groq LPUs - Ultra Rápido)',
       'qwen/qwen-2.5-coder-32b-instruct (Cloud)',
       'google/gemini-2.0-flash-001 (Multimodal Vision)',
-      'meta-llama/llama-3.3-70b-instruct (Cloud)',
     ];
   }
 
@@ -81,18 +81,22 @@ export class OllamaProvider implements AIProvider {
       };
     });
 
-    onToken('⚡ Conectando con Qwen 2.5 Coder 32B en OpenRouter Cloud...', '', false);
+    onToken('⚡ Conectando con Qwen 3.8 en Groq Cloud...', '', false);
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (apiKey.trim()) {
+      headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+    }
 
     const res = await fetch('/api/agent', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
         model,
         messages: formattedMessages,
-        apiKey,
+        apiKey: apiKey.trim() || undefined,
         stream: true,
       }),
       signal: options?.signal,
@@ -100,7 +104,7 @@ export class OllamaProvider implements AIProvider {
 
     if (!res.ok) {
       const errJson = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(`Error en servidor OpenRouter Cloud: ${errJson.error || res.statusText}`);
+      throw new Error(`Error en servidor cloud: ${errJson.error || res.statusText}`);
     }
 
     const reader = res.body?.getReader();
