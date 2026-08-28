@@ -47,7 +47,7 @@ export const CreditsModal: React.FC<CreditsModalProps> = ({
   };
 
   const handleResetHistory = () => {
-    if (confirm('¿Deseas reiniciar tu historial de transacciones y restablecer tus créditos iniciales a 50?')) {
+    if (confirm('¿Deseas reiniciar tu historial de transacciones y restablecer tus créditos iniciales a 1,000?')) {
       creditLedger.resetToInitialState();
       setTransactions(creditLedger.getTransactions());
       window.location.reload();
@@ -80,7 +80,7 @@ export const CreditsModal: React.FC<CreditsModalProps> = ({
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-red-50 hover:border-red-200 text-slate-500 hover:text-red-600 text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3 h-3" />
-              <span>Reiniciar a 0</span>
+              <span>Reiniciar a 1,000</span>
             </button>
             <button
               onClick={onClose}
@@ -108,7 +108,7 @@ export const CreditsModal: React.FC<CreditsModalProps> = ({
                 <div className="my-4 pt-3 border-t border-slate-200 space-y-2 text-[11px] text-slate-600">
                   <div className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>50 créditos de bienvenida</span>
+                    <span><strong>1,000 créditos de bienvenida</strong></span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -208,7 +208,7 @@ export const CreditsModal: React.FC<CreditsModalProps> = ({
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
             <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-1.5 text-xs">
               <History className="w-3.5 h-3.5 text-indigo-600" />
-              Historial de Transacciones de Créditos (v3.0)
+              Historial de Transacciones de Créditos (v3.5)
             </h4>
             <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {transactions.map((tx) => (
@@ -237,7 +237,7 @@ export const CreditsModal: React.FC<CreditsModalProps> = ({
         {/* Footer */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-center gap-2 text-[11px] text-slate-500">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Historial v3.0 auditado en CreditLedger</span>
+          <span>Historial v3.5 auditado en CreditLedger • 1,000 Créditos Iniciales</span>
         </div>
 
       </div>

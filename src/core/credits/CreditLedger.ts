@@ -1,17 +1,17 @@
 import type { CreditTransaction } from '../types';
 
 export class CreditLedger {
-  private balance: number = 50;
+  private balance: number = 1000;
   private transactions: CreditTransaction[] = [];
 
   constructor() {
-    // Check if system reset was performed for v3.0
+    // Check if system reset was performed for v3.5 (1,000 credits reset)
     const resetVersion = localStorage.getItem('nona_reset_version');
-    if (resetVersion !== '3.0') {
+    if (resetVersion !== '3.5') {
       this.resetToInitialState();
     } else {
       const savedBal = localStorage.getItem('nona_credit_balance');
-      this.balance = savedBal ? parseInt(savedBal, 10) : 50;
+      this.balance = savedBal ? parseInt(savedBal, 10) : 1000;
 
       const savedTx = localStorage.getItem('nona_credit_transactions');
       if (savedTx) {
@@ -23,20 +23,21 @@ export class CreditLedger {
   }
 
   resetToInitialState() {
-    this.balance = 50;
+    this.balance = 1000;
     this.transactions = [
       {
-        id: 'tx_v3_init',
+        id: 'tx_v35_init',
         userId: 'user_1',
         type: 'deposit',
-        amount: 50,
-        balanceAfter: 50,
-        reason: 'Créditos de Bienvenida (NONA Cloud v3.0)',
+        amount: 1000,
+        balanceAfter: 1000,
+        reason: 'Créditos de Bienvenida (NONA Studio v3.5 - 1000 Créditos)',
         createdAt: new Date().toISOString(),
       }
     ];
-    localStorage.setItem('nona_reset_version', '3.0');
+    localStorage.setItem('nona_reset_version', '3.5');
     localStorage.removeItem('nona_chat_history_v1');
+    localStorage.removeItem('nona_chat_history_v2');
     localStorage.removeItem('nona_credit_used');
     this.persist();
   }

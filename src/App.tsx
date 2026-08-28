@@ -61,8 +61,8 @@ export function App() {
 
   const [credits, setCredits] = useState<UserCredits>(() => {
     const savedBal = localStorage.getItem('nona_credit_balance');
-    const bal = savedBal ? parseInt(savedBal, 10) : 50;
-    return { balance: bal, maxFree: 50, totalUsed: 0, plan: 'free' };
+    const bal = savedBal ? parseInt(savedBal, 10) : 1000;
+    return { balance: bal, maxFree: 1000, totalUsed: 0, plan: 'free' };
   });
 
   // Modals State
