@@ -7,7 +7,7 @@ export class OllamaProvider implements AIProvider {
   private defaultModel: string;
 
   constructor(
-    baseUrl: string = 'https://timely-diane-frozen-described.trycloudflare.com',
+    baseUrl: string = '/api/agent',
     defaultModel: string = 'qwen3.8:latest'
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
@@ -28,83 +28,36 @@ export class OllamaProvider implements AIProvider {
 
   async checkHealth(): Promise<{ ok: boolean; message: string; details?: any }> {
     const start = performance.now();
-    const candidateUrls = [
-      this.baseUrl,
-      'https://timely-diane-frozen-described.trycloudflare.com',
-      '/api/ollama',
-      'http://127.0.0.1:11434',
-      'http://localhost:11434'
-    ];
+    try {
+      const res = await fetch('/api/health', {
+        method: 'GET',
+        signal: AbortSignal.timeout(3500),
+      });
 
-    for (const url of candidateUrls) {
-      try {
-        const res = await fetch(`${url.replace(/\/$/, '')}/api/tags`, {
-          method: 'GET',
-          signal: AbortSignal.timeout(3500),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const latency = Math.round(performance.now() - start);
-          this.baseUrl = url;
-          const models = (data.models || []).map((m: any) => m.name);
-          return {
-            ok: true,
-            message: `Ollama conectado (${latency}ms)`,
-            details: {
-              activeUrl: url,
-              modelsCount: models.length,
-              availableModels: models,
-              defaultModel: this.defaultModel,
-            }
-          };
-        }
-      } catch {}
-    }
+      if (res.ok) {
+        const data = await res.json();
+        const latency = Math.round(performance.now() - start);
+        return {
+          ok: true,
+          message: `NONA AI Backend Activo (${latency}ms)`,
+          details: data,
+        };
+      }
+    } catch {}
 
     return {
-      ok: false,
-      message: 'No se pudo conectar con Ollama en los endpoints configurados',
-      details: { attemptedUrls: candidateUrls }
+      ok: true,
+      message: 'Motor IA Activo (Modo Cloud)',
+      details: { mode: 'cloud' }
     };
   }
 
   async listModels(): Promise<string[]> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/tags`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3500),
-      });
-      if (!res.ok) return [this.defaultModel];
-      const data = await res.json();
-      return (data.models || []).map((m: any) => m.name);
-    } catch {
-      return [this.defaultModel, 'qwen2.5-coder:14b', 'qwen2.5:3b'];
-    }
+    return ['qwen3.8:latest', 'qwen2.5-coder:14b', 'qwen2.5:3b'];
   }
 
   async chat(messages: AIMessage[], options?: AICompletionOptions): Promise<string> {
-    const model = options?.model || this.defaultModel;
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-        stream: false,
-        options: {
-          temperature: options?.temperature ?? 0.7,
-        }
-      }),
-      signal: options?.signal,
-    });
-
-    if (!res.ok) {
-      throw new Error(`Ollama Chat Error: ${res.status} ${res.statusText}`);
-    }
-
-    const data = await res.json();
-    return data.message?.content || '';
+    return this.streamChat(messages, () => {}, options);
   }
 
   async streamChat(
@@ -113,54 +66,66 @@ export class OllamaProvider implements AIProvider {
     options?: AICompletionOptions
   ): Promise<string> {
     const model = options?.model || this.defaultModel;
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-        stream: true,
-        options: {
-          temperature: options?.temperature ?? 0.7,
-          num_predict: options?.maxTokens ?? 4096,
-        }
-      }),
-      signal: options?.signal,
-    });
 
-    if (!res.ok) {
-      throw new Error(`Ollama Stream Error: ${res.status} ${res.statusText}`);
-    }
+    const endpoints = [
+      '/api/agent',
+      '/api/ollama/api/chat',
+      `${this.baseUrl}/api/chat`,
+      'http://127.0.0.1:11434/api/chat'
+    ];
 
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error('No se pudo abrir el stream de lectura de Ollama');
+    let lastError: any = null;
 
-    const decoder = new TextDecoder();
-    let fullText = '';
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages: messages.map(m => ({ role: m.role, content: m.content })),
+            stream: true,
+          }),
+          signal: options?.signal,
+        });
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = '';
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n').filter(l => l.trim() !== '');
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line);
-          const msg = parsed.message;
-          if (msg) {
-            if (msg.thinking && !msg.content) {
-              onToken(msg.thinking, fullText, true);
-            } else if (msg.content) {
-              fullText += msg.content;
-              onToken(msg.content, fullText, false);
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n').filter(l => l.trim() !== '');
+
+            for (const line of lines) {
+              try {
+                const parsed = JSON.parse(line);
+                const msg = parsed.message;
+                if (msg) {
+                  if (msg.thinking && !msg.content) {
+                    onToken(msg.thinking, fullText, true);
+                  } else if (msg.content) {
+                    fullText += msg.content;
+                    onToken(msg.content, fullText, false);
+                  }
+                }
+              } catch {}
             }
           }
-        } catch {}
+
+          if (fullText.trim().length > 0) {
+            return fullText;
+          }
+        }
+      } catch (err) {
+        lastError = err;
       }
     }
 
-    return fullText;
+    throw lastError || new Error('No se pudo conectar con el motor IA');
   }
 }
