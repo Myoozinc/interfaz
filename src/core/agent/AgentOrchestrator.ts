@@ -37,8 +37,8 @@ export class AgentOrchestrator {
     const mainFile = project.files['index.html'] || project.files['src/App.tsx'] || Object.values(project.files)[0];
     let currentCode = mainFile?.content || '';
 
-    if (currentCode.length > 8000) {
-      currentCode = currentCode.slice(0, 8000) + '\n<!-- [código base truncado para optimización] -->';
+    if (currentCode.length > 7000) {
+      currentCode = currentCode.slice(0, 7000) + '\n<!-- [código previo truncado para optimización] -->';
     }
 
     const hasImages = (options?.images || []).length > 0;
@@ -49,29 +49,39 @@ export class AgentOrchestrator {
       instructionAugmented += `\nENLACES Y REFERENCIAS: ${options!.links!.join(', ')}`;
     }
     if (hasImages) {
-      instructionAugmented += `\n[Analiza las imágenes adjuntas y replica/corrige el diseño visual fielmente]`;
+      instructionAugmented += `\n[El usuario ha adjuntado captura(s) de pantalla. Analízalas y corrige/adapta la interfaz fielmente]`;
     }
 
-    const systemPrompt = `Eres NONA AGENT, una fábrica de software autónoma impulsada por Qwen 3.8.
-REGLAS OBLIGATORIAS:
-1. Crea aplicaciones web completas, interactivas y profesionales con Tailwind CSS y Lucide Icons.
-2. Escribe directamente el código HTML en un único bloque \`\`\`html que inicie con <!DOCTYPE html> y finalice con </html>\`\`\`.
-3. El código debe ser 100% interactivo, con JavaScript funcional para botones, modales y lógica.
-4. NO escribas texto de introducción ni explicaciones antes del bloque de código.`;
+    const systemPrompt = `Eres NONA AGENT, una fábrica de software e inteligencia artificial autónoma con Qwen 3.8.
+
+FORMATO DE RESPUESTA OBLIGATORIO:
+1. Primero escribe una breve explicación CONVERSACIONAL (2-3 párrafos) explicando qué creaste, las tecnologías usadas y cómo interactuar con la app.
+2. Luego, inserta TODO el código en un ÚNICO bloque:
+\`\`\`html filename=index.html
+<!DOCTYPE html>
+<html lang="es">
+...
+</html>
+\`\`\`
+3. Usa Tailwind CSS (https://cdn.tailwindcss.com) y Lucide Icons (https://unpkg.com/lucide@latest).
+4. El código debe ser 100% completo, interactivo y funcional con JavaScript.`;
 
     const userPrompt = existingFileNames.length > 0 && currentCode.length > 30 && !currentCode.includes('Nuevo Archivo')
-      ? `MODIFICA EL SIGUIENTE CÓDIGO EXISTENTE:
+      ? `MODIFICA EL SIGUIENTE PROYECTO:
 \`\`\`html
 ${currentCode}
 \`\`\`
 
-INSTRUCCIÓN: ${instructionAugmented}
-Genera el código HTML completo actualizado en un único bloque \`\`\`html.`
+INSTRUCCIÓN DEL USUARIO:
+${instructionAugmented}
+
+Genera la explicación conversacional y el bloque de código actualizado completo \`\`\`html filename=index.html.`
       : `CREA DESDE CERO LA SIGUIENTE APLICACIÓN:
 ${instructionAugmented}
-Genera el código HTML completo interactivo en un único bloque \`\`\`html listo para ejecutar.`;
 
-    agentEvents.emit('agent.thinking', hasImages ? 'Analizando imagen multimodal con Qwen 3.8...' : 'Qwen 3.8 programando aplicación en tiempo real...');
+Genera la explicación conversacional y el bloque de código completo interactivo \`\`\`html filename=index.html.`;
+
+    agentEvents.emit('agent.thinking', hasImages ? 'Analizando imagen multimodal...' : 'Qwen 3.8 programando aplicación en tiempo real...');
 
     let fullText = '';
     try {
@@ -84,7 +94,13 @@ Genera el código HTML completo interactivo en un único bloque \`\`\`html listo
           if (isThinking) {
             onProgress(chunk, true);
           } else {
-            onProgress(full, false);
+            // Filter raw HTML code block from streaming in chat so user only reads conversational text during generation
+            let chatDisplay = full;
+            if (chatDisplay.includes('```html')) {
+              const parts = chatDisplay.split('```html');
+              chatDisplay = parts[0].trim() + '\n\n*(⚡ Escribiendo código e inyectando a la Vista Previa...)*';
+            }
+            onProgress(chatDisplay || full, false);
           }
         },
         { signal: options?.signal, model: 'qwen/qwen3.8-27b' }
@@ -120,10 +136,10 @@ Genera el código HTML completo interactivo en un único bloque \`\`\`html listo
       await this.toolRegistry.executeTool(toolCall, project);
     }
 
-    // Robust Fallback: Handles unclosed codeblocks or direct HTML output
+    // Robust Fallback: Handles unclosed codeblocks or raw HTML output
     if (blocksFound === 0) {
       let rawCode = '';
-      const openBlockMatch = fullText.match(/```(?:html)?\s*\n([\s\S]+)/i);
+      const openBlockMatch = fullText.match(/```(?:html)?(?:\s+filename=[^\n]+)?\s*\n([\s\S]+)/i);
       if (openBlockMatch) {
         rawCode = openBlockMatch[1];
       } else if (fullText.includes('<!DOCTYPE html>') || fullText.includes('<html')) {
@@ -163,7 +179,20 @@ Genera el código HTML completo interactivo en un único bloque \`\`\`html listo
       agentEvents.emit('agent.completed', 'Aplicación generada y verificada con Qwen 3.8.');
     }
 
-    return { responseText: fullText, updatedProject: project };
+    // 4. Format Clean Conversational Response for Chat
+    let conversationalResponse = fullText;
+    if (fullText.includes('```html')) {
+      const parts = fullText.split('```html');
+      conversationalResponse = parts[0].trim();
+      if (!conversationalResponse) {
+        conversationalResponse = 'He generado y estructurado la aplicación solicitada con éxito.';
+      }
+    } else if (fullText.includes('<!DOCTYPE html>')) {
+      const idx = fullText.indexOf('<!DOCTYPE html>');
+      conversationalResponse = fullText.slice(0, idx).trim() || 'Aplicación generada con éxito.';
+    }
+
+    return { responseText: conversationalResponse, updatedProject: project };
   }
 }
 

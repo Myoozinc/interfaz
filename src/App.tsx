@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { Header } from './components/Header';
@@ -25,16 +25,29 @@ export function App() {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 
+  // Resizable Panels State
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    return parseInt(localStorage.getItem('nona_sidebar_w') || '220', 10);
+  });
+  const [chatWidth, setChatWidth] = useState(() => {
+    return parseInt(localStorage.getItem('nona_chat_w') || '380', 10);
+  });
+  const [splitRatio, setSplitRatio] = useState(() => {
+    return parseFloat(localStorage.getItem('nona_split_ratio') || '0.5');
+  });
+
+  const resizingTargetRef = useRef<'sidebar' | 'chat' | 'split' | null>(null);
+
   // Projects State
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>('');
-  const [projectName, setProjectName] = useState('NONA Restaurant SaaS');
+  const [projectName, setProjectName] = useState('Nuevo Proyecto');
   const [files, setFiles] = useState<FileItem[]>(STARTER_TEMPLATES[0].files);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: '¡Hola! Soy **NONA AI Software Factory**. Pídeme crear cualquier aplicación web full-stack, SaaS, videojuego 3D o plataforma interactiva.',
+      content: '¡Hola! Soy **NONA AI Software Factory** con **Qwen 3.8**. Pídeme crear cualquier aplicación web, SaaS, videojuego 3D o plataforma interactiva.',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   ]);
@@ -59,7 +72,7 @@ export function App() {
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [ollamaUrl, setOllamaUrl] = useState(() => {
-    return localStorage.getItem('nona_inference_url') || 'https://timely-diane-frozen-described.trycloudflare.com';
+    return localStorage.getItem('nona_inference_url') || '/api/agent';
   });
 
   useEffect(() => {
@@ -102,6 +115,42 @@ export function App() {
     }
   }, [files, messages, projectName]);
 
+  // Resizing mouse move & up listeners
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!resizingTargetRef.current) return;
+
+    if (resizingTargetRef.current === 'sidebar') {
+      const newW = Math.max(160, Math.min(380, e.clientX));
+      setSidebarWidth(newW);
+      localStorage.setItem('nona_sidebar_w', newW.toString());
+    } else if (resizingTargetRef.current === 'chat') {
+      const newW = Math.max(280, Math.min(600, window.innerWidth - e.clientX));
+      setChatWidth(newW);
+      localStorage.setItem('nona_chat_w', newW.toString());
+    } else if (resizingTargetRef.current === 'split') {
+      const workspaceLeft = sidebarWidth;
+      const workspaceWidth = window.innerWidth - sidebarWidth - chatWidth;
+      const mouseOffset = e.clientX - workspaceLeft;
+      const newRatio = Math.max(0.2, Math.min(0.8, mouseOffset / workspaceWidth));
+      setSplitRatio(newRatio);
+      localStorage.setItem('nona_split_ratio', newRatio.toString());
+    }
+  }, [sidebarWidth, chatWidth]);
+
+  const handleMouseUp = useCallback(() => {
+    resizingTargetRef.current = null;
+    document.body.style.cursor = 'default';
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
+
   // Handlers for Projects
   const handleSelectProject = (projectId: string) => {
     const target = projects.find(p => p.id === projectId);
@@ -125,6 +174,39 @@ export function App() {
       setFiles(newProj.files);
       setMessages(newProj.messages);
       setActiveFileId(newProj.files[0]?.id || '1');
+      setViewMode('split');
+    });
+  };
+
+  const handleNewCleanProject = () => {
+    const newName = 'App ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const cleanFiles: FileItem[] = [
+      {
+        id: '1',
+        name: 'index.html',
+        language: 'html',
+        content: `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n  <script src="https://unpkg.com/lucide@latest"></script>\n</head>\n<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center font-sans">\n  <div class="text-center p-8 bg-slate-800/80 rounded-3xl border border-slate-700 max-w-md shadow-2xl">\n    <div class="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 mx-auto mb-4">\n      <i data-lucide="sparkles" class="w-6 h-6"></i>\n    </div>\n    <h1 class="text-xl font-bold mb-2">Lienzo Listo</h1>\n    <p class="text-xs text-slate-400">Escribe en el chat o dicta por voz qué aplicación deseas construir.</p>\n  </div>\n  <script>lucide.createIcons();</script>\n</body>\n</html>`,
+        isModified: false,
+      }
+    ];
+
+    const cleanProj = projectStore.createDefaultProject(newName, cleanFiles);
+    cleanProj.messages = [
+      {
+        id: 'welcome_' + Date.now(),
+        role: 'assistant',
+        content: '¡Lienzo limpio preparado! Pídeme cualquier app, SaaS o juego 3D.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }
+    ];
+
+    projectStore.saveProject(cleanProj).then(() => {
+      setProjects(prev => [cleanProj, ...prev]);
+      setActiveProjectId(cleanProj.id);
+      setProjectName(cleanProj.name);
+      setFiles(cleanProj.files);
+      setMessages(cleanProj.messages);
+      setActiveFileId('1');
       setViewMode('split');
     });
   };
@@ -236,7 +318,6 @@ export function App() {
     setViewMode('split');
   };
 
-  // Insert asset into code
   const handleInsertAssetToCode = (assetUrl: string, prompt: string) => {
     const htmlIndex = files.findIndex(f => f.name.endsWith('.html'));
     if (htmlIndex !== -1) {
@@ -255,7 +336,7 @@ export function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen w-screen bg-slate-50 text-slate-900 overflow-hidden font-sans select-none">
       
       {/* Top Navigation */}
       <Header
@@ -287,49 +368,114 @@ export function App() {
               onOpenWorkspace={() => setViewMode('split')}
             />
           ) : (
-            /* Mode 2: Multi-panel Workspace with Agent Activity Stream */
+            /* Mode 2: Multi-panel Workspace with Resizable Splitters */
             <div className="flex-1 flex flex-col overflow-hidden">
               
-              <div className="flex-1 flex overflow-hidden">
-                {/* Left: File Explorer */}
+              <div className="flex-1 flex overflow-hidden relative">
+                
+                {/* Left: File Explorer with Resizable Width */}
                 {(viewMode === 'split' || viewMode === 'editor') && (
-                  <SidebarFiles
-                    files={files}
-                    activeFileId={activeFileId}
-                    onSelectFile={handleSelectFile}
-                    onAddFile={handleAddFile}
-                    onDeleteFile={handleDeleteFile}
-                    onLoadTemplate={handleLoadTemplate}
-                  />
+                  <div style={{ width: `${sidebarWidth}px` }} className="shrink-0 flex flex-col h-full overflow-hidden">
+                    <SidebarFiles
+                      files={files}
+                      activeFileId={activeFileId}
+                      onSelectFile={handleSelectFile}
+                      onAddFile={handleAddFile}
+                      onDeleteFile={handleDeleteFile}
+                      onLoadTemplate={handleLoadTemplate}
+                    />
+                  </div>
                 )}
 
-                {/* Center: Monaco Editor */}
+                {/* Splitter Handle 1: Sidebar / Workspace */}
                 {(viewMode === 'split' || viewMode === 'editor') && (
-                  <EditorPanel
-                    files={files}
-                    activeFileId={activeFileId}
-                    onSelectFile={handleSelectFile}
-                    onFileChange={handleFileChange}
+                  <div
+                    onMouseDown={() => {
+                      resizingTargetRef.current = 'sidebar';
+                      document.body.style.cursor = 'col-resize';
+                    }}
+                    title="Arrastra para redimensionar explorador"
+                    className="w-1 hover:w-1.5 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
                   />
                 )}
 
-                {/* Center/Right: Live Preview */}
-                {(viewMode === 'split' || viewMode === 'preview') && (
-                  <PreviewPanel
-                    files={files}
-                  />
-                )}
+                {/* Center Workspace (Editor & Live Preview) */}
+                <div className="flex-1 flex overflow-hidden relative">
+                  
+                  {/* Mode Split: Both Editor & Preview with Splitter */}
+                  {viewMode === 'split' && (
+                    <>
+                      <div style={{ flex: splitRatio }} className="h-full overflow-hidden">
+                        <EditorPanel
+                          files={files}
+                          activeFileId={activeFileId}
+                          onSelectFile={handleSelectFile}
+                          onFileChange={handleFileChange}
+                        />
+                      </div>
 
-                {/* Right: AI Agent Core Chat Panel */}
-                <ChatPanel
-                  files={files}
-                  messages={messages}
-                  setMessages={setMessages}
-                  onUpdateFiles={setFiles}
-                  onDeductCredit={handleDeductCredit}
-                  pendingPrompt={pendingPrompt}
-                  onClearPendingPrompt={() => setPendingPrompt(null)}
+                      {/* Splitter Handle 2: Editor / Preview */}
+                      <div
+                        onMouseDown={() => {
+                          resizingTargetRef.current = 'split';
+                          document.body.style.cursor = 'col-resize';
+                        }}
+                        title="Arrastra para redimensionar editor y preview"
+                        className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
+                      />
+
+                      <div style={{ flex: 1 - splitRatio }} className="h-full overflow-hidden">
+                        <PreviewPanel files={files} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Mode Editor Only */}
+                  {viewMode === 'editor' && (
+                    <div className="flex-1 h-full overflow-hidden">
+                      <EditorPanel
+                        files={files}
+                        activeFileId={activeFileId}
+                        onSelectFile={handleSelectFile}
+                        onFileChange={handleFileChange}
+                      />
+                    </div>
+                  )}
+
+                  {/* Mode Preview Only */}
+                  {viewMode === 'preview' && (
+                    <div className="flex-1 h-full overflow-hidden">
+                      <PreviewPanel files={files} />
+                    </div>
+                  )}
+
+                </div>
+
+                {/* Splitter Handle 3: Workspace / Chat Panel */}
+                <div
+                  onMouseDown={() => {
+                    resizingTargetRef.current = 'chat';
+                    document.body.style.cursor = 'col-resize';
+                  }}
+                  title="Arrastra para redimensionar panel de chat"
+                  className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
                 />
+
+                {/* Right: AI Agent Core Chat Panel with Resizable Width */}
+                <div style={{ width: `${chatWidth}px` }} className="shrink-0 flex flex-col h-full overflow-hidden">
+                  <ChatPanel
+                    files={files}
+                    messages={messages}
+                    setMessages={setMessages}
+                    onUpdateFiles={setFiles}
+                    onDeductCredit={handleDeductCredit}
+                    pendingPrompt={pendingPrompt}
+                    onClearPendingPrompt={() => setPendingPrompt(null)}
+                    onNewProject={handleNewCleanProject}
+                    onSwitchView={(v) => setViewMode(v)}
+                  />
+                </div>
+
               </div>
 
               {/* Bottom: Live Agent Activity Stream */}
