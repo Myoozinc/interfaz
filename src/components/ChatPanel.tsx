@@ -208,7 +208,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         )
       );
 
-      creditLedger.deductCredits(5, `Generación multimodal: "${promptToSend.slice(0, 30)}..."`);
+      creditLedger.deductCredits(5, `Generación Qwen Cloud: "${promptToSend.slice(0, 30)}..."`);
 
       confetti({
         particleCount: 50,
@@ -223,7 +223,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, content: `⚠️ Error del agente: ${err.message}. Asegúrate de que Ollama esté ejecutándose en tu Mac.` }
+              ? { ...msg, content: `⚠️ Error del servidor cloud: ${err.message}` }
               : msg
           )
         );
@@ -247,9 +247,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <span className="font-bold text-slate-900">NONA Agent Core</span>
         </div>
 
-        <span className="text-[10px] flex items-center gap-1.5 text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+        <span className="text-[10px] flex items-center gap-1.5 text-indigo-700 font-bold bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" />
-          Vision & Multimodal Active
+          Qwen 2.5 Coder 32B Cloud
         </span>
       </div>
 
@@ -268,7 +268,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-3 h-3 text-indigo-600" />
-                    <span className="font-semibold text-indigo-600">NONA Agent</span>
+                    <span className="font-semibold text-indigo-600">Qwen 2.5 Coder 32B</span>
                   </>
                 )}
                 <span>• {msg.timestamp}</span>
@@ -311,7 +311,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   {msg.content || (isGenerating && msg.id === messages[messages.length - 1]?.id ? (
                     <div className="flex items-center gap-2 text-indigo-600 font-semibold text-[11px] animate-pulse">
                       <BrainCircuit className="w-4 h-4 animate-spin" />
-                      <span>{thinkingText || 'Razonando y construyendo software full-stack...'}</span>
+                      <span>{thinkingText || 'Qwen 2.5 Coder razonando y programando arquitectura...'}</span>
                     </div>
                   ) : '')}
                 </div>
@@ -419,7 +419,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400 px-1">
-          <span>Multimodal: Pega capturas o enlaces web</span>
+          <span>Servidor Cloud Activo (0% uso de tu Mac)</span>
           <span className="flex items-center gap-0.5 text-indigo-600 font-bold">
             <Zap className="w-2.5 h-2.5" /> 5 Créditos / Run
           </span>

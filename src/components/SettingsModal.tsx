@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   Settings, 
@@ -8,10 +8,8 @@ import {
   CheckCircle2, 
   AlertCircle, 
   ExternalLink,
-  Zap
+  Key
 } from 'lucide-react';
-import { aiEngine } from '../services/aiGenerator';
-import type { OllamaModelInfo } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -23,41 +21,56 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
-  ollamaUrl,
-  setOllamaUrl,
 }) => {
+  const [apiKey, setApiKey] = useState(() => {
+    return localStorage.getItem('nona_cloud_api_key') || '';
+  });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const [availableModels, setAvailableModels] = useState<OllamaModelInfo[]>([]);
-  const [selectedModel, setSelectedModel] = useState(aiEngine.getModel());
-
-  useEffect(() => {
-    if (isOpen) {
-      aiEngine.getAvailableModels().then(setAvailableModels);
-    }
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleTestConnection = async () => {
-    setTesting(true);
-    setTestResult(null);
-    aiEngine.setOllamaUrl(ollamaUrl);
-    const res = await aiEngine.checkOllamaStatus();
-    setTestResult(res);
-    aiEngine.getAvailableModels().then(setAvailableModels);
-    setTesting(false);
+  const handleSaveApiKey = () => {
+    localStorage.setItem('nona_cloud_api_key', apiKey.trim());
+    onClose();
   };
 
-  const handleModelChange = (model: string) => {
-    setSelectedModel(model);
-    aiEngine.setModel(model);
-    localStorage.setItem('nona_selected_model', model);
+  const handleTestKey = async () => {
+    if (!apiKey.trim()) return;
+    setTesting(true);
+    setTestResult(null);
+
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey.trim()}`,
+          'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
+          'X-Title': 'NONA App',
+        },
+        body: JSON.stringify({
+          model: 'qwen/qwen-2.5-coder-32b-instruct',
+          messages: [{ role: 'user', content: 'Ping' }],
+        }),
+      });
+
+      if (res.ok) {
+        setTestResult({ ok: true, message: 'Qwen 2.5 Coder 32B Cloud Conectado y Verificado' });
+      } else {
+        const err = await res.json();
+        setTestResult({ ok: false, message: `Error: ${err.error?.message || res.statusText}` });
+      }
+    } catch {
+      setTestResult({ ok: false, message: 'Error al conectar con OpenRouter Cloud' });
+    } finally {
+      setTesting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 select-none">
-      <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-fade-in text-xs">
+      <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-fade-in text-xs font-sans">
         
         {/* Header */}
         <div className="p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
@@ -66,7 +79,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Settings className="w-4 h-4" />
             </div>
             <h2 className="text-sm font-extrabold text-slate-900">
-              Ajustes del Motor IA
+              Ajustes del Motor IA Cloud
             </h2>
           </div>
           <button
@@ -79,70 +92,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
           
-          {/* Model Selector */}
-          <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-3">
+          {/* Active Cloud Model Card */}
+          <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold text-indigo-950 flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-indigo-600" />
-                Modelo IA Activo
+                <Cpu className="w-4 h-4 text-indigo-600" />
+                Motor IA Cloud Activo
               </span>
               <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">
-                Local en tu Mac
+                100% Cloud (0% Mac)
               </span>
             </div>
-
-            <p className="text-[11px] text-indigo-900/70">
-              Elige el modelo instalado en Ollama para generar el código:
+            <p className="text-[11px] text-indigo-900/80 font-medium">
+              <strong>Qwen 2.5 Coder 32B Instruct</strong> (32 mil millones de parámetros) ejecutándose en OpenRouter Cloud.
             </p>
-
-            <select
-              value={selectedModel}
-              onChange={(e) => handleModelChange(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-semibold text-slate-900 outline-none cursor-pointer"
-            >
-              {availableModels.length > 0 ? (
-                availableModels.map(m => (
-                  <option key={m.name} value={m.name}>
-                    {m.name} ({Math.round(m.size / (1024 * 1024 * 1024))} GB) {m.name.includes('coder') ? '⚡ Ultra Rápido' : '🧠 Razonamiento Profundo'}
-                  </option>
-                ))
-              ) : (
-                <>
-                  <option value="qwen3.8:latest">qwen3.8:latest (27B - Razonamiento Profundo)</option>
-                  <option value="qwen2.5-coder:14b">qwen2.5-coder:14b (14B - Código Ultra Rápido)</option>
-                  <option value="qwen2.5:3b">qwen2.5:3b (3B - Instantáneo)</option>
-                </>
-              )}
-            </select>
           </div>
 
-          {/* AI Server Endpoint */}
+          {/* OpenRouter API Key Input */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                <Cpu className="w-4 h-4 text-indigo-600" />
-                Endpoint del Motor IA
+                <Key className="w-4 h-4 text-indigo-600" />
+                Clave API OpenRouter
               </span>
               <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
-                127.0.0.1:11434
+                {apiKey ? 'Configurada' : 'Sin Configurar'}
               </span>
             </div>
 
             <div>
               <label className="text-[11px] text-slate-500 block mb-1">
-                URL del endpoint:
+                Pega tu OpenRouter API Key:
               </label>
               <div className="flex gap-2">
                 <input
-                  type="text"
-                  value={ollamaUrl}
-                  onChange={(e) => setOllamaUrl(e.target.value)}
-                  placeholder="http://127.0.0.1:11434"
-                  className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-or-v1-..."
+                  className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 font-mono"
                 />
                 <button
-                  onClick={handleTestConnection}
-                  disabled={testing}
+                  onClick={handleTestKey}
+                  disabled={testing || !apiKey.trim()}
                   className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                 >
                   {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Probar'}
@@ -189,7 +181,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Globe className="w-4 h-4 text-indigo-600" />
               Despliegue Vercel
             </span>
-            <p className="text-[11px] text-slate-600">
+            <p className="text-[11px] text-slate-600 font-medium">
               Sincronizado automáticamente con tu cuenta de Vercel.
             </p>
           </div>
@@ -199,7 +191,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Footer */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
           <button
-            onClick={onClose}
+            onClick={handleSaveApiKey}
             className="px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-semibold shadow-2xs transition-all cursor-pointer"
           >
             Guardar y Cerrar
