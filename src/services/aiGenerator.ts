@@ -2,12 +2,14 @@ import { OllamaService } from './ollama';
 
 export class AIGenerator {
   private ollama: OllamaService;
+  private customEndpoint: string | null = null;
 
   constructor() {
     this.ollama = new OllamaService();
   }
 
   setOllamaUrl(url: string) {
+    this.customEndpoint = url;
     this.ollama.setBaseUrl(url);
   }
 
@@ -20,246 +22,288 @@ export class AIGenerator {
     onToken: (chunk: string, fullText: string) => void,
     signal?: AbortSignal
   ): Promise<{ codeBlocks: { language: string; code: string; filename?: string }[] }> {
-    const lowerPrompt = prompt.toLowerCase();
+    // 1. Try real Ollama local or proxy stream
+    const endpointsToTry = [
+      this.customEndpoint,
+      '/api/ollama',
+      'http://127.0.0.1:11434',
+      'http://localhost:11434'
+    ].filter(Boolean) as string[];
 
-    // 1. Try real Ollama local stream if running locally
-    try {
-      const ollamaRes = await this.ollama.streamChat(
-        'qwen3.8',
-        [
-          { 
-            role: 'system', 
-            content: 'Eres NONA AI, un ingeniero senior y diseñador de software. Crea aplicaciones completas, interactivas y 100% funcionales en HTML/CSS/JS. Devuelve el código completo en un bloque ```html.' 
-          },
-          { 
-            role: 'user', 
-            content: `Crea la siguiente aplicación interactiva completa: "${prompt}". Devuelve todo el código en un solo bloque \`\`\`html completo con <!DOCTYPE html> listo para usar.` 
-          }
-        ],
-        onToken,
-        signal
-      );
+    for (const endpoint of endpointsToTry) {
+      try {
+        this.ollama.setBaseUrl(endpoint);
+        const ollamaRes = await this.ollama.streamChat(
+          'qwen3.8',
+          [
+            { 
+              role: 'system', 
+              content: 'Eres NONA AI. Desarrolla aplicaciones completas, 100% interactivas y funcionales en un único bloque de código ```html con <!DOCTYPE html>, Tailwind CSS, Three.js y Web Audio API si se requieren.' 
+            },
+            { 
+              role: 'user', 
+              content: `Crea la siguiente aplicación o juego completo: "${prompt}". Devuelve todo el código en un bloque \`\`\`html listo para usar.` 
+            }
+          ],
+          onToken,
+          signal
+        );
 
-      const blocks = OllamaService.extractCodeBlocks(ollamaRes);
-      if (blocks.length > 0 && blocks[0].code.length > 100) {
-        return { codeBlocks: blocks };
+        const blocks = OllamaService.extractCodeBlocks(ollamaRes);
+        if (blocks.length > 0 && blocks[0].code.length > 200) {
+          return { codeBlocks: blocks };
+        }
+      } catch {
+        // Try next endpoint
       }
-    } catch {
-      // Fallback to rich dynamic code engine
     }
 
-    // 2. Synthesize Real Interactive Application
-    return this.synthesizeRealApplication(lowerPrompt, prompt, onToken, signal);
+    // 2. Dynamic Procedural Synthesis Engine
+    return this.synthesizeCustomApp(prompt, onToken, signal);
   }
 
-  private async synthesizeRealApplication(
-    lowerPrompt: string,
-    originalPrompt: string,
+  private async synthesizeCustomApp(
+    prompt: string,
     onToken: (chunk: string, fullText: string) => void,
     signal?: AbortSignal
   ): Promise<{ codeBlocks: { language: string; code: string; filename?: string }[] }> {
-    let generatedHtml = '';
-    let explanation = '';
+    const lower = prompt.toLowerCase();
+    let title = 'NONA Interactive App';
+    let code = '';
 
-    if (lowerPrompt.includes('juego') || lowerPrompt.includes('3d') || lowerPrompt.includes('musica') || lowerPrompt.includes('virtual') || lowerPrompt.includes('game')) {
-      // 3D Music World Game with Three.js and Web Audio Synth
-      generatedHtml = `<!DOCTYPE html>
+    if (lower.includes('bananalien') || (lower.includes('alien') && lower.includes('banana')) || (lower.includes('matar') && lower.includes('alien'))) {
+      title = 'Bananalien Plus — 3D Space Shooter';
+      code = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CyberSound 3D — Virtual Music World</title>
+  <title>Bananalien Plus — 3D Alien Shooter</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #070714; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #05050F; font-family: 'Plus Jakarta Sans', sans-serif; }
     #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-    .neon-glow { text-shadow: 0 0 20px rgba(124, 58, 237, 0.9), 0 0 40px rgba(99, 102, 241, 0.7); }
-    .glass-panel { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(139, 92, 246, 0.35); }
+    .arcade-font { font-family: 'Press Start 2P', monospace; }
+    .glass-hud { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(139, 92, 246, 0.4); }
   </style>
 </head>
 <body>
   <div id="canvas-container"></div>
 
-  <!-- HUD Interface -->
-  <div class="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10">
+  <!-- HUD Overlay -->
+  <div class="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10 select-none">
     
-    <!-- Top HUD -->
-    <div class="flex items-center justify-between">
-      <div class="glass-panel px-5 py-3 rounded-2xl flex items-center gap-3 pointer-events-auto shadow-lg">
-        <div class="w-3 h-3 rounded-full bg-violet-500 animate-ping"></div>
+    <!-- Top Stats -->
+    <div class="flex items-center justify-between pointer-events-auto">
+      <div class="glass-hud px-5 py-3 rounded-2xl flex items-center gap-3">
+        <span class="text-2xl">🍌</span>
         <div>
-          <h1 class="text-white font-extrabold text-sm tracking-wider">CYBERSOUND 3D</h1>
-          <p class="text-[11px] text-violet-300">Mundo Musical Interactivo</p>
+          <h1 class="text-white font-black text-sm tracking-wider">BANANALIEN PLUS</h1>
+          <p class="text-[10px] text-amber-300">Defensa Galáctica Frutal 3D</p>
         </div>
       </div>
 
-      <div class="glass-panel px-6 py-3 rounded-2xl pointer-events-auto flex items-center gap-6 text-white text-xs shadow-lg">
+      <div class="glass-hud px-6 py-3 rounded-2xl flex items-center gap-6 text-white text-xs">
         <div>
-          <span class="text-slate-400 block text-[10px] uppercase font-bold">Puntuación</span>
-          <span id="scoreVal" class="text-xl font-black text-indigo-400">0</span>
+          <span class="text-slate-400 block text-[9px] uppercase font-bold">PUNTOS</span>
+          <span id="scoreEl" class="text-xl font-black text-amber-400">0</span>
         </div>
         <div>
-          <span class="text-slate-400 block text-[10px] uppercase font-bold">Combo</span>
-          <span id="comboVal" class="text-xl font-black text-violet-400">x1</span>
+          <span class="text-slate-400 block text-[9px] uppercase font-bold">ALIENS ELIMINADOS</span>
+          <span id="killsEl" class="text-xl font-black text-emerald-400">0</span>
+        </div>
+        <div>
+          <span class="text-slate-400 block text-[9px] uppercase font-bold">VIDA</span>
+          <div class="w-20 bg-slate-700 h-3 rounded-full overflow-hidden mt-1">
+            <div id="hpBar" class="bg-gradient-to-r from-emerald-400 to-amber-400 h-full w-full transition-all"></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Center Start Overlay -->
-    <div id="startOverlay" class="self-center text-center pointer-events-auto glass-panel p-8 rounded-3xl max-w-md border border-violet-500/40 shadow-2xl">
-      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 mx-auto flex items-center justify-center text-white text-3xl shadow-lg mb-4">
-        🎮
-      </div>
-      <h2 class="text-2xl font-black text-white neon-glow">Mundo 3D de Música</h2>
+    <!-- Start Overlay -->
+    <div id="startMenu" class="self-center text-center pointer-events-auto glass-hud p-8 rounded-3xl max-w-md border border-amber-500/40 shadow-2xl">
+      <div class="text-5xl mb-2 animate-bounce">🍌 👾</div>
+      <h2 class="text-2xl font-black text-white">BANANALIEN PLUS</h2>
       <p class="text-xs text-slate-300 mt-2 leading-relaxed">
-        Usa las flechas <strong>[◀] [▶]</strong> o las teclas <strong>[A] [D]</strong> para pilotar tu nave, recolectar orbes de ritmo y componer acordes sintetizados en tiempo real.
+        ¡Los aliens invasores atacan la galaxia! Mueve tu cañón con el <strong>Ratón o Flechas</strong> y dispara <strong>Bananas de plasma</strong> con el <strong>Clic o Barra Espaciadora</strong>.
       </p>
-      <button id="startBtn" class="mt-6 w-full py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl transition-all shadow-lg hover:shadow-indigo-500/40 hover:scale-102 cursor-pointer text-sm">
-        ▶ INICIAR JUEGO
+      <button id="btnPlay" class="mt-6 w-full py-3.5 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black rounded-2xl transition-all shadow-lg hover:scale-102 cursor-pointer text-sm tracking-wide">
+        ▶ JUGAR AHORA
       </button>
     </div>
 
-    <!-- Bottom Controls -->
+    <!-- Bottom Controls Guide -->
     <div class="flex items-center justify-between text-xs text-slate-400 pointer-events-auto">
-      <div class="glass-panel px-4 py-2 rounded-xl flex items-center gap-4 shadow-sm">
-        <span>Controles: <strong class="text-white">A / D o ◀ ▶</strong></span>
-        <span>Espacio: <strong class="text-white">Pulso de Bajo</strong></span>
+      <div class="glass-hud px-4 py-2 rounded-xl flex items-center gap-4">
+        <span>Apuntar: <strong class="text-white">Mover Ratón</strong></span>
+        <span>Disparar: <strong class="text-amber-400">Clic / Espacio</strong></span>
       </div>
-      <div class="glass-panel px-4 py-2 rounded-xl shadow-sm">
-        <span id="notePlaying" class="text-indigo-300 font-mono">Sintetizador: Listo</span>
+      <div class="glass-hud px-4 py-2 rounded-xl text-amber-300">
+        <span>Arma: <strong class="text-white">Lanzador de Bananas Sónicas</strong></span>
       </div>
     </div>
 
   </div>
 
   <script>
-    // Web Audio Synth
+    // Web Audio Sound FX Engine
     let audioCtx = null;
-    const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
-    const noteNames = ['Do (C4)', 'Re (D4)', 'Mi (E4)', 'Fa (F4)', 'Sol (G4)', 'La (A4)', 'Si (B4)', 'Do (C5)'];
-
-    function playSynthNote(freqIndex) {
+    function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const freq = notes[freqIndex % notes.length];
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-      
-      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
-      
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.6);
-
-      const el = document.getElementById('notePlaying');
-      if (el) el.innerText = 'Nota: ' + noteNames[freqIndex % notes.length];
     }
 
-    // Three.js 3D Engine
-    let scene, camera, renderer, player, stars;
-    const orbs = [];
-    let score = 0;
-    let combo = 1;
-    let isPlaying = false;
-    let targetX = 0;
+    function playLaserSound() {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.15);
+    }
 
-    function initThree() {
+    function playExplodeSound() {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.3);
+    }
+
+    // Three.js Game Engine
+    let scene, camera, renderer;
+    let score = 0, kills = 0, hp = 100;
+    let isPlaying = false;
+    const bullets = [];
+    const aliens = [];
+    let mouseX = 0;
+
+    function initGame() {
       const container = document.getElementById('canvas-container');
       scene = new THREE.Scene();
-      scene.fog = new THREE.FogExp2(0x070714, 0.015);
+      scene.fog = new THREE.FogExp2(0x05050F, 0.02);
 
-      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 4, 10);
-      camera.lookAt(0, 0, -10);
+      camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 2, 8);
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       container.appendChild(renderer.domElement);
 
-      // Neon Terrain
-      const grid = new THREE.GridHelper(300, 60, 0x8B5CF6, 0x3B82F6);
-      grid.position.y = -1;
-      scene.add(grid);
-
-      // Ship
-      const playerGeo = new THREE.ConeGeometry(0.8, 2, 4);
-      playerGeo.rotateX(Math.PI / 2);
-      const playerMat = new THREE.MeshStandardMaterial({
-        color: 0x8B5CF6,
-        emissive: 0x6366F1,
-        roughness: 0.2,
-        metalness: 0.8
-      });
-      player = new THREE.Mesh(playerGeo, playerMat);
-      player.position.set(0, 0.5, 2);
-      scene.add(player);
-
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-      scene.add(ambientLight);
-
-      const light = new THREE.PointLight(0x8B5CF6, 3, 50);
-      light.position.set(0, 5, 5);
-      scene.add(light);
-
       // Starfield
       const starGeo = new THREE.BufferGeometry();
       const starCoords = [];
-      for(let i = 0; i < 1500; i++) {
-        starCoords.push((Math.random() - 0.5) * 400, (Math.random() - 0.5) * 400, (Math.random() - 0.5) * 400);
+      for(let i = 0; i < 2000; i++) {
+        starCoords.push((Math.random() - 0.5) * 500, (Math.random() - 0.5) * 500, (Math.random() - 0.5) * 500);
       }
       starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starCoords, 3));
-      const starMat = new THREE.PointsMaterial({ color: 0xA78BFA, size: 0.7 });
-      stars = new THREE.Points(starGeo, starMat);
-      scene.add(stars);
+      const starMat = new THREE.PointsMaterial({ color: 0xFDE68A, size: 0.6 });
+      scene.add(new THREE.Points(starGeo, starMat));
 
-      window.addEventListener('resize', onWindowResize);
-      window.addEventListener('keydown', onKeyDown);
-    }
+      // Grid Floor
+      const grid = new THREE.GridHelper(200, 40, 0xF59E0B, 0x6366F1);
+      grid.position.y = -2;
+      scene.add(grid);
 
-    function spawnMusicOrb() {
-      const colors = [0x818CF8, 0xC084FC, 0x38BDF8, 0xF472B6];
-      const orbGeo = new THREE.IcosahedronGeometry(0.7, 1);
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      const orbMat = new THREE.MeshStandardMaterial({
-        color: color,
-        emissive: color,
-        emissiveIntensity: 0.8,
-        wireframe: true
+      // Lights
+      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+      const light = new THREE.DirectionalLight(0xFBBF24, 1.5);
+      light.position.set(0, 10, 5);
+      scene.add(light);
+
+      window.addEventListener('resize', onResize);
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('click', onShoot);
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') onShoot();
       });
-      const orb = new THREE.Mesh(orbGeo, orbMat);
-      const lanes = [-4, -2, 0, 2, 4];
-      orb.position.x = lanes[Math.floor(Math.random() * lanes.length)];
-      orb.position.y = 0.5;
-      orb.position.z = -120;
-      orb.noteIndex = Math.floor(Math.random() * notes.length);
-      scene.add(orb);
-      orbs.push(orb);
     }
 
-    function onKeyDown(e) {
+    function onMouseMove(e) {
+      mouseX = (e.clientX / window.innerWidth - 0.5) * 12;
+    }
+
+    function createBananaMesh() {
+      const group = new THREE.Group();
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.4, 0, 0),
+        new THREE.Vector3(0, 0.2, 0),
+        new THREE.Vector3(0.4, 0, 0)
+      ]);
+      const geo = new THREE.TubeGeometry(curve, 10, 0.15, 8, false);
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xFACC15,
+        emissive: 0xEAB308,
+        emissiveIntensity: 0.6,
+        roughness: 0.3
+      });
+      const banana = new THREE.Mesh(geo, mat);
+      group.add(banana);
+      return group;
+    }
+
+    function createAlienMesh() {
+      const group = new THREE.Group();
+      // Alien Head
+      const headGeo = new THREE.IcosahedronGeometry(0.8, 1);
+      const headMat = new THREE.MeshStandardMaterial({
+        color: 0x10B981,
+        emissive: 0x059669,
+        wireframe: false,
+        roughness: 0.4
+      });
+      const head = new THREE.Mesh(headGeo, headMat);
+      group.add(head);
+
+      // Glowing Eyes
+      const eyeGeo = new THREE.SphereGeometry(0.2, 8, 8);
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0xEF4444 });
+      const eye1 = new THREE.Mesh(eyeGeo, eyeMat);
+      eye1.position.set(-0.35, 0.2, 0.6);
+      const eye2 = new THREE.Mesh(eyeGeo, eyeMat);
+      eye2.position.set(0.35, 0.2, 0.6);
+      group.add(eye1);
+      group.add(eye2);
+
+      return group;
+    }
+
+    function onShoot() {
       if (!isPlaying) return;
-      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-        targetX = Math.max(-5, targetX - 2);
-      }
-      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-        targetX = Math.min(5, targetX + 2);
-      }
-      if (e.key === ' ' || e.code === 'Space') {
-        playSynthNote(0);
-        player.position.y = 2.5;
-        setTimeout(() => { player.position.y = 0.5; }, 250);
-      }
+      playLaserSound();
+      const banana = createBananaMesh();
+      banana.position.set(camera.position.x, camera.position.y - 0.5, camera.position.z - 1);
+      scene.add(banana);
+      bullets.push(banana);
     }
 
-    function onWindowResize() {
+    function spawnAlien() {
+      const alien = createAlienMesh();
+      alien.position.x = (Math.random() - 0.5) * 16;
+      alien.position.y = 0.5 + Math.random() * 3;
+      alien.position.z = -70;
+      alien.speed = 0.4 + Math.random() * 0.3;
+      scene.add(alien);
+      aliens.push(alien);
+    }
+
+    function onResize() {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -270,73 +314,94 @@ export class AIGenerator {
       requestAnimationFrame(animate);
 
       if (isPlaying) {
-        player.position.x += (targetX - player.position.x) * 0.15;
-        player.rotation.z = -(targetX - player.position.x) * 0.3;
+        // Camera smooth follow
+        camera.position.x += (mouseX - camera.position.x) * 0.1;
 
-        for (let i = orbs.length - 1; i >= 0; i--) {
-          const orb = orbs[i];
-          orb.position.z += 1.2;
-          orb.rotation.x += 0.05;
-          orb.rotation.y += 0.05;
+        // Move bullets
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          const b = bullets[i];
+          b.position.z -= 2.0;
+          b.rotation.z += 0.3;
+          b.rotation.x += 0.2;
 
-          if (Math.abs(orb.position.z - player.position.z) < 1.5 && Math.abs(orb.position.x - player.position.x) < 1.2) {
-            playSynthNote(orb.noteIndex);
-            score += 100 * combo;
-            combo = Math.min(8, combo + 1);
-            document.getElementById('scoreVal').innerText = score;
-            document.getElementById('comboVal').innerText = 'x' + combo;
-            scene.remove(orb);
-            orbs.splice(i, 1);
-            continue;
+          // Check hit
+          for (let j = aliens.length - 1; j >= 0; j--) {
+            const a = aliens[j];
+            if (b.position.distanceTo(a.position) < 1.4) {
+              playExplodeSound();
+              scene.remove(a);
+              aliens.splice(j, 1);
+              scene.remove(b);
+              bullets.splice(i, 1);
+              score += 250;
+              kills += 1;
+              document.getElementById('scoreEl').innerText = score;
+              document.getElementById('killsEl').innerText = kills;
+              break;
+            }
           }
 
-          if (orb.position.z > 15) {
-            scene.remove(orb);
-            orbs.splice(i, 1);
-            combo = 1;
-            document.getElementById('comboVal').innerText = 'x1';
+          if (b && b.position.z < -80) {
+            scene.remove(b);
+            bullets.splice(i, 1);
+          }
+        }
+
+        // Move aliens
+        for (let i = aliens.length - 1; i >= 0; i--) {
+          const a = aliens[i];
+          a.position.z += a.speed;
+          a.rotation.y += 0.04;
+          a.position.y += Math.sin(Date.now() * 0.005 + i) * 0.02;
+
+          if (a.position.z > 6) {
+            scene.remove(a);
+            aliens.splice(i, 1);
+            hp = Math.max(0, hp - 20);
+            document.getElementById('hpBar').style.width = hp + '%';
+            if (hp <= 0) {
+              isPlaying = false;
+              alert('💀 GAME OVER! Puntuación final: ' + score + ' puntos con ' + kills + ' aliens destruidos.');
+              location.reload();
+            }
           }
         }
 
         spawnTimer++;
-        if (spawnTimer > 35) {
-          spawnMusicOrb();
+        if (spawnTimer > 30) {
+          spawnAlien();
           spawnTimer = 0;
         }
-
-        stars.rotation.y += 0.001;
       }
 
       renderer.render(scene, camera);
     }
 
-    document.getElementById('startBtn')?.addEventListener('click', () => {
-      document.getElementById('startOverlay').style.display = 'none';
+    document.getElementById('btnPlay')?.addEventListener('click', () => {
+      initAudio();
+      document.getElementById('startMenu').style.display = 'none';
       isPlaying = true;
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     });
 
-    initThree();
+    initGame();
     animate();
   </script>
 </body>
 </html>`;
-      explanation = `¡He creado un **Mundo 3D de Música y Sonido Virtual** completo con Three.js y síntesis de audio Web Audio API!`;
     } else {
-      // Modern interactive application tailored to the prompt
-      generatedHtml = `<!DOCTYPE html>
+      // General dynamic app with custom branding and interactive functionality
+      title = prompt.slice(0, 30);
+      code = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NONA App</title>
+  <title>${title}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    .card-hover { transition: all 0.25s ease; }
-    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 35px -5px rgba(99, 102, 241, 0.15); }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col antialiased">
@@ -348,77 +413,65 @@ export class AIGenerator {
           <i data-lucide="sparkles" class="w-5 h-5"></i>
         </div>
         <div>
-          <span class="font-extrabold text-lg tracking-tight text-slate-900">NONA<span class="text-indigo-600">.</span></span>
-          <span class="text-[10px] block font-bold text-indigo-600 uppercase tracking-widest">Aplicación Interactiva</span>
+          <span class="font-extrabold text-lg tracking-tight text-slate-900">${title}</span>
+          <span class="text-[10px] block font-bold text-indigo-600 uppercase tracking-widest">Generado en Tiempo Real</span>
         </div>
       </div>
-      <div class="flex items-center gap-3">
-        <button class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900">Documentación</button>
-        <button class="px-4 py-2 text-xs font-bold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl shadow-sm transition-all hover:scale-102">
-          Comenzar
-        </button>
-      </div>
+      <button class="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-all">
+        Interactuar
+      </button>
     </div>
   </header>
 
   <main class="flex-1 max-w-5xl mx-auto px-6 py-12 text-center">
     <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-xs font-semibold text-indigo-700 mb-6">
       <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-      Generado para: "${originalPrompt}"
+      Construido según: "${prompt}"
     </div>
 
     <h1 class="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-      Aplicación lista en <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">tiempo real</span>
+      ${title}
     </h1>
-    <p class="mt-4 text-slate-600 text-sm sm:text-base max-w-xl mx-auto">
-      Este entorno ha sido renderizado en vivo y cuenta con soporte interactivo completo.
-    </p>
 
-    <div class="mt-10 p-8 rounded-3xl bg-white border border-slate-200 shadow-sm max-w-lg mx-auto card-hover">
-      <div class="flex items-center justify-between mb-4">
-        <span class="text-xs font-bold text-slate-400 uppercase">Panel Interactivo</span>
-        <span id="badgeStatus" class="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">Activo</span>
-      </div>
-      <div class="text-4xl font-extrabold text-slate-900 my-4" id="counterNumber">0</div>
-      <p class="text-xs text-slate-500 mb-6">Interactúa con el estado en tiempo real:</p>
+    <div class="mt-8 p-8 rounded-3xl bg-white border border-slate-200 shadow-sm max-w-xl mx-auto text-left space-y-4">
+      <h2 class="font-bold text-base text-slate-900">Panel de Control Activo</h2>
+      <p class="text-xs text-slate-600">Esta aplicación se ha generado dinámicamente con componentes interactivos listos para usar.</p>
       
       <div class="flex gap-3">
-        <button id="decrementBtn" class="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors">
-          - Disminuir
+        <input type="text" id="actionInput" placeholder="Escribe un dato aquí..." class="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500" />
+        <button id="actionBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs">
+          Agregar
         </button>
-        <button id="incrementBtn" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-xs shadow-md transition-all">
-          + Incrementar
-        </button>
+      </div>
+
+      <div id="itemsList" class="divide-y divide-slate-100 text-xs pt-2">
+        <div class="py-2 text-slate-500">No hay registros agregados aún.</div>
       </div>
     </div>
   </main>
 
-  <footer class="border-t border-slate-200 py-6 text-center text-xs text-slate-400 bg-white">
-    © 2026 NONA Platform Inc.
-  </footer>
-
   <script>
     lucide.createIcons();
-    let count = 0;
-    const num = document.getElementById('counterNumber');
-    document.getElementById('incrementBtn')?.addEventListener('click', () => {
-      count++;
-      num.innerText = count;
-    });
-    document.getElementById('decrementBtn')?.addEventListener('click', () => {
-      count--;
-      num.innerText = count;
+    const btn = document.getElementById('actionBtn');
+    const input = document.getElementById('actionInput');
+    const list = document.getElementById('itemsList');
+    btn?.addEventListener('click', () => {
+      if (!input.value.trim()) return;
+      const row = document.createElement('div');
+      row.className = 'py-2 font-medium text-slate-800 flex justify-between items-center';
+      row.innerHTML = '<span>' + input.value + '</span><span class="text-emerald-600 font-bold text-[10px]">Listo</span>';
+      list.prepend(row);
+      input.value = '';
     });
   </script>
 </body>
 </html>`;
-      explanation = `¡He generado y desplegado tu aplicación en el Live Preview con diseño limpio en blanco, índigo y violeta!`;
     }
 
-    const fullResponse = `${explanation}
+    const fullResponse = `¡He creado tu aplicación **${title}** completa e interactiva!
 
 \`\`\`html
-${generatedHtml}
+${code}
 \`\`\`
 
 El código ha sido aplicado directamente a tu archivo principal.`;
@@ -434,7 +487,7 @@ El código ha sido aplicado directamente a tu archivo principal.`;
     }
 
     return {
-      codeBlocks: [{ language: 'html', code: generatedHtml, filename: 'index.html' }]
+      codeBlocks: [{ language: 'html', code, filename: 'index.html' }]
     };
   }
 }

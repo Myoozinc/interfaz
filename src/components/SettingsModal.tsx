@@ -49,7 +49,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Settings className="w-4 h-4" />
             </div>
             <h2 className="text-sm font-extrabold text-slate-900">
-              Ajustes de Plataforma & Motor IA
+              Ajustes de Plataforma & Servidor IA
             </h2>
           </div>
           <button
@@ -62,28 +62,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="p-5 space-y-4">
           
-          {/* AI Engine Endpoint Section */}
+          {/* AI Server Endpoint */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-900 flex items-center gap-1.5">
                 <Cpu className="w-4 h-4 text-indigo-600" />
-                Motor de Inferencia Local
+                Endpoint del Motor IA (Cloud / Túnel)
               </span>
-              <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
-                Opcional
+              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-100">
+                Personalizado
               </span>
             </div>
 
             <div>
               <label className="text-[11px] text-slate-500 block mb-1">
-                URL del endpoint de inferencia:
+                URL del servidor o túnel HTTPS:
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={ollamaUrl}
                   onChange={(e) => setOllamaUrl(e.target.value)}
-                  placeholder="http://localhost:11434"
+                  placeholder="https://tu-tunel.loca.lt o http://127.0.0.1:11434"
                   className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900"
                 />
                 <button
@@ -100,9 +100,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className={`p-2.5 rounded-xl border flex items-center gap-2 ${
                 testResult.ok 
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-                  : 'bg-amber-50 border-amber-200 text-amber-800'
+                  : 'bg-indigo-50 border-indigo-200 text-indigo-800'
               }`}>
-                {testResult.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />}
+                {testResult.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-indigo-600 shrink-0" />}
                 <span className="text-[11px] leading-tight">{testResult.message}</span>
               </div>
             )}
@@ -118,7 +118,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </span>
 
             <p className="text-[11px] text-slate-600">
-              El proyecto está sincronizado con:
+              El proyecto está vinculado al repositorio:
             </p>
             <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-[11px]">
               <span className="font-mono font-semibold text-slate-900">Myoozinc/interfaz</span>
@@ -139,7 +139,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               Despliegue Vercel
             </span>
             <p className="text-[11px] text-slate-600">
-              Los cambios que hagamos se sincronizan automáticamente con tu Vercel al hacer commit en GitHub.
+              Cada actualización que realizamos se publica automáticamente en Vercel al hacer commit en GitHub.
             </p>
           </div>
 
