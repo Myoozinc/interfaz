@@ -4,44 +4,49 @@ import {
   Download, 
   Settings, 
   Zap, 
-  Plus, 
-  Layers,
   MessageSquare,
   Columns,
   Eye,
-  Code2
+  Code2,
+  FolderOpen,
+  Wand2,
+  User
 } from 'lucide-react';
-import type { UserCredits } from '../types';
+import type { UserCredits, UserAccount } from '../types';
 
 interface HeaderProps {
   projectName: string;
-  setProjectName: (name: string) => void;
   credits: UserCredits;
+  currentUser: UserAccount | null;
   onOpenCreditsModal: () => void;
   onOpenSettingsModal: () => void;
+  onOpenProjectsModal: () => void;
+  onOpenComfyModal: () => void;
+  onOpenAuthModal: () => void;
   onExportZip: () => void;
-  onNewProject: () => void;
   viewMode: 'chat' | 'split' | 'preview' | 'editor';
   setViewMode: (mode: 'chat' | 'split' | 'preview' | 'editor') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   projectName,
-  setProjectName,
   credits,
+  currentUser,
   onOpenCreditsModal,
   onOpenSettingsModal,
+  onOpenProjectsModal,
+  onOpenComfyModal,
+  onOpenAuthModal,
   onExportZip,
-  onNewProject,
   viewMode,
   setViewMode,
 }) => {
   return (
     <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between select-none z-20 shadow-xs">
       
-      {/* Left: Brand Logo & Project Title */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2.5">
+      {/* Left: Brand Logo & Project Title Selector */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-sm shadow-indigo-500/20">
             <Sparkles className="w-4 h-4" />
           </div>
@@ -49,28 +54,23 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-base font-extrabold tracking-tight text-slate-900">
               NONA<span className="text-indigo-600">.</span>
             </span>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
-              Studio
-            </span>
           </div>
         </div>
 
-        <div className="h-4 w-[1px] bg-slate-200 hidden sm:block" />
+        <div className="h-4 w-[1px] bg-slate-200" />
 
-        {/* Editable Project Name */}
-        <div className="hidden sm:flex items-center gap-2">
-          <Layers className="w-3.5 h-3.5 text-slate-400" />
-          <input
-            type="text"
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-            className="text-xs font-semibold text-slate-800 bg-transparent hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 px-2 py-1 rounded-lg border border-transparent hover:border-slate-200 transition-all outline-none"
-            placeholder="Nombre del Proyecto"
-          />
-        </div>
+        {/* Project Selector Button */}
+        <button
+          onClick={onOpenProjectsModal}
+          title="Gestor de Proyectos & Memoria"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-800 transition-all cursor-pointer shadow-2xs max-w-[180px] truncate"
+        >
+          <FolderOpen className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+          <span className="truncate">{projectName}</span>
+        </button>
       </div>
 
-      {/* Center: View Switcher (Chat vs Split vs Preview vs Editor) */}
+      {/* Center: View Switcher */}
       <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
         <button
           onClick={() => setViewMode('chat')}
@@ -79,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
               ? 'bg-white text-indigo-600 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
-          title="Vista Solo Chat"
+          title="Vista Chat"
         >
           <MessageSquare className="w-3.5 h-3.5" />
           <span className="hidden md:inline">Chat</span>
@@ -118,45 +118,52 @@ export const Header: React.FC<HeaderProps> = ({
               ? 'bg-white text-indigo-600 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
-          title="Solo Editor de Código"
+          title="Solo Editor"
         >
           <Code2 className="w-3.5 h-3.5" />
           <span className="hidden md:inline">Editor</span>
         </button>
       </div>
 
-      {/* Right: Credits, Actions & Modals */}
-      <div className="flex items-center gap-2.5">
+      {/* Right: ComfyUI, Credits, Auth & Settings */}
+      <div className="flex items-center gap-2">
         
+        {/* ComfyUI Studio Button */}
+        <button
+          onClick={onOpenComfyModal}
+          title="Generar Imágenes y Video con ComfyUI local"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100/80 border border-violet-200 text-xs font-semibold text-violet-700 transition-all shadow-2xs cursor-pointer"
+        >
+          <Wand2 className="w-3.5 h-3.5 text-violet-600" />
+          <span className="hidden lg:inline">ComfyUI Media</span>
+        </button>
+
         {/* Credits Pill */}
         <button
           onClick={onOpenCreditsModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-100 text-xs font-semibold text-indigo-700 transition-all shadow-2xs cursor-pointer hover:scale-102"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-100 text-xs font-semibold text-indigo-700 transition-all shadow-2xs cursor-pointer hover:scale-102"
         >
           <Zap className="w-3.5 h-3.5 fill-indigo-600 text-indigo-600" />
-          <span>{credits.balance} Créditos</span>
-          <span className="text-[10px] bg-white px-1.5 py-0.2 rounded-md text-indigo-600 font-bold border border-indigo-100">
-            +
-          </span>
+          <span>{credits.balance}</span>
         </button>
 
-        {/* New Project */}
+        {/* User Account / Login */}
         <button
-          onClick={onNewProject}
-          title="Nuevo Proyecto"
-          className="p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all shadow-2xs cursor-pointer"
+          onClick={onOpenAuthModal}
+          title={currentUser ? `Conectado como ${currentUser.name}` : 'Iniciar Sesión'}
+          className="p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all shadow-2xs cursor-pointer flex items-center gap-1"
         >
-          <Plus className="w-4 h-4" />
+          <User className="w-4 h-4 text-indigo-600" />
+          {currentUser && <span className="text-[10px] font-bold text-slate-800 max-w-[60px] truncate hidden sm:inline">{currentUser.name}</span>}
         </button>
 
         {/* Export ZIP */}
         <button
           onClick={onExportZip}
           title="Descargar Proyecto en ZIP"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700 hover:text-slate-900 transition-all shadow-2xs cursor-pointer"
+          className="p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all shadow-2xs cursor-pointer"
         >
-          <Download className="w-3.5 h-3.5 text-indigo-600" />
-          <span className="hidden lg:inline">Exportar ZIP</span>
+          <Download className="w-4 h-4 text-indigo-600" />
         </button>
 
         {/* GitHub Link */}

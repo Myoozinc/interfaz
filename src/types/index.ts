@@ -16,8 +16,20 @@ export interface ChatMessage {
     language: string;
     code: string;
   }[];
+  diffSummary?: string;
   costCredits?: number;
   modelUsed?: string;
+}
+
+export interface ProjectRecord {
+  id: string;
+  name: string;
+  description: string;
+  files: FileItem[];
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+  thumbnail?: string;
 }
 
 export interface ProjectTemplate {
@@ -40,4 +52,20 @@ export interface UserCredits {
   maxFree: number;
   totalUsed: number;
   plan: 'free' | 'starter' | 'pro';
+}
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  provider: 'local' | 'google' | 'github' | 'email';
+}
+
+export interface ComfyAsset {
+  id: string;
+  prompt: string;
+  type: 'image' | 'video' | 'texture';
+  url: string;
+  createdAt: string;
 }
