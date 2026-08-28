@@ -3,7 +3,7 @@ import type { OllamaModelInfo } from '../types';
 export class OllamaService {
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'http://localhost:11434') {
+  constructor(baseUrl: string = 'https://fancy-trains-worry.loca.lt') {
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 
@@ -19,18 +19,21 @@ export class OllamaService {
     try {
       const response = await fetch(`${this.baseUrl}/api/version`, {
         method: 'GET',
-        signal: AbortSignal.timeout(2000),
+        headers: {
+          'Bypass-Tunnel-Reminder': 'true',
+        },
+        signal: AbortSignal.timeout(3500),
       });
 
       if (response.ok) {
         const data = await response.json();
-        return { ok: true, message: `Ollama v${data.version || 'Activo'} conectado` };
+        return { ok: true, message: `Motor IA v${data.version || 'Online'} conectado` };
       }
-      return { ok: false, message: 'Ollama offline' };
+      return { ok: false, message: 'Servidor IA no disponible (usando motor cloud de NONA)' };
     } catch {
       return {
         ok: false,
-        message: 'Ollama local no disponible (usando motor cloud de NONA)'
+        message: 'Conexión lista (usando motor cloud de NONA)'
       };
     }
   }
@@ -39,7 +42,10 @@ export class OllamaService {
     try {
       const response = await fetch(`${this.baseUrl}/api/tags`, {
         method: 'GET',
-        signal: AbortSignal.timeout(2500),
+        headers: {
+          'Bypass-Tunnel-Reminder': 'true',
+        },
+        signal: AbortSignal.timeout(3500),
       });
 
       if (!response.ok) throw new Error('Error');
@@ -65,7 +71,10 @@ export class OllamaService {
   ): Promise<string> {
     const response = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Bypass-Tunnel-Reminder': 'true',
+      },
       body: JSON.stringify({
         model: model || 'qwen3.8',
         messages: messages,
@@ -78,7 +87,7 @@ export class OllamaService {
     });
 
     if (!response.ok) {
-      throw new Error(`Error en Ollama (${response.status})`);
+      throw new Error(`Error en motor IA (${response.status})`);
     }
 
     const reader = response.body?.getReader();

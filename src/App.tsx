@@ -15,6 +15,7 @@ import { AuthModal } from './components/AuthModal';
 import type { FileItem, ProjectRecord, ProjectTemplate, UserCredits, UserAccount, ChatMessage } from './types';
 import { projectStore } from './services/projectStore';
 import { STARTER_TEMPLATES } from './services/templates';
+import { aiEngine } from './services/aiGenerator';
 
 export function App() {
   const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('chat');
@@ -52,10 +53,13 @@ export function App() {
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [isComfyModalOpen, setIsComfyModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
+  const [ollamaUrl, setOllamaUrl] = useState(() => {
+    return localStorage.getItem('nona_inference_url') || 'https://fancy-trains-worry.loca.lt';
+  });
 
   // Load projects from IndexedDB on mount
   useEffect(() => {
+    aiEngine.setOllamaUrl(ollamaUrl);
     projectStore.getAllProjects().then((list) => {
       setProjects(list);
       if (list.length > 0) {
@@ -68,6 +72,12 @@ export function App() {
       }
     });
   }, []);
+
+  const handleUpdateOllamaUrl = (url: string) => {
+    setOllamaUrl(url);
+    localStorage.setItem('nona_inference_url', url);
+    aiEngine.setOllamaUrl(url);
+  };
 
   // Sync active project state to IndexedDB on changes
   useEffect(() => {
@@ -229,7 +239,7 @@ export function App() {
     setViewMode('split');
   };
 
-  // Insert ComfyUI asset into code
+  // Insert asset into code
   const handleInsertAssetToCode = (assetUrl: string, prompt: string) => {
     const htmlIndex = files.findIndex(f => f.name.endsWith('.html'));
     if (htmlIndex !== -1) {
@@ -238,7 +248,7 @@ export function App() {
       if (currentHtml.includes('</body>')) {
         updated = currentHtml.replace(
           '</body>',
-          `  <!-- ComfyUI Asset: ${prompt} -->\n  <div class="p-4 flex justify-center"><img src="${assetUrl}" alt="${prompt}" class="rounded-2xl max-w-sm shadow-xl border border-violet-500/30" /></div>\n</body>`
+          `  <!-- Media Asset: ${prompt} -->\n  <div class="p-4 flex justify-center"><img src="${assetUrl}" alt="${prompt}" class="rounded-2xl max-w-sm shadow-xl border border-violet-500/30" /></div>\n</body>`
         );
       } else {
         updated += `\n<img src="${assetUrl}" alt="${prompt}" class="rounded-2xl max-w-sm" />`;
@@ -337,7 +347,7 @@ export function App() {
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         ollamaUrl={ollamaUrl}
-        setOllamaUrl={setOllamaUrl}
+        setOllamaUrl={handleUpdateOllamaUrl}
       />
 
       {/* Projects Manager Modal */}
@@ -352,7 +362,7 @@ export function App() {
         onDuplicateProject={handleDuplicateProject}
       />
 
-      {/* ComfyUI Media Studio Modal */}
+      {/* NONA Media Studio Modal */}
       <ComfyStudioModal
         isOpen={isComfyModalOpen}
         onClose={() => setIsComfyModalOpen(false)}
