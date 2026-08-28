@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Monitor, 
   Tablet, 
@@ -24,52 +24,157 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
   const cssFile = files.find(f => f.name.endsWith('.css'))?.content || '';
   const jsFile = files.find(f => f.name.endsWith('.js'))?.content || '';
 
-  // Construct bundled source document
-  const srcDoc = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-        <script src="https://unpkg.com/lucide@latest"></script>
-        <style>
-          ${cssFile}
-        </style>
-        <script>
+  // Clean compilation & bundling of source document (Lovable / Antigravity Sandbox Engine)
+  const srcDoc = useMemo(() => {
+    if (!htmlFile || htmlFile.trim().length === 0) {
+      return `<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-900 text-white min-h-screen flex items-center justify-center font-sans"><div class="text-center p-6"><h2 class="text-lg font-bold">Esperando generación...</h2></div></body></html>`;
+    }
+
+    const consoleCaptureScript = `
+      <script>
+        (function() {
           const _log = console.log;
           const _err = console.error;
           const _warn = console.warn;
           console.log = function(...args) {
-            window.parent.postMessage({ type: 'NONA_LOG', level: 'info', msg: args.join(' ') }, '*');
+            window.parent.postMessage({ type: 'NONA_LOG', level: 'info', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') }, '*');
             _log.apply(console, args);
           };
           console.error = function(...args) {
-            window.parent.postMessage({ type: 'NONA_LOG', level: 'error', msg: args.join(' ') }, '*');
+            window.parent.postMessage({ type: 'NONA_LOG', level: 'error', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') }, '*');
             _err.apply(console, args);
           };
           console.warn = function(...args) {
-            window.parent.postMessage({ type: 'NONA_LOG', level: 'warn', msg: args.join(' ') }, '*');
+            window.parent.postMessage({ type: 'NONA_LOG', level: 'warn', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') }, '*');
             _warn.apply(console, args);
           };
-        </script>
-      </head>
-      <body>
-        ${htmlFile.includes('<body') || htmlFile.includes('<!DOCTYPE') ? htmlFile : `<div>${htmlFile}</div>`}
+          window.addEventListener('error', function(e) {
+            console.error(e.message);
+          });
+        })();
+      </script>
+    `;
+
+    const backendMockScript = `
+      <script>
+        (function() {
+          // In-memory persistent database simulator
+          window.NONA_DB = {
+            tables: JSON.parse(localStorage.getItem('nona_mock_db') || '{}'),
+            save: function() { localStorage.setItem('nona_mock_db', JSON.stringify(this.tables)); },
+            find: function(table) { return this.tables[table] || []; },
+            insert: function(table, item) {
+              if (!this.tables[table]) this.tables[table] = [];
+              const newItem = { id: Date.now().toString(), ...item, createdAt: new Date().toISOString() };
+              this.tables[table].push(newItem);
+              this.save();
+              return newItem;
+            }
+          };
+
+          // Web Audio sound synthesizer for real game audio & UX clicks
+          window.playSynthSound = function(type) {
+            try {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              if (type === 'engine' || type === 'car') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(70, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(260, ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.2);
+              } else if (type === 'click' || type === 'button') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(500, ctx.currentTime);
+                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.08);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.08);
+              } else if (type === 'win' || type === 'point') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+                osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+              }
+            } catch(e) {}
+          };
+        })();
+      </script>
+    `;
+
+    let doc = htmlFile;
+
+    if (doc.includes('<!DOCTYPE') || doc.includes('<html')) {
+      const headInject = `
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+        <script src="https://unpkg.com/lucide@latest"></script>
+        ${consoleCaptureScript}
+        ${backendMockScript}
+        ${cssFile ? `<style>${cssFile}</style>` : ''}
+      `;
+
+      if (doc.includes('<head>')) {
+        doc = doc.replace('<head>', '<head>' + headInject);
+      } else if (doc.includes('<html>')) {
+        doc = doc.replace('<html>', '<html><head>' + headInject + '</head>');
+      }
+
+      const bodyInject = `
         <script>
           try {
+            if (window.lucide) { window.lucide.createIcons(); }
             ${jsFile}
-            if (window.lucide) {
-              window.lucide.createIcons();
-            }
           } catch(e) {
-            console.error(e.message);
+            console.error('Error de ejecución:', e.message);
           }
         </script>
-      </body>
-    </html>
-  `;
+      `;
+
+      if (doc.includes('</body>')) {
+        doc = doc.replace('</body>', bodyInject + '</body>');
+      } else {
+        doc += bodyInject;
+      }
+
+      return doc;
+    }
+
+    return `
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <script src="https://cdn.tailwindcss.com"></script>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+          <script src="https://unpkg.com/lucide@latest"></script>
+          ${consoleCaptureScript}
+          ${backendMockScript}
+          <style>${cssFile}</style>
+        </head>
+        <body class="bg-slate-950 text-white min-h-screen">
+          ${htmlFile}
+          <script>
+            try {
+              if (window.lucide) { window.lucide.createIcons(); }
+              ${jsFile}
+            } catch(e) {
+              console.error('Error de ejecución:', e.message);
+            }
+          </script>
+        </body>
+      </html>
+    `;
+  }, [htmlFile, cssFile, jsFile]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -104,10 +209,10 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden">
+    <div className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden select-none font-sans">
       
       {/* Top Preview Controls */}
-      <div className="h-10 bg-white border-b border-slate-200 flex items-center justify-between px-3 select-none">
+      <div className="h-10 bg-white border-b border-slate-200 flex items-center justify-between px-3 shrink-0">
         
         {/* Tabs: Preview vs Console */}
         <div className="flex items-center gap-1">
@@ -206,7 +311,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
               title="Live Sandbox"
               srcDoc={srcDoc}
               className="w-full h-full border-none bg-white flex-1"
-              sandbox="allow-scripts allow-modals allow-same-origin"
+              sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
             />
           </div>
         ) : (

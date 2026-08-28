@@ -25,7 +25,7 @@ export class AgentOrchestrator {
     const creationKeywords = [
       'haz una', 'haz un', 'crea una', 'crea un', 'crear', 'hacer', 'desarrolla',
       'construye', 'quiero una', 'quiero un', 'quiero hacer', 'nuevo proyecto',
-      'juego de', 'app de', 'saas de', 'plataforma de', 'simulador de'
+      'juego de', 'app de', 'saas de', 'plataforma de', 'simulador de', 'juego 3d'
     ];
     const isModification = [
       'cambia', 'modifica', 'agrega', 'añade', 'elimina', 'quita', 'pon de color',
@@ -64,22 +64,31 @@ export class AgentOrchestrator {
       instructionAugmented += `\n[Analiza las capturas adjuntas y replica/corrige la interfaz fielmente]`;
     }
 
-    const systemPrompt = `Eres NONA AI ARCHITECT, una fábrica de software e inteligencia artificial de clase mundial potenciada por Qwen 3.8.
+    const systemPrompt = `Eres NONA AI ARCHITECT, una fábrica de software autónoma al nivel de Lovable y Google AI Studio, impulsada por Qwen 3.8.
 
-REGLAS DE ARQUITECTURA:
-1. SI EL USUARIO PIDE UN JUEGO 3D O MUNDO VIRTUAL:
+REGLAS DE ORO DE INGENIERÍA FULL-STACK:
+1. JUEGOS 3D Y SIMULACIONES:
    - Usa Three.js (https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js).
-   - Crea un juego 100% jugable: inicializa Scene, PerspectiveCamera, WebGLRenderer(antialias: true, shadowMap), Lights (Ambient + Directional con sombras), suelo/pista 3D con texturas o materiales, jugador 3D (malla de auto/nave/personaje), obstáculos o rivales con IA simple, controles de teclado WASD/Flechas (keydown/keyup), bucle animate() con requestAnimationFrame() actualizando física, velocidad, rotación y cámara en tercera persona, minimapa 2D en esquina, y HUD superpuesto (Velocímetro, Vueltas, Puntuación, Botón Iniciar/Reiniciar).
-   - Añade efectos de sonido sintéticos con Web Audio API (sonido de motor, aceleración, colisión y victoria).
+   - Crea un juego 100% REAL Y JUGABLE: Inicializa WebGLRenderer en pantalla completa, Scene, Camera, Luces con sombras, suelo/pista 3D, jugador 3D (auto, nave o personaje), y bucle animate() con requestAnimationFrame().
+   - Controles reales con teclado: 'keydown' y 'keyup' para WASD / Flechas que aceleren, giren y frenen al jugador con física suave.
+   - El botón 'Iniciar Juego' debe OCULTAR la pantalla de inicio y activar el bucle de juego y los controles inmediatamente.
+   - Incluye efectos de sonido sintéticos llamando a window.playSynthSound('engine'), window.playSynthSound('click'), window.playSynthSound('win').
 
-2. SI EL USUARIO PIDE UN SAAS, DASHBOARD O APP:
+2. SAAS, DASHBOARDS Y APPS:
    - Usa Tailwind CSS (https://cdn.tailwindcss.com) y Lucide Icons (https://unpkg.com/lucide@latest).
-   - Crea una interfaz ultra-moderna y completa: sidebar navegable, múltiples vistas dinámicas (Analytics, Gestión, Configuración), gráficos interactivos (con Canvas o Chart.js), modales funcionales para crear/editar registros, filtros de búsqueda en tiempo real, persistencia con LocalStorage y feedback visual con toasts.
+   - Cada botón DEBE FUNCIONAR (abrir modales, cambiar pestañas, agregar/eliminar datos, buscar en tablas y persistir en localStorage).
+   - NUNCA pongas botones inertes o maquetas sin lógica.
 
-3. FORMATO DE SALIDA OBLIGATORIO:
-   - Inicia con una breve explicación CONVERSACIONAL (2-3 párrafos) resumiendo la aplicación, controles y características.
-   - Inserta TODO el código en un ÚNICO bloque \`\`\`html filename=index.html que contenga <!DOCTYPE html> completo y funcional.
-   - NUNCA generes una landing page vacía cuando el usuario pida un juego o una aplicación. El código debe ser 100% interactivo y ejecutable de inmediato.`;
+3. FORMATO DE SALIDA:
+   - Inicia con una breve explicación CONVERSACIONAL (2-3 párrafos) resumiendo las funciones creadas.
+   - Inserta TODO el código dentro de un ÚNICO bloque:
+\`\`\`html filename=index.html
+<!DOCTYPE html>
+<html lang="es">
+...
+</html>
+\`\`\`
+   - El código debe estar 100% completo, autocontenido y listo para ejecutarse sin errores.`;
 
     const userPrompt = !isNew
       ? `MODIFICA LA SIGUIENTE APLICACIÓN EXISTENTE SEGÚN LA INSTRUCCIÓN:
@@ -89,7 +98,7 @@ ${currentCode.slice(0, 6000)}
 
 INSTRUCCIÓN: ${instructionAugmented}
 Genera la explicación conversacional y el bloque de código actualizado completo \`\`\`html filename=index.html.`
-      : `CREA DESDE CERO LA SIGUIENTE APLICACIÓN O JUEGO 100% COMPLETO Y FUNCIONAL:
+      : `CREA DESDE CERO LA SIGUIENTE APLICACIÓN O JUEGO 100% FUNCIONAL, JUGABLE E INTERACTIVO:
 ${instructionAugmented}
 
 Genera la explicación conversacional y el bloque de código completo \`\`\`html filename=index.html listo para ejecutar o jugar.`;
@@ -110,7 +119,7 @@ Genera la explicación conversacional y el bloque de código completo \`\`\`html
             let chatDisplay = full;
             if (chatDisplay.includes('```html')) {
               const parts = chatDisplay.split('```html');
-              chatDisplay = parts[0].trim() + '\n\n*(⚡ Generando motor de la aplicación y renderizando en vivo...)*';
+              chatDisplay = parts[0].trim() + '\n\n*(⚡ Compilando motor de JavaScript y renderizando en vivo...)*';
             }
             onProgress(chatDisplay || full, false);
           }
