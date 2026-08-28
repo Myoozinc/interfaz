@@ -33,18 +33,15 @@ export class AgentOrchestrator {
     const mainFile = project.files['index.html'] || project.files['src/App.tsx'] || Object.values(project.files)[0];
     const currentCode = mainFile?.content || '';
 
-    const systemPrompt = `Eres NONA AGENT, el cerebro de una Fábrica de Software con IA (AI Software Factory).
-Tu misión es diseñar, construir, modificar, probar y desplegar aplicaciones web full-stack completas y reales.
-REGLAS:
-1. Analiza los requerimientos del usuario y crea código 100% funcional.
-2. Devuelve TODO el código HTML/CSS/JS autocontenido en un ÚNICO bloque \`\`\`html con <!DOCTYPE html> con Tailwind CSS, componentes interactivos y lógica JS completa.
-3. Si el usuario pide crear schemas de BD o rutas de API, inclúyelos en bloques etiquetados como \`\`\`sql filename=schema.sql o \`\`\`javascript filename=api/routes.js.
-4. Si estás modificando una app existente, mantén la funcionalidad previa e integra los nuevos cambios.`;
+    const systemPrompt = `Eres NONA AGENT, una fábrica de software e inteligencia artificial de clase mundial.
+REGLAS OBLIGATORIAS:
+1. Analiza con máxima fidelidad lo que pide el usuario (si pide un juego, crea un juego 100% interactivo con Three.js o Canvas 2D; si pide una tienda, crea e-commerce; si pide un restaurante, crea reservas; si pide pintar, crea paint).
+2. Devuelve TODO el código HTML/CSS/JS autocontenido en un ÚNICO bloque \`\`\`html con <!DOCTYPE html> con Tailwind CSS (https://cdn.tailwindcss.com) y Lucide Icons (https://unpkg.com/lucide@latest).
+3. NUNCA copies textos del sistema en los títulos ni pongas 'ARCHIVOS ACTUALES DEL PROYECTO:'. Pon un título profesional acorde a la app.
+4. El código debe ser 100% ejecutable y funcional de inmediato.`;
 
-    const userPrompt = existingFileNames.length > 0 && currentCode.length > 30
-      ? `ARCHIVOS ACTUALES DEL PROYECTO: ${existingFileNames.join(', ')}
-
-CÓDIGO PRINCIPAL EXISTENTE:
+    const userPrompt = existingFileNames.length > 0 && currentCode.length > 30 && !currentCode.includes('Nuevo Archivo')
+      ? `MODIFICACIÓN SOBRE CÓDIGO EXISTENTE:
 \`\`\`html
 ${currentCode}
 \`\`\`
@@ -52,13 +49,11 @@ ${currentCode}
 INSTRUCCIÓN DEL USUARIO:
 ${userInstruction}
 
-Genera la aplicación actualizada completa con las modificaciones solicitadas.`
-      : `INSTRUCCIÓN DEL USUARIO:
-${userInstruction}
+Genera la versión completa actualizada del código con los cambios integrados en un bloque \`\`\`html.`
+      : `CREACIÓN DESDE CERO:
+Desarrolla la siguiente aplicación web completa, profesional, interactiva y con diseño moderno: "${userInstruction}". Devuelve todo el código en un único bloque \`\`\`html listo para renderizar.`;
 
-Crea una aplicación completa, profesional e interactiva que cumpla todos los requerimientos solicitados.`;
-
-    agentEvents.emit('agent.thinking', 'Razonando arquitectura y componentes...');
+    agentEvents.emit('agent.thinking', 'Razonando y programando aplicación...');
 
     let fullText = '';
     try {
@@ -103,7 +98,6 @@ Crea una aplicación completa, profesional e interactiva que cumpla todos los re
       await this.toolRegistry.executeTool(toolCall, project);
     }
 
-    // If no markdown fence was used but raw HTML was output
     if (blocksFound === 0 && (fullText.includes('<!DOCTYPE html>') || fullText.includes('<html'))) {
       const start = fullText.indexOf('<!DOCTYPE html>') !== -1 ? fullText.indexOf('<!DOCTYPE html>') : fullText.indexOf('<html');
       const end = fullText.lastIndexOf('</html>') !== -1 ? fullText.lastIndexOf('</html>') + 7 : fullText.length;
@@ -116,7 +110,6 @@ Crea una aplicación completa, profesional e interactiva que cumpla todos los re
       }, project);
     }
 
-    // 3. Run Build & Syntax Verification Tool
     const buildResult = await this.toolRegistry.executeTool({
       id: 'tc_build_' + Date.now(),
       name: 'build_project',

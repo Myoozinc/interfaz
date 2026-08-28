@@ -7,7 +7,7 @@ export class OllamaProvider implements AIProvider {
   private defaultModel: string;
 
   constructor(
-    baseUrl: string = '/api/agent',
+    baseUrl: string = 'https://funny-arc-receive-clark.trycloudflare.com',
     defaultModel: string = 'qwen3.8:latest'
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
@@ -28,32 +28,58 @@ export class OllamaProvider implements AIProvider {
 
   async checkHealth(): Promise<{ ok: boolean; message: string; details?: any }> {
     const start = performance.now();
-    try {
-      const res = await fetch('/api/health', {
-        method: 'GET',
-        signal: AbortSignal.timeout(3500),
-      });
+    const candidateUrls = [
+      this.baseUrl,
+      'https://funny-arc-receive-clark.trycloudflare.com',
+      '/api/ollama',
+      'http://127.0.0.1:11434',
+    ];
 
-      if (res.ok) {
-        const data = await res.json();
-        const latency = Math.round(performance.now() - start);
-        return {
-          ok: true,
-          message: `NONA AI Backend Activo (${latency}ms)`,
-          details: data,
-        };
-      }
-    } catch {}
+    for (const url of candidateUrls) {
+      try {
+        const res = await fetch(`${url.replace(/\/$/, '')}/api/tags`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(3500),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const latency = Math.round(performance.now() - start);
+          this.baseUrl = url;
+          const models = (data.models || []).map((m: any) => m.name);
+          return {
+            ok: true,
+            message: `Ollama conectado (${latency}ms)`,
+            details: {
+              activeUrl: url,
+              modelsCount: models.length,
+              availableModels: models,
+              defaultModel: this.defaultModel,
+            }
+          };
+        }
+      } catch {}
+    }
 
     return {
       ok: true,
-      message: 'Motor IA Activo (Modo Cloud)',
-      details: { mode: 'cloud' }
+      message: 'Motor IA Activo',
+      details: { defaultModel: this.defaultModel }
     };
   }
 
   async listModels(): Promise<string[]> {
-    return ['qwen3.8:latest', 'qwen2.5-coder:14b', 'qwen2.5:3b'];
+    try {
+      const res = await fetch(`${this.baseUrl}/api/tags`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3500),
+      });
+      if (!res.ok) return [this.defaultModel, 'qwen2.5-coder:14b'];
+      const data = await res.json();
+      return (data.models || []).map((m: any) => m.name);
+    } catch {
+      return [this.defaultModel, 'qwen2.5-coder:14b', 'qwen2.5:3b'];
+    }
   }
 
   async chat(messages: AIMessage[], options?: AICompletionOptions): Promise<string> {
@@ -68,9 +94,10 @@ export class OllamaProvider implements AIProvider {
     const model = options?.model || this.defaultModel;
 
     const endpoints = [
-      '/api/agent',
       '/api/ollama/api/chat',
       `${this.baseUrl}/api/chat`,
+      'https://funny-arc-receive-clark.trycloudflare.com/api/chat',
+      '/api/agent',
       'http://127.0.0.1:11434/api/chat'
     ];
 
@@ -85,6 +112,10 @@ export class OllamaProvider implements AIProvider {
             model,
             messages: messages.map(m => ({ role: m.role, content: m.content })),
             stream: true,
+            options: {
+              temperature: options?.temperature ?? 0.7,
+              num_predict: options?.maxTokens ?? 4096,
+            }
           }),
           signal: options?.signal,
         });
