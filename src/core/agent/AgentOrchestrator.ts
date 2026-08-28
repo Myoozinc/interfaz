@@ -20,6 +20,22 @@ export class AgentOrchestrator {
     this.aiProvider.setDefaultModel(model);
   }
 
+  private isNewAppRequest(instruction: string): boolean {
+    const lower = instruction.toLowerCase().trim();
+    const creationKeywords = [
+      'haz una', 'haz un', 'crea una', 'crea un', 'crear', 'hacer', 'desarrolla',
+      'construye', 'quiero una', 'quiero un', 'quiero hacer', 'nuevo proyecto',
+      'juego de', 'app de', 'saas de', 'plataforma de', 'simulador de'
+    ];
+    const isModification = [
+      'cambia', 'modifica', 'agrega', 'añade', 'elimina', 'quita', 'pon de color',
+      'corrige', 'arregla', 'ajusta', 'reemplaza', 'mejora este', 'actualiza'
+    ].some(k => lower.startsWith(k));
+
+    if (isModification) return false;
+    return creationKeywords.some(k => lower.includes(k));
+  }
+
   async run(
     userInstruction: string,
     project: FullStackProject,
@@ -30,16 +46,12 @@ export class AgentOrchestrator {
       signal?: AbortSignal;
     }
   ): Promise<{ responseText: string; updatedProject: FullStackProject }> {
-    agentEvents.emit('agent.started', `Iniciando tarea con Qwen 3.8: "${userInstruction.slice(0, 45)}..."`);
+    agentEvents.emit('agent.started', `Iniciando arquitectura con Qwen 3.8: "${userInstruction.slice(0, 45)}..."`);
 
-    // 1. Gather Project Context
-    const existingFileNames = Object.keys(project.files);
-    const mainFile = project.files['index.html'] || project.files['src/App.tsx'] || Object.values(project.files)[0];
+    const mainFile = project.files['index.html'] || Object.values(project.files)[0];
     let currentCode = mainFile?.content || '';
 
-    if (currentCode.length > 7000) {
-      currentCode = currentCode.slice(0, 7000) + '\n<!-- [código previo truncado para optimización] -->';
-    }
+    const isNew = this.isNewAppRequest(userInstruction) || currentCode.length < 50 || currentCode.includes('Lienzo Listo');
 
     const hasImages = (options?.images || []).length > 0;
     const hasLinks = (options?.links || []).length > 0;
@@ -49,39 +61,40 @@ export class AgentOrchestrator {
       instructionAugmented += `\nENLACES Y REFERENCIAS: ${options!.links!.join(', ')}`;
     }
     if (hasImages) {
-      instructionAugmented += `\n[El usuario ha adjuntado captura(s) de pantalla. Analízalas y corrige/adapta la interfaz fielmente]`;
+      instructionAugmented += `\n[Analiza las capturas adjuntas y replica/corrige la interfaz fielmente]`;
     }
 
-    const systemPrompt = `Eres NONA AGENT, una fábrica de software e inteligencia artificial autónoma con Qwen 3.8.
+    const systemPrompt = `Eres NONA AI ARCHITECT, una fábrica de software e inteligencia artificial de clase mundial potenciada por Qwen 3.8.
 
-FORMATO DE RESPUESTA OBLIGATORIO:
-1. Primero escribe una breve explicación CONVERSACIONAL (2-3 párrafos) explicando qué creaste, las tecnologías usadas y cómo interactuar con la app.
-2. Luego, inserta TODO el código en un ÚNICO bloque:
-\`\`\`html filename=index.html
-<!DOCTYPE html>
-<html lang="es">
-...
-</html>
-\`\`\`
-3. Usa Tailwind CSS (https://cdn.tailwindcss.com) y Lucide Icons (https://unpkg.com/lucide@latest).
-4. El código debe ser 100% completo, interactivo y funcional con JavaScript.`;
+REGLAS DE ARQUITECTURA:
+1. SI EL USUARIO PIDE UN JUEGO 3D O MUNDO VIRTUAL:
+   - Usa Three.js (https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js).
+   - Crea un juego 100% jugable: inicializa Scene, PerspectiveCamera, WebGLRenderer(antialias: true, shadowMap), Lights (Ambient + Directional con sombras), suelo/pista 3D con texturas o materiales, jugador 3D (malla de auto/nave/personaje), obstáculos o rivales con IA simple, controles de teclado WASD/Flechas (keydown/keyup), bucle animate() con requestAnimationFrame() actualizando física, velocidad, rotación y cámara en tercera persona, minimapa 2D en esquina, y HUD superpuesto (Velocímetro, Vueltas, Puntuación, Botón Iniciar/Reiniciar).
+   - Añade efectos de sonido sintéticos con Web Audio API (sonido de motor, aceleración, colisión y victoria).
 
-    const userPrompt = existingFileNames.length > 0 && currentCode.length > 30 && !currentCode.includes('Nuevo Archivo')
-      ? `MODIFICA EL SIGUIENTE PROYECTO:
+2. SI EL USUARIO PIDE UN SAAS, DASHBOARD O APP:
+   - Usa Tailwind CSS (https://cdn.tailwindcss.com) y Lucide Icons (https://unpkg.com/lucide@latest).
+   - Crea una interfaz ultra-moderna y completa: sidebar navegable, múltiples vistas dinámicas (Analytics, Gestión, Configuración), gráficos interactivos (con Canvas o Chart.js), modales funcionales para crear/editar registros, filtros de búsqueda en tiempo real, persistencia con LocalStorage y feedback visual con toasts.
+
+3. FORMATO DE SALIDA OBLIGATORIO:
+   - Inicia con una breve explicación CONVERSACIONAL (2-3 párrafos) resumiendo la aplicación, controles y características.
+   - Inserta TODO el código en un ÚNICO bloque \`\`\`html filename=index.html que contenga <!DOCTYPE html> completo y funcional.
+   - NUNCA generes una landing page vacía cuando el usuario pida un juego o una aplicación. El código debe ser 100% interactivo y ejecutable de inmediato.`;
+
+    const userPrompt = !isNew
+      ? `MODIFICA LA SIGUIENTE APLICACIÓN EXISTENTE SEGÚN LA INSTRUCCIÓN:
 \`\`\`html
-${currentCode}
+${currentCode.slice(0, 6000)}
 \`\`\`
 
-INSTRUCCIÓN DEL USUARIO:
-${instructionAugmented}
-
+INSTRUCCIÓN: ${instructionAugmented}
 Genera la explicación conversacional y el bloque de código actualizado completo \`\`\`html filename=index.html.`
-      : `CREA DESDE CERO LA SIGUIENTE APLICACIÓN:
+      : `CREA DESDE CERO LA SIGUIENTE APLICACIÓN O JUEGO 100% COMPLETO Y FUNCIONAL:
 ${instructionAugmented}
 
-Genera la explicación conversacional y el bloque de código completo interactivo \`\`\`html filename=index.html.`;
+Genera la explicación conversacional y el bloque de código completo \`\`\`html filename=index.html listo para ejecutar o jugar.`;
 
-    agentEvents.emit('agent.thinking', hasImages ? 'Analizando imagen multimodal...' : 'Qwen 3.8 programando aplicación en tiempo real...');
+    agentEvents.emit('agent.thinking', hasImages ? 'Analizando imagen multimodal...' : 'Qwen 3.8 programando aplicación completa...');
 
     let fullText = '';
     try {
@@ -94,11 +107,10 @@ Genera la explicación conversacional y el bloque de código completo interactiv
           if (isThinking) {
             onProgress(chunk, true);
           } else {
-            // Filter raw HTML code block from streaming in chat so user only reads conversational text during generation
             let chatDisplay = full;
             if (chatDisplay.includes('```html')) {
               const parts = chatDisplay.split('```html');
-              chatDisplay = parts[0].trim() + '\n\n*(⚡ Escribiendo código e inyectando a la Vista Previa...)*';
+              chatDisplay = parts[0].trim() + '\n\n*(⚡ Generando motor de la aplicación y renderizando en vivo...)*';
             }
             onProgress(chatDisplay || full, false);
           }
@@ -185,7 +197,7 @@ Genera la explicación conversacional y el bloque de código completo interactiv
       const parts = fullText.split('```html');
       conversationalResponse = parts[0].trim();
       if (!conversationalResponse) {
-        conversationalResponse = 'He generado y estructurado la aplicación solicitada con éxito.';
+        conversationalResponse = 'He programado y estructurado la aplicación solicitada con éxito.';
       }
     } else if (fullText.includes('<!DOCTYPE html>')) {
       const idx = fullText.indexOf('<!DOCTYPE html>');
