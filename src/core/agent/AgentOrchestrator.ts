@@ -24,7 +24,11 @@ export class AgentOrchestrator {
     userInstruction: string,
     project: FullStackProject,
     onProgress: (text: string, isThinking?: boolean) => void,
-    signal?: AbortSignal
+    options?: {
+      images?: string[];
+      links?: string[];
+      signal?: AbortSignal;
+    }
   ): Promise<{ responseText: string; updatedProject: FullStackProject }> {
     agentEvents.emit('agent.started', `Iniciando tarea: "${userInstruction.slice(0, 50)}..."`);
 
@@ -33,12 +37,24 @@ export class AgentOrchestrator {
     const mainFile = project.files['index.html'] || project.files['src/App.tsx'] || Object.values(project.files)[0];
     const currentCode = mainFile?.content || '';
 
+    const hasImages = (options?.images || []).length > 0;
+    const hasLinks = (options?.links || []).length > 0;
+
+    let instructionAugmented = userInstruction;
+    if (hasLinks) {
+      instructionAugmented += `\nENLACES Y REFERENCIAS DE INSPIRACIÓN / DISEÑO: ${options!.links!.join(', ')}`;
+    }
+    if (hasImages) {
+      instructionAugmented += `\n[El usuario ha adjuntado ${options!.images!.length} captura(s) o imagen(es) de referencia. Analízalas visualmente, detecta los componentes, colores y errores que deban corregirse en el código]`;
+    }
+
     const systemPrompt = `Eres NONA AGENT, una fábrica de software e inteligencia artificial de clase mundial.
 REGLAS OBLIGATORIAS:
-1. Analiza con máxima fidelidad lo que pide el usuario (si pide un juego, crea un juego 100% interactivo con Three.js o Canvas 2D; si pide una tienda, crea e-commerce; si pide un restaurante, crea reservas; si pide pintar, crea paint).
-2. Devuelve TODO el código HTML/CSS/JS autocontenido en un ÚNICO bloque \`\`\`html con <!DOCTYPE html> con Tailwind CSS (https://cdn.tailwindcss.com) y Lucide Icons (https://unpkg.com/lucide@latest).
-3. NUNCA copies textos del sistema en los títulos ni pongas 'ARCHIVOS ACTUALES DEL PROYECTO:'. Pon un título profesional acorde a la app.
-4. El código debe ser 100% ejecutable y funcional de inmediato.`;
+1. Analiza con máxima fidelidad lo que pide el usuario (juegos interactivos con Three.js, e-commerce, apps de reservas, dashboards, etc.).
+2. Si el usuario adjunta capturas de pantalla, analiza visualmente el diseño y corrige o replica la estructura fielmente.
+3. Devuelve TODO el código HTML/CSS/JS autocontenido en un ÚNICO bloque \`\`\`html con <!DOCTYPE html> con Tailwind CSS (https://cdn.tailwindcss.com) y Lucide Icons (https://unpkg.com/lucide@latest).
+4. NUNCA copies textos de depuración en los títulos. Pon títulos profesionales.
+5. El código debe ser 100% interactivo y ejecutable de inmediato.`;
 
     const userPrompt = existingFileNames.length > 0 && currentCode.length > 30 && !currentCode.includes('Nuevo Archivo')
       ? `MODIFICACIÓN SOBRE CÓDIGO EXISTENTE:
@@ -47,20 +63,20 @@ ${currentCode}
 \`\`\`
 
 INSTRUCCIÓN DEL USUARIO:
-${userInstruction}
+${instructionAugmented}
 
 Genera la versión completa actualizada del código con los cambios integrados en un bloque \`\`\`html.`
       : `CREACIÓN DESDE CERO:
-Desarrolla la siguiente aplicación web completa, profesional, interactiva y con diseño moderno: "${userInstruction}". Devuelve todo el código en un único bloque \`\`\`html listo para renderizar.`;
+Desarrolla la siguiente aplicación web completa, profesional, interactiva y con diseño moderno: "${instructionAugmented}". Devuelve todo el código en un único bloque \`\`\`html listo para renderizar.`;
 
-    agentEvents.emit('agent.thinking', 'Razonando y programando aplicación...');
+    agentEvents.emit('agent.thinking', hasImages ? 'Analizando imagen multimodal y programando...' : 'Razonando y programando aplicación...');
 
     let fullText = '';
     try {
       fullText = await this.aiProvider.streamChat(
         [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'user', content: userPrompt, images: options?.images }
         ],
         (chunk, full, isThinking) => {
           if (isThinking) {
@@ -69,7 +85,7 @@ Desarrolla la siguiente aplicación web completa, profesional, interactiva y con
             onProgress(full, false);
           }
         },
-        { signal }
+        { signal: options?.signal }
       );
     } catch (err: any) {
       agentEvents.emit('agent.error', `Error al comunicar con el motor IA: ${err.message}`);

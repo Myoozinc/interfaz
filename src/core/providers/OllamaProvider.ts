@@ -101,6 +101,15 @@ export class OllamaProvider implements AIProvider {
       'http://127.0.0.1:11434/api/chat'
     ];
 
+    const formattedMessages = messages.map(m => {
+      const cleanImages = (m.images || []).map(img => img.replace(/^data:image\/[a-z]+;base64,/, ''));
+      return {
+        role: m.role,
+        content: m.content,
+        ...(cleanImages.length > 0 ? { images: cleanImages } : {})
+      };
+    });
+
     let lastError: any = null;
 
     for (const ep of endpoints) {
@@ -110,7 +119,7 @@ export class OllamaProvider implements AIProvider {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model,
-            messages: messages.map(m => ({ role: m.role, content: m.content })),
+            messages: formattedMessages,
             stream: true,
             options: {
               temperature: options?.temperature ?? 0.7,

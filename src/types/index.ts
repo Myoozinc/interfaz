@@ -11,6 +11,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
+  images?: string[];
+  links?: string[];
   codeSnippets?: {
     filename?: string;
     language: string;

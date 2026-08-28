@@ -3,6 +3,7 @@ import type { ToolDefinition } from '../types';
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  images?: string[];
   toolCallId?: string;
   name?: string;
 }
