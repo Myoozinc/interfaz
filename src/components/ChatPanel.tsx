@@ -3,15 +3,15 @@ import {
   Send, 
   Sparkles, 
   User, 
-  ArrowDownToLine, 
   Zap, 
   RefreshCw,
-  Check,
   BrainCircuit
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { ChatMessage, FileItem } from '../types';
-import { aiEngine } from '../services/aiGenerator';
+import type { FullStackProject } from '../core/types';
+import { agentOrchestrator } from '../core/agent/AgentOrchestrator';
+import { creditLedger } from '../core/credits/CreditLedger';
 
 interface ChatPanelProps {
   files: FileItem[];
@@ -37,7 +37,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [inputPrompt, setInputPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [thinkingText, setThinkingText] = useState('');
-  const [appliedSnippets, setAppliedSnippets] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -49,7 +48,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     scrollToBottom();
   }, [messages, isGenerating, thinkingText]);
 
-  // Handle pending prompt from Hero Chat view
   useEffect(() => {
     if (pendingPrompt && pendingPrompt.trim()) {
       handleSendMessage(pendingPrompt);
@@ -58,18 +56,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   }, [pendingPrompt]);
 
   const quickPrompts = [
-    '🎮 Crear un juego 3D con Three.js y sonidos',
-    '📊 Crear un dashboard de finanzas moderno',
-    '🎨 Cambiar diseño a modo oscuro con acentos violetas',
-    '⚡ Añadir sistema de puntuación y botón de reinicio',
+    '🍽️ Crear SaaS para restaurantes con reservas y menú',
+    '💳 Añadir integración de pagos con Stripe y suscripciones',
+    '🎨 Cambiar el diseño del dashboard a modo oscuro violeta',
+    '📊 Generar estadísticas de ocupación y ventas en tiempo real',
   ];
 
   const handleSendMessage = async (customPrompt?: string) => {
     const promptToSend = customPrompt || inputPrompt;
     if (!promptToSend.trim() || isGenerating) return;
 
-    // Check & deduct credit
-    const hasCredit = onDeductCredit(1);
+    // Check & deduct credit through CreditLedger
+    const hasCredit = onDeductCredit(5);
     if (!hasCredit) return;
 
     if (onGenerationStart) onGenerationStart();
@@ -96,15 +94,32 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     abortControllerRef.current = new AbortController();
 
-    // Get current HTML code to send as context for surgical edits
-    const currentHtmlFile = files.find(f => f.name.endsWith('.html')) || files[0];
-    const currentCode = currentHtmlFile?.content || '';
+    // Construct FullStackProject from files state
+    const projectFilesRecord: Record<string, any> = {};
+    files.forEach(f => {
+      projectFilesRecord[f.name] = {
+        path: f.name,
+        content: f.content,
+        language: f.language,
+      };
+    });
+
+    const projectContext: FullStackProject = {
+      id: 'proj_' + Date.now(),
+      name: 'NONA Application',
+      description: promptToSend,
+      files: projectFilesRecord,
+      environmentVariables: {},
+      framework: 'react-vite',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
     try {
-      const { codeBlocks } = await aiEngine.generateAppCode(
+      const { responseText, updatedProject } = await agentOrchestrator.run(
         promptToSend,
-        currentCode,
-        (chunk, fullText, isThinking) => {
+        projectContext,
+        (chunk, isThinking) => {
           if (isThinking) {
             setThinkingText(chunk);
           } else {
@@ -112,7 +127,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             setMessages(prev =>
               prev.map(msg =>
                 msg.id === assistantPlaceholderId
-                  ? { ...msg, content: fullText }
+                  ? { ...msg, content: chunk }
                   : msg
               )
             );
@@ -121,52 +136,41 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         abortControllerRef.current.signal
       );
 
-      if (codeBlocks.length > 0) {
-        const primaryBlock = codeBlocks[0];
-        const targetFilename = primaryBlock.filename || 'index.html';
+      // Convert updatedProject.files back to FileItem[]
+      const updatedFileList: FileItem[] = Object.entries(updatedProject.files).map(([name, file], idx) => ({
+        id: (idx + 1).toString(),
+        name,
+        language: file.language as any,
+        content: file.content,
+        isModified: true,
+      }));
 
-        // Update files directly with generated code
-        const updatedFiles = files.map(f =>
-          f.name.toLowerCase() === targetFilename.toLowerCase()
-            ? { ...f, content: primaryBlock.code, isModified: true }
-            : f
-        );
+      onUpdateFiles(updatedFileList);
 
-        if (!updatedFiles.some(f => f.name.toLowerCase() === targetFilename.toLowerCase())) {
-          updatedFiles.push({
-            id: Date.now().toString(),
-            name: targetFilename,
-            language: 'html',
-            content: primaryBlock.code,
-            isModified: true,
-          });
-        }
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === assistantPlaceholderId
+            ? { ...msg, content: responseText }
+            : msg
+        )
+      );
 
-        onUpdateFiles(updatedFiles);
+      creditLedger.deductCredits(5, `Generación de software: "${promptToSend.slice(0, 30)}..."`);
 
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === assistantPlaceholderId
-              ? { ...msg, codeSnippets: codeBlocks }
-              : msg
-          )
-        );
-
-        // Confetti celebration
-        confetti({
-          particleCount: 40,
-          spread: 70,
-          origin: { y: 0.7 },
-          colors: ['#6366F1', '#7C3AED', '#A855F7', '#10B981']
-        });
-      }
+      confetti({
+        particleCount: 50,
+        spread: 80,
+        origin: { y: 0.7 },
+        colors: ['#6366F1', '#7C3AED', '#A855F7', '#10B981']
+      });
 
     } catch (err: any) {
       if (err.name !== 'AbortError') {
+        creditLedger.refundCredits(5, 'Reembolso por fallo en generación');
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, content: `⚠️ Error de conexión: ${err.message}. Asegúrate de que Ollama esté ejecutándose en tu Mac.` }
+              ? { ...msg, content: `⚠️ Error del agente: ${err.message}. Asegúrate de que Ollama esté ejecutándose en tu Mac.` }
               : msg
           )
         );
@@ -178,22 +182,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  const handleManualApplySnippet = (snippetKey: string, code: string, suggestedFilename?: string) => {
-    const target = suggestedFilename || 'index.html';
-    const updatedFiles = files.map(f =>
-      f.name.toLowerCase() === target.toLowerCase()
-        ? { ...f, content: code, isModified: true }
-        : f
-    );
-    onUpdateFiles(updatedFiles);
-    setAppliedSnippets(prev => ({ ...prev, [snippetKey]: true }));
-    setTimeout(() => {
-      setAppliedSnippets(prev => ({ ...prev, [snippetKey]: false }));
-    }, 2500);
-  };
-
   return (
-    <div className="w-84 lg:w-96 bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden text-xs select-none shadow-xs">
+    <div className="w-84 lg:w-96 bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden text-xs select-none shadow-xs font-sans">
       
       {/* Top Header */}
       <div className="p-3 border-b border-slate-200 flex items-center justify-between bg-white">
@@ -201,12 +191,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-2xs">
             <Sparkles className="w-3.5 h-3.5" />
           </div>
-          <span className="font-bold text-slate-900">NONA AI</span>
+          <span className="font-bold text-slate-900">NONA Agent Core</span>
         </div>
 
-        <span className="text-[10px] flex items-center gap-1.5 text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-          Generador Real Activo
+        <span className="text-[10px] flex items-center gap-1.5 text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" />
+          Qwen 3.8 / 2.5 Active
         </span>
       </div>
 
@@ -225,7 +215,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-3 h-3 text-indigo-600" />
-                    <span className="font-semibold text-indigo-600">NONA</span>
+                    <span className="font-semibold text-indigo-600">NONA Agent</span>
                   </>
                 )}
                 <span>• {msg.timestamp}</span>
@@ -242,48 +232,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   {msg.content || (isGenerating && msg.id === messages[messages.length - 1]?.id ? (
                     <div className="flex items-center gap-2 text-indigo-600 font-semibold text-[11px] animate-pulse">
                       <BrainCircuit className="w-4 h-4 animate-spin" />
-                      <span>{thinkingText || 'Generando código en tiempo real con Qwen...'}</span>
+                      <span>{thinkingText || 'Razonando y construyendo software full-stack...'}</span>
                     </div>
                   ) : '')}
                 </div>
-
-                {/* Code snippets action block */}
-                {msg.codeSnippets && msg.codeSnippets.length > 0 && (
-                  <div className="mt-3 pt-2.5 border-t border-slate-200 space-y-2">
-                    {msg.codeSnippets.map((snippet, sIdx) => {
-                      const snippetKey = `${msg.id}-${sIdx}`;
-                      const isApplied = appliedSnippets[snippetKey];
-                      return (
-                        <div key={sIdx} className="bg-slate-50 p-2 rounded-xl border border-slate-200">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase">
-                              {snippet.language} {snippet.filename ? `• ${snippet.filename}` : ''}
-                            </span>
-                            <button
-                              onClick={() => handleManualApplySnippet(snippetKey, snippet.code, snippet.filename)}
-                              className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-semibold transition-all cursor-pointer shadow-2xs"
-                            >
-                              {isApplied ? (
-                                <>
-                                  <Check className="w-3 h-3" />
-                                  <span>¡Aplicado!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <ArrowDownToLine className="w-3 h-3" />
-                                  <span>Re-aplicar al Editor</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-                          <pre className="text-[10px] font-mono text-slate-600 max-h-24 overflow-y-auto bg-white p-1.5 rounded-lg border border-slate-200">
-                            {snippet.code.slice(0, 200)}...
-                          </pre>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </div>
           );
@@ -316,7 +268,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 handleSendMessage();
               }
             }}
-            placeholder="Pídele a NONA crear o modificar cualquier app, juego o componente..."
+            placeholder="Pídele al agente crear o modificar cualquier aplicación full-stack..."
             rows={2}
             className="w-full resize-none bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl p-2.5 pr-10 text-xs text-slate-900 outline-none transition-all placeholder-slate-400"
           />
@@ -330,9 +282,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400 px-1">
-          <span>Enter para enviar • Modificación continua activa</span>
-          <span className="flex items-center gap-0.5 text-indigo-600 font-semibold">
-            <Zap className="w-2.5 h-2.5" /> 1 Crédito
+          <span>AI Software Factory • Bucle de razonamiento activo</span>
+          <span className="flex items-center gap-0.5 text-indigo-600 font-bold">
+            <Zap className="w-2.5 h-2.5" /> 5 Créditos / Run
           </span>
         </div>
       </div>

@@ -10,27 +10,31 @@ import { HeroChatView } from './components/HeroChatView';
 import { CreditsModal } from './components/CreditsModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
-import { ComfyStudioModal } from './components/ComfyStudioModal';
+import { MediaLibraryModal } from './components/MediaLibraryModal';
 import { AuthModal } from './components/AuthModal';
+import { DiagnosticsPage } from './components/DiagnosticsPage';
+import { AgentActivityStream } from './components/AgentActivityStream';
 import type { FileItem, ProjectRecord, ProjectTemplate, UserCredits, UserAccount, ChatMessage } from './types';
 import { projectStore } from './services/projectStore';
 import { STARTER_TEMPLATES } from './services/templates';
 import { aiEngine } from './services/aiGenerator';
+import { agentOrchestrator } from './core/agent/AgentOrchestrator';
 
 export function App() {
-  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('chat');
+  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('split');
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 
   // Projects State
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>('');
-  const [projectName, setProjectName] = useState('NONA App');
+  const [projectName, setProjectName] = useState('NONA Restaurant SaaS');
   const [files, setFiles] = useState<FileItem[]>(STARTER_TEMPLATES[0].files);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: '¡Hola! Soy **NONA AI**. Pídeme crear cualquier aplicación, juego 3D interactivo, componente o diseño en tiempo real.',
+      content: '¡Hola! Soy **NONA AI Software Factory**. Pídeme crear cualquier aplicación web full-stack, SaaS, videojuego 3D o plataforma interactiva.',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   ]);
@@ -39,27 +43,28 @@ export function App() {
   // User & Credits State
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     const saved = localStorage.getItem('nona_user');
-    return saved ? JSON.parse(saved) : { id: 'local_user', name: 'Mi Cuenta Local', email: 'local@nona.app', provider: 'local' };
+    return saved ? JSON.parse(saved) : { id: 'user_1', name: 'Admin SaaS', email: 'admin@nona.app', provider: 'local' };
   });
 
   const [credits, setCredits] = useState<UserCredits>(() => {
-    const saved = localStorage.getItem('nona_credits');
-    return saved ? JSON.parse(saved) : { balance: 50, maxFree: 50, totalUsed: 0, plan: 'free' };
+    const savedBal = localStorage.getItem('nona_credit_balance');
+    const bal = savedBal ? parseInt(savedBal, 10) : 50;
+    return { balance: bal, maxFree: 50, totalUsed: 0, plan: 'free' };
   });
 
   // Modals State
   const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
-  const [isComfyModalOpen, setIsComfyModalOpen] = useState(false);
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [ollamaUrl, setOllamaUrl] = useState(() => {
-    return localStorage.getItem('nona_inference_url') || 'https://fancy-trains-worry.loca.lt';
+    return localStorage.getItem('nona_inference_url') || 'https://timely-diane-frozen-described.trycloudflare.com';
   });
 
-  // Load projects from IndexedDB on mount
   useEffect(() => {
     aiEngine.setOllamaUrl(ollamaUrl);
+    agentOrchestrator.setEndpoint(ollamaUrl);
     projectStore.getAllProjects().then((list) => {
       setProjects(list);
       if (list.length > 0) {
@@ -77,6 +82,7 @@ export function App() {
     setOllamaUrl(url);
     localStorage.setItem('nona_inference_url', url);
     aiEngine.setOllamaUrl(url);
+    agentOrchestrator.setEndpoint(url);
   };
 
   // Sync active project state to IndexedDB on changes
@@ -95,15 +101,6 @@ export function App() {
       setProjects(prev => prev.map(p => p.id === activeProjectId ? updated : p));
     }
   }, [files, messages, projectName]);
-
-  // Save credits & user
-  useEffect(() => {
-    localStorage.setItem('nona_credits', JSON.stringify(credits));
-  }, [credits]);
-
-  useEffect(() => {
-    localStorage.setItem('nona_user', JSON.stringify(currentUser));
-  }, [currentUser]);
 
   // Handlers for Projects
   const handleSelectProject = (projectId: string) => {
@@ -203,8 +200,8 @@ export function App() {
   };
 
   // Credits & Monetization
-  const handleDeductCredit = (amount: number = 1): boolean => {
-    if (credits.balance <= 0) {
+  const handleDeductCredit = (amount: number = 5): boolean => {
+    if (credits.balance < amount) {
       setIsCreditsModalOpen(true);
       return false;
     }
@@ -248,10 +245,10 @@ export function App() {
       if (currentHtml.includes('</body>')) {
         updated = currentHtml.replace(
           '</body>',
-          `  <!-- Media Asset: ${prompt} -->\n  <div class="p-4 flex justify-center"><img src="${assetUrl}" alt="${prompt}" class="rounded-2xl max-w-sm shadow-xl border border-violet-500/30" /></div>\n</body>`
+          `  <!-- Media Asset: ${prompt} -->\n  <div class="p-6 flex justify-center"><img src="${assetUrl}" alt="${prompt}" class="rounded-3xl max-w-md shadow-2xl border border-violet-500/20" /></div>\n</body>`
         );
       } else {
-        updated += `\n<img src="${assetUrl}" alt="${prompt}" class="rounded-2xl max-w-sm" />`;
+        updated += `\n<img src="${assetUrl}" alt="${prompt}" class="rounded-3xl max-w-md" />`;
       }
       setFiles(prev => prev.map((f, i) => i === htmlIndex ? { ...f, content: updated, isModified: true } : f));
     }
@@ -268,71 +265,81 @@ export function App() {
         onOpenCreditsModal={() => setIsCreditsModalOpen(true)}
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         onOpenProjectsModal={() => setIsProjectsModalOpen(true)}
-        onOpenComfyModal={() => setIsComfyModalOpen(true)}
+        onOpenMediaModal={() => setIsMediaModalOpen(true)}
+        onOpenDiagnostics={() => setShowDiagnostics(true)}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onExportZip={handleExportZip}
         viewMode={viewMode}
         setViewMode={setViewMode}
       />
 
-      {/* Main Content Surfaces based on viewMode */}
-      <div className="flex-1 flex overflow-hidden">
-        
-        {viewMode === 'chat' ? (
-          /* Mode 1: Central Hero Chat View */
-          <HeroChatView
-            onStartGeneration={handleStartFromHero}
-            creditsBalance={credits.balance}
-            onOpenWorkspace={() => setViewMode('split')}
-          />
-        ) : (
-          /* Mode 2: Multi-panel Workspace */
-          <div className="flex-1 flex overflow-hidden">
-            
-            {/* Left: File Explorer */}
-            {(viewMode === 'split' || viewMode === 'editor') && (
-              <SidebarFiles
-                files={files}
-                activeFileId={activeFileId}
-                onSelectFile={handleSelectFile}
-                onAddFile={handleAddFile}
-                onDeleteFile={handleDeleteFile}
-                onLoadTemplate={handleLoadTemplate}
-              />
-            )}
-
-            {/* Center: Monaco Editor */}
-            {(viewMode === 'split' || viewMode === 'editor') && (
-              <EditorPanel
-                files={files}
-                activeFileId={activeFileId}
-                onSelectFile={handleSelectFile}
-                onFileChange={handleFileChange}
-              />
-            )}
-
-            {/* Center/Right: Live Preview */}
-            {(viewMode === 'split' || viewMode === 'preview') && (
-              <PreviewPanel
-                files={files}
-              />
-            )}
-
-            {/* Right: AI Chat Panel with Memory */}
-            <ChatPanel
-              files={files}
-              messages={messages}
-              setMessages={setMessages}
-              onUpdateFiles={setFiles}
-              onDeductCredit={handleDeductCredit}
-              pendingPrompt={pendingPrompt}
-              onClearPendingPrompt={() => setPendingPrompt(null)}
+      {/* Main Content View */}
+      {showDiagnostics ? (
+        <DiagnosticsPage onBack={() => setShowDiagnostics(false)} />
+      ) : (
+        <div className="flex-1 flex overflow-hidden">
+          
+          {viewMode === 'chat' ? (
+            /* Mode 1: Central Hero Chat View */
+            <HeroChatView
+              onStartGeneration={handleStartFromHero}
+              creditsBalance={credits.balance}
+              onOpenWorkspace={() => setViewMode('split')}
             />
+          ) : (
+            /* Mode 2: Multi-panel Workspace with Agent Activity Stream */
+            <div className="flex-1 flex flex-col overflow-hidden">
+              
+              <div className="flex-1 flex overflow-hidden">
+                {/* Left: File Explorer */}
+                {(viewMode === 'split' || viewMode === 'editor') && (
+                  <SidebarFiles
+                    files={files}
+                    activeFileId={activeFileId}
+                    onSelectFile={handleSelectFile}
+                    onAddFile={handleAddFile}
+                    onDeleteFile={handleDeleteFile}
+                    onLoadTemplate={handleLoadTemplate}
+                  />
+                )}
 
-          </div>
-        )}
+                {/* Center: Monaco Editor */}
+                {(viewMode === 'split' || viewMode === 'editor') && (
+                  <EditorPanel
+                    files={files}
+                    activeFileId={activeFileId}
+                    onSelectFile={handleSelectFile}
+                    onFileChange={handleFileChange}
+                  />
+                )}
 
-      </div>
+                {/* Center/Right: Live Preview */}
+                {(viewMode === 'split' || viewMode === 'preview') && (
+                  <PreviewPanel
+                    files={files}
+                  />
+                )}
+
+                {/* Right: AI Agent Core Chat Panel */}
+                <ChatPanel
+                  files={files}
+                  messages={messages}
+                  setMessages={setMessages}
+                  onUpdateFiles={setFiles}
+                  onDeductCredit={handleDeductCredit}
+                  pendingPrompt={pendingPrompt}
+                  onClearPendingPrompt={() => setPendingPrompt(null)}
+                />
+              </div>
+
+              {/* Bottom: Live Agent Activity Stream */}
+              <AgentActivityStream />
+
+            </div>
+          )}
+
+        </div>
+      )}
 
       {/* Pricing & Credits Modal */}
       <CreditsModal
@@ -362,11 +369,11 @@ export function App() {
         onDuplicateProject={handleDuplicateProject}
       />
 
-      {/* NONA Media Studio Modal */}
-      <ComfyStudioModal
-        isOpen={isComfyModalOpen}
-        onClose={() => setIsComfyModalOpen(false)}
-        onInsertAssetToCode={handleInsertAssetToCode}
+      {/* Media Library Modal */}
+      <MediaLibraryModal
+        isOpen={isMediaModalOpen}
+        onClose={() => setIsMediaModalOpen(false)}
+        onInsertAsset={handleInsertAssetToCode}
       />
 
       {/* Auth & Profile Modal */}
