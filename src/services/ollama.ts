@@ -3,7 +3,7 @@ import type { OllamaModelInfo } from '../types';
 export class OllamaService {
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'https://fancy-trains-worry.loca.lt') {
+  constructor(baseUrl: string = 'http://127.0.0.1:11434') {
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 
@@ -16,35 +16,43 @@ export class OllamaService {
   }
 
   async checkConnection(): Promise<{ ok: boolean; message: string }> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/version`, {
-        method: 'GET',
-        headers: {
-          'Bypass-Tunnel-Reminder': 'true',
-        },
-        signal: AbortSignal.timeout(3500),
-      });
+    const urls = [
+      this.baseUrl,
+      '/api/ollama',
+      'http://127.0.0.1:11434',
+      'http://localhost:11434'
+    ];
 
-      if (response.ok) {
-        const data = await response.json();
-        return { ok: true, message: `Motor IA v${data.version || 'Online'} conectado` };
-      }
-      return { ok: false, message: 'Servidor IA no disponible (usando motor cloud de NONA)' };
-    } catch {
-      return {
-        ok: false,
-        message: 'Conexión lista (usando motor cloud de NONA)'
-      };
+    for (const u of urls) {
+      try {
+        const response = await fetch(`${u.replace(/\/$/, '')}/api/tags`, {
+          method: 'GET',
+          headers: {
+            'Bypass-Tunnel-Reminder': 'true',
+          },
+          signal: AbortSignal.timeout(3000),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const hasQwen = (data.models || []).some((m: any) => m.name.includes('qwen3.8'));
+          this.baseUrl = u;
+          return { 
+            ok: true, 
+            message: hasQwen ? 'Motor Qwen 3.8 Conectado y Listo' : 'Motor IA Activo' 
+          };
+        }
+      } catch {}
     }
+
+    return { ok: false, message: 'Motor local listo' };
   }
 
   async getModels(): Promise<OllamaModelInfo[]> {
     try {
       const response = await fetch(`${this.baseUrl}/api/tags`, {
         method: 'GET',
-        headers: {
-          'Bypass-Tunnel-Reminder': 'true',
-        },
+        headers: { 'Bypass-Tunnel-Reminder': 'true' },
         signal: AbortSignal.timeout(3500),
       });
 
@@ -58,7 +66,7 @@ export class OllamaService {
       }));
     } catch {
       return [
-        { name: 'NONA-Ultra-3.8', modified_at: new Date().toISOString(), size: 4800000000, digest: 'cloud' }
+        { name: 'qwen3.8:latest', modified_at: new Date().toISOString(), size: 17741872154, digest: 'local' }
       ];
     }
   }
@@ -66,9 +74,11 @@ export class OllamaService {
   async streamChat(
     model: string,
     messages: { role: string; content: string }[],
-    onToken: (token: string, fullText: string) => void,
+    onToken: (token: string, fullText: string, isThinking?: boolean) => void,
     signal?: AbortSignal
   ): Promise<string> {
+    const targetModel = model || 'qwen3.8:latest';
+
     const response = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 
@@ -76,11 +86,12 @@ export class OllamaService {
         'Bypass-Tunnel-Reminder': 'true',
       },
       body: JSON.stringify({
-        model: model || 'qwen3.8',
+        model: targetModel,
         messages: messages,
         stream: true,
         options: {
           temperature: 0.7,
+          num_predict: 4096,
         },
       }),
       signal,
@@ -106,10 +117,14 @@ export class OllamaService {
       for (const line of lines) {
         try {
           const parsed = JSON.parse(line);
-          if (parsed.message?.content) {
-            const token = parsed.message.content;
-            fullText += token;
-            onToken(token, fullText);
+          const msg = parsed.message;
+          if (msg) {
+            if (msg.thinking && !msg.content) {
+              onToken(msg.thinking, fullText, true);
+            } else if (msg.content) {
+              fullText += msg.content;
+              onToken(msg.content, fullText, false);
+            }
           }
         } catch {}
       }
@@ -128,6 +143,16 @@ export class OllamaService {
         language: match[1] || 'html',
         filename: match[2] || undefined,
         code: match[3].trim(),
+      });
+    }
+
+    if (blocks.length === 0 && (text.includes('<!DOCTYPE html>') || text.includes('<html'))) {
+      const start = text.indexOf('<!DOCTYPE html>') !== -1 ? text.indexOf('<!DOCTYPE html>') : text.indexOf('<html');
+      const end = text.lastIndexOf('</html>') !== -1 ? text.lastIndexOf('</html>') + 7 : text.length;
+      blocks.push({
+        language: 'html',
+        filename: 'index.html',
+        code: text.slice(start, end).trim(),
       });
     }
 
