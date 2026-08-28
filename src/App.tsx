@@ -6,13 +6,16 @@ import { SidebarFiles } from './components/SidebarFiles';
 import { EditorPanel } from './components/EditorPanel';
 import { PreviewPanel } from './components/PreviewPanel';
 import { ChatPanel } from './components/ChatPanel';
+import { HeroChatView } from './components/HeroChatView';
 import { CreditsModal } from './components/CreditsModal';
 import { SettingsModal } from './components/SettingsModal';
-import type { FileItem, ProjectTemplate, OllamaModelInfo, UserCredits } from './types';
+import type { FileItem, ProjectTemplate, UserCredits } from './types';
 import { STARTER_TEMPLATES } from './services/templates';
-import { ollamaClient } from './services/ollama';
 
 export function App() {
+  // Navigation & View Mode: 'chat' | 'split' | 'preview' | 'editor'
+  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('chat');
+
   // Project state
   const [projectName, setProjectName] = useState('NONA App');
   const [files, setFiles] = useState<FileItem[]>(() => {
@@ -42,19 +45,8 @@ export function App() {
   const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
-  // Ollama & models state
+  // Ollama endpoint
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
-  const [currentModel, setCurrentModel] = useState('qwen3.8');
-  const [modelsList, setModelsList] = useState<OllamaModelInfo[]>([
-    { name: 'qwen3.8', modified_at: new Date().toISOString(), size: 4800000000, digest: 'local' },
-    { name: 'qwen2.5-coder:14b', modified_at: new Date().toISOString(), size: 9000000000, digest: 'local' },
-    { name: 'qwen2.5:3b', modified_at: new Date().toISOString(), size: 2000000000, digest: 'local' },
-    { name: 'gemma4:26b', modified_at: new Date().toISOString(), size: 16000000000, digest: 'local' },
-  ]);
-  const [ollamaStatus, setOllamaStatus] = useState<{ ok: boolean; message: string }>({
-    ok: true,
-    message: 'Listo para conectar con Qwen 3.8',
-  });
 
   // Save files to localStorage
   useEffect(() => {
@@ -65,26 +57,6 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('nona_credits', JSON.stringify(credits));
   }, [credits]);
-
-  // Auto check Ollama on mount
-  useEffect(() => {
-    const checkOllama = async () => {
-      const res = await ollamaClient.checkConnection();
-      setOllamaStatus(res);
-      if (res.ok) {
-        const models = await ollamaClient.getModels();
-        if (models.length > 0) {
-          setModelsList(models);
-          const hasQwen = models.some(m => m.name.toLowerCase().includes('qwen'));
-          if (hasQwen) {
-            const bestQwen = models.find(m => m.name.includes('qwen3.8')) || models.find(m => m.name.includes('qwen'));
-            if (bestQwen) setCurrentModel(bestQwen.name);
-          }
-        }
-      }
-    };
-    checkOllama();
-  }, []);
 
   // Handlers for Files
   const handleSelectFile = (fileId: string) => {
@@ -127,6 +99,7 @@ export function App() {
     setFiles(template.files);
     setActiveFileId(template.files[0]?.id || '1');
     setProjectName(template.name);
+    setViewMode('split');
   };
 
   const handleNewProject = () => {
@@ -135,7 +108,7 @@ export function App() {
     }
   };
 
-  // Handler to apply generated AI code
+  // Handler to apply generated AI code directly
   const handleApplyCodeToFile = (filename: string, code: string) => {
     setFiles(prev => {
       const existing = prev.find(f => f.name.toLowerCase() === filename.toLowerCase());
@@ -187,10 +160,24 @@ export function App() {
     saveAs(blob, `${projectName.toLowerCase().replace(/\s+/g, '-')}-nona.zip`);
   };
 
+  // Handler when starting generation from Hero Chat
+  const handleStartFromHero = (prompt: string) => {
+    setViewMode('split');
+    // Trigger generation in chat panel
+    setTimeout(() => {
+      const chatInput = document.querySelector('textarea') as HTMLTextAreaElement;
+      if (chatInput) {
+        chatInput.value = prompt;
+        const sendBtn = chatInput.parentElement?.querySelector('button') as HTMLButtonElement;
+        sendBtn?.click();
+      }
+    }, 100);
+  };
+
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#FAF7F2] text-[#1C1917] overflow-hidden">
+    <div className="flex flex-col h-screen w-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       
-      {/* Top Main Navigation */}
+      {/* Top Navigation */}
       <Header
         projectName={projectName}
         setProjectName={setProjectName}
@@ -199,45 +186,62 @@ export function App() {
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         onExportZip={handleExportZip}
         onNewProject={handleNewProject}
-        ollamaStatus={ollamaStatus}
-        currentModel={currentModel}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
       />
 
-      {/* Main 4-Way Worksurface Layout */}
+      {/* Main Content Surfaces based on viewMode */}
       <div className="flex-1 flex overflow-hidden">
         
-        {/* Left 1: File Explorer & Templates */}
-        <SidebarFiles
-          files={files}
-          activeFileId={activeFileId}
-          onSelectFile={handleSelectFile}
-          onAddFile={handleAddFile}
-          onDeleteFile={handleDeleteFile}
-          onLoadTemplate={handleLoadTemplate}
-        />
+        {viewMode === 'chat' ? (
+          /* Mode 1: Central Hero Chat View (Chat-first flow) */
+          <HeroChatView
+            onStartGeneration={handleStartFromHero}
+            creditsBalance={credits.balance}
+            onOpenWorkspace={() => setViewMode('split')}
+          />
+        ) : (
+          /* Mode 2: Multi-panel Workspace */
+          <div className="flex-1 flex overflow-hidden">
+            
+            {/* Left: File Explorer (Shown in split and editor views) */}
+            {(viewMode === 'split' || viewMode === 'editor') && (
+              <SidebarFiles
+                files={files}
+                activeFileId={activeFileId}
+                onSelectFile={handleSelectFile}
+                onAddFile={handleAddFile}
+                onDeleteFile={handleDeleteFile}
+                onLoadTemplate={handleLoadTemplate}
+              />
+            )}
 
-        {/* Center: Monaco Code Editor */}
-        <EditorPanel
-          files={files}
-          activeFileId={activeFileId}
-          onSelectFile={handleSelectFile}
-          onFileChange={handleFileChange}
-        />
+            {/* Center: Monaco Editor (Shown in split and editor views) */}
+            {(viewMode === 'split' || viewMode === 'editor') && (
+              <EditorPanel
+                files={files}
+                activeFileId={activeFileId}
+                onSelectFile={handleSelectFile}
+                onFileChange={handleFileChange}
+              />
+            )}
 
-        {/* Right Split: Live Preview */}
-        <PreviewPanel
-          files={files}
-        />
+            {/* Center/Right: Live Preview (Shown in split and preview views) */}
+            {(viewMode === 'split' || viewMode === 'preview') && (
+              <PreviewPanel
+                files={files}
+              />
+            )}
 
-        {/* Far Right: NONA AI Agent & Chat with Qwen 3.8 */}
-        <ChatPanel
-          files={files}
-          onApplyCodeToFile={handleApplyCodeToFile}
-          onDeductCredit={handleDeductCredit}
-          currentModel={currentModel}
-          setCurrentModel={setCurrentModel}
-          modelsList={modelsList}
-        />
+            {/* Right: AI Chat Panel */}
+            <ChatPanel
+              files={files}
+              onApplyCodeToFile={handleApplyCodeToFile}
+              onDeductCredit={handleDeductCredit}
+            />
+
+          </div>
+        )}
 
       </div>
 
@@ -255,10 +259,6 @@ export function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         ollamaUrl={ollamaUrl}
         setOllamaUrl={setOllamaUrl}
-        onRefreshModels={async () => {
-          const models = await ollamaClient.getModels();
-          if (models.length > 0) setModelsList(models);
-        }}
       />
 
     </div>

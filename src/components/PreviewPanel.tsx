@@ -32,6 +32,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
         <script src="https://unpkg.com/lucide@latest"></script>
         <style>
           ${cssFile}
@@ -55,7 +56,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         </script>
       </head>
       <body>
-        ${htmlFile.includes('<body') ? htmlFile : `<div>${htmlFile}</div>`}
+        ${htmlFile.includes('<body') || htmlFile.includes('<!DOCTYPE') ? htmlFile : `<div>${htmlFile}</div>`}
         <script>
           try {
             ${jsFile}
@@ -103,10 +104,10 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAF7F2] overflow-hidden">
+    <div className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden">
       
       {/* Top Preview Controls */}
-      <div className="h-10 bg-[#FAF7F2] border-b border-[#E7E0D6] flex items-center justify-between px-3 select-none">
+      <div className="h-10 bg-white border-b border-slate-200 flex items-center justify-between px-3 select-none">
         
         {/* Tabs: Preview vs Console */}
         <div className="flex items-center gap-1">
@@ -114,11 +115,11 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
             onClick={() => setActiveTab('preview')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'preview'
-                ? 'bg-white text-[#1C1917] border border-[#E7E0D6] shadow-2xs'
-                : 'text-[#57534E] hover:bg-[#F4EFEA]'
+                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-2xs'
+                : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <Eye className="w-3.5 h-3.5 text-[#A86B32]" />
+            <Eye className="w-3.5 h-3.5 text-indigo-600" />
             <span>Vista Previa</span>
           </button>
 
@@ -126,14 +127,14 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
             onClick={() => setActiveTab('console')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'console'
-                ? 'bg-white text-[#1C1917] border border-[#E7E0D6] shadow-2xs'
-                : 'text-[#57534E] hover:bg-[#F4EFEA]'
+                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-2xs'
+                : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <Terminal className="w-3.5 h-3.5" />
+            <Terminal className="w-3.5 h-3.5 text-slate-600" />
             <span>Consola</span>
             {consoleLogs.length > 0 && (
-              <span className="text-[10px] bg-[#FAF1E8] text-[#8F5622] px-1.5 py-0.2 rounded-full font-bold border border-[#DFC7B1]">
+              <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded-full font-bold">
                 {consoleLogs.length}
               </span>
             )}
@@ -143,12 +144,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         {/* Viewport & Actions */}
         <div className="flex items-center gap-1.5">
           {activeTab === 'preview' && (
-            <div className="flex items-center bg-white border border-[#E7E0D6] rounded-lg p-0.5 shadow-2xs">
+            <div className="flex items-center bg-slate-100 border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 onClick={() => setViewport('desktop')}
                 title="Escritorio (100%)"
                 className={`p-1 rounded-md transition-colors cursor-pointer ${
-                  viewport === 'desktop' ? 'bg-[#FAF1E8] text-[#A86B32]' : 'text-[#8C827A] hover:text-[#1C1917]'
+                  viewport === 'desktop' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-400 hover:text-slate-800'
                 }`}
               >
                 <Monitor className="w-3.5 h-3.5" />
@@ -157,7 +158,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
                 onClick={() => setViewport('tablet')}
                 title="Tablet (768px)"
                 className={`p-1 rounded-md transition-colors cursor-pointer ${
-                  viewport === 'tablet' ? 'bg-[#FAF1E8] text-[#A86B32]' : 'text-[#8C827A] hover:text-[#1C1917]'
+                  viewport === 'tablet' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-400 hover:text-slate-800'
                 }`}
               >
                 <Tablet className="w-3.5 h-3.5" />
@@ -166,7 +167,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
                 onClick={() => setViewport('mobile')}
                 title="Móvil (375px)"
                 className={`p-1 rounded-md transition-colors cursor-pointer ${
-                  viewport === 'mobile' ? 'bg-[#FAF1E8] text-[#A86B32]' : 'text-[#8C827A] hover:text-[#1C1917]'
+                  viewport === 'mobile' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-400 hover:text-slate-800'
                 }`}
               >
                 <Smartphone className="w-3.5 h-3.5" />
@@ -177,7 +178,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
           <button
             onClick={() => setIframeKey(k => k + 1)}
             title="Recargar Vista Previa"
-            className="p-1.5 rounded-lg bg-white hover:bg-[#F4EFEA] border border-[#E7E0D6] text-[#57534E] hover:text-[#1C1917] transition-all shadow-2xs cursor-pointer"
+            className="p-1.5 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all shadow-2xs cursor-pointer"
           >
             <RotateCw className="w-3.5 h-3.5" />
           </button>
@@ -185,7 +186,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
           <button
             onClick={handleOpenInNewTab}
             title="Abrir en pestaña completa"
-            className="p-1.5 rounded-lg bg-white hover:bg-[#F4EFEA] border border-[#E7E0D6] text-[#57534E] hover:text-[#1C1917] transition-all shadow-2xs cursor-pointer"
+            className="p-1.5 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all shadow-2xs cursor-pointer"
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
@@ -194,11 +195,11 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
       </div>
 
       {/* Main Preview Container */}
-      <div className="flex-1 p-3 flex items-center justify-center overflow-auto bg-[#F4EFEA]/50">
+      <div className="flex-1 p-3 flex items-center justify-center overflow-auto bg-slate-100">
         {activeTab === 'preview' ? (
           <div
             style={{ width: getViewportWidth() }}
-            className="h-full bg-white rounded-xl border border-[#E7E0D6] shadow-sm overflow-hidden transition-all duration-300 flex flex-col"
+            className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 flex flex-col"
           >
             <iframe
               key={iframeKey}
@@ -209,22 +210,22 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
             />
           </div>
         ) : (
-          <div className="w-full h-full bg-[#1C1917] text-[#FAF7F2] rounded-xl p-4 font-mono text-xs overflow-y-auto space-y-1.5 shadow-inner">
-            <div className="text-[11px] text-[#8C827A] border-b border-[#332F2B] pb-2 flex justify-between">
+          <div className="w-full h-full bg-slate-900 text-slate-100 rounded-2xl p-4 font-mono text-xs overflow-y-auto space-y-1.5 shadow-inner">
+            <div className="text-[11px] text-slate-400 border-b border-slate-800 pb-2 flex justify-between">
               <span>Terminal de Logs del Preview</span>
               <button
                 onClick={() => setConsoleLogs([])}
-                className="text-[#A86B32] hover:underline cursor-pointer"
+                className="text-indigo-400 hover:underline cursor-pointer"
               >
                 Limpiar
               </button>
             </div>
             {consoleLogs.length === 0 ? (
-              <p className="text-[#8C827A] pt-2">No hay logs registrados.</p>
+              <p className="text-slate-500 pt-2">No hay logs registrados.</p>
             ) : (
               consoleLogs.map((log, idx) => (
                 <div key={idx} className="flex items-start gap-2">
-                  <span className="text-[#8C827A]">[{log.time}]</span>
+                  <span className="text-slate-500">[{log.time}]</span>
                   <span className={log.type === 'error' ? 'text-red-400 font-bold' : log.type === 'warn' ? 'text-amber-300' : 'text-emerald-300'}>
                     {log.type.toUpperCase()}:
                   </span>

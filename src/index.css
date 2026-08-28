@@ -2,23 +2,22 @@
 
 @layer base {
   :root {
-    --bg-main: #FAF7F2;
+    --bg-main: #F8FAFC;
     --bg-card: #FFFFFF;
-    --bg-subtle: #F4EFEA;
-    --border-main: #E7E0D6;
-    --border-subtle: #F0EAE2;
-    --accent-bronze: #A86B32;
-    --accent-bronze-hover: #8F5622;
-    --accent-cream: #F8F2EC;
-    --text-primary: #1C1917;
-    --text-secondary: #57534E;
-    --text-muted: #8C827A;
+    --bg-subtle: #F1F5F9;
+    --border-main: #E2E8F0;
+    --border-subtle: #F1F5F9;
+    --accent-primary: #4F46E5;
+    --accent-secondary: #7C3AED;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
   }
 
   body {
-    background-color: #FAF7F2;
-    color: #1C1917;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #F8FAFC;
+    color: #0F172A;
+    font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Segoe UI", Roboto, sans-serif;
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -30,18 +29,18 @@
 
 /* Custom subtle scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #DDD5CA;
+  background: #CBD5E1;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #C4BAAC;
+  background: #94A3B8;
 }
 
 /* Monaco container overrides */
@@ -49,16 +48,15 @@
   border-radius: 0 0 12px 12px;
 }
 
-/* Pulse animation for AI streaming */
-@keyframes warm-glow {
+@keyframes violet-glow {
   0%, 100% {
-    box-shadow: 0 0 15px rgba(168, 107, 50, 0.15);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
   }
   50% {
-    box-shadow: 0 0 25px rgba(168, 107, 50, 0.35);
+    box-shadow: 0 0 30px rgba(124, 58, 237, 0.4);
   }
 }
 
-.animate-warm-glow {
-  animation: warm-glow 2.5s infinite ease-in-out;
+.animate-violet-glow {
+  animation: violet-glow 3s infinite ease-in-out;
 }

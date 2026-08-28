@@ -2,40 +2,34 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Send, 
   Sparkles, 
-  Bot, 
   User, 
   ArrowDownToLine, 
-  Cpu, 
   Zap, 
   RefreshCw,
   Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import type { ChatMessage, FileItem, OllamaModelInfo } from '../types';
-import { ollamaClient, OllamaService } from '../services/ollama';
+import type { ChatMessage, FileItem } from '../types';
+import { aiEngine } from '../services/aiGenerator';
 
 interface ChatPanelProps {
   files: FileItem[];
   onApplyCodeToFile: (filename: string, code: string) => void;
   onDeductCredit: (amount: number) => boolean;
-  currentModel: string;
-  setCurrentModel: (model: string) => void;
-  modelsList: OllamaModelInfo[];
+  onGenerationStart?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
-  files,
+  files: _files,
   onApplyCodeToFile,
   onDeductCredit,
-  currentModel,
-  setCurrentModel,
-  modelsList,
+  onGenerationStart,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: '¡Hola! Soy **NONA AI**, tu asistente autónomo conectado a **Qwen 3.8**. Pídeme crear nuevos componentes, modificar el diseño o generar aplicaciones completas con previsualización en vivo.',
+      content: '¡Hola! Soy **NONA AI**. Pídeme crear cualquier aplicación, juego 3D interactivo, componente o diseño en tiempo real.',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   ]);
@@ -54,10 +48,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   }, [messages, isGenerating]);
 
   const quickPrompts = [
-    '✨ Agrega una barra de navegación flotante con blur',
-    '📊 Añade un componente de métricas con tarjetas interactivas',
-    '🎨 Aplica tema oscuro suave con acentos dorados',
-    '📱 Haz que la tabla sea responsive para móviles',
+    '🎮 Crear juego 3D de música en un mundo virtual',
+    '📊 Crear dashboard financiero con KPIs en tiempo real',
+    '✨ Crear landing page SaaS moderna con animaciones',
+    '🎨 Cambiar diseño a modo oscuro violeta con efectos glass',
   ];
 
   const handleSendMessage = async (customPrompt?: string) => {
@@ -66,9 +60,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // Check & deduct credit
     const hasCredit = onDeductCredit(1);
-    if (!hasCredit) {
-      return;
-    }
+    if (!hasCredit) return;
+
+    if (onGenerationStart) onGenerationStart();
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -83,7 +77,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       role: 'assistant',
       content: '',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      modelUsed: currentModel,
     };
 
     setMessages(prev => [...prev, userMessage, assistantMessage]);
@@ -92,30 +85,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     abortControllerRef.current = new AbortController();
 
-    // Prepare context of active project files
-    const contextPrompt = `Eres NONA AI, un ingeniero senior y diseñador UI/UX especializado en interfaces refinadas, limpias y minimalistas estilo crema y profesional.
-Los archivos actuales del proyecto son:
-${files.map(f => `--- Archivo: ${f.name} (${f.language}) ---\n${f.content.slice(0, 1500)}`).join('\n\n')}
-
-Instrucción del usuario: "${promptToSend}"
-
-Genera el código necesario o la explicación. Si modificas o creas código, encierra el bloque en formato markdown con el nombre del archivo si es posible, por ejemplo:
-\`\`\`html
-<!-- código -->
-\`\`\``;
-
     try {
-      const fullResponse = await ollamaClient.streamChat(
-        currentModel,
-        [
-          { role: 'system', content: 'Eres NONA AI, asistente de código ultra preciso y refinado.' },
-          { role: 'user', content: contextPrompt }
-        ],
-        (_token, currentText) => {
+      const { codeBlocks } = await aiEngine.generateAppCode(
+        promptToSend,
+        (_chunk, fullText) => {
           setMessages(prev =>
             prev.map(msg =>
               msg.id === assistantPlaceholderId
-                ? { ...msg, content: currentText }
+                ? { ...msg, content: fullText }
                 : msg
             )
           );
@@ -123,29 +100,32 @@ Genera el código necesario o la explicación. Si modificas o creas código, enc
         abortControllerRef.current.signal
       );
 
-      // Check if code blocks were returned and parse them
-      const blocks = OllamaService.extractCodeBlocks(fullResponse);
-      if (blocks.length > 0) {
+      if (codeBlocks.length > 0) {
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, codeSnippets: blocks }
+              ? { ...msg, codeSnippets: codeBlocks }
               : msg
           )
         );
 
+        // Auto-apply primary code block directly to active file/index.html so preview updates immediately!
+        const primaryBlock = codeBlocks[0];
+        const targetFilename = primaryBlock.filename || 'index.html';
+        onApplyCodeToFile(targetFilename, primaryBlock.code);
+
         // Confetti celebration
         confetti({
-          particleCount: 35,
-          spread: 60,
-          origin: { y: 0.8 },
-          colors: ['#A86B32', '#DFC7B1', '#FAF1E8', '#10B981']
+          particleCount: 40,
+          spread: 70,
+          origin: { y: 0.7 },
+          colors: ['#6366F1', '#7C3AED', '#A855F7', '#10B981']
         });
       }
 
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        console.error('Error generating chat:', err);
+        console.error('Error generating:', err);
       }
     } finally {
       setIsGenerating(false);
@@ -153,8 +133,8 @@ Genera el código necesario o la explicación. Si modificas o creas código, enc
     }
   };
 
-  const handleApplySnippet = (snippetKey: string, code: string, suggestedFilename?: string) => {
-    const target = suggestedFilename || (code.includes('<!DOCTYPE') || code.includes('<div') ? 'index.html' : files[0]?.name || 'index.html');
+  const handleManualApplySnippet = (snippetKey: string, code: string, suggestedFilename?: string) => {
+    const target = suggestedFilename || 'index.html';
     onApplyCodeToFile(target, code);
     setAppliedSnippets(prev => ({ ...prev, [snippetKey]: true }));
     setTimeout(() => {
@@ -163,41 +143,30 @@ Genera el código necesario o la explicación. Si modificas o creas código, enc
   };
 
   return (
-    <div className="w-84 lg:w-96 bg-[#FAF7F2] border-l border-[#E7E0D6] flex flex-col h-full overflow-hidden text-xs select-none">
+    <div className="w-84 lg:w-96 bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden text-xs select-none shadow-xs">
       
-      {/* Top Header: Model Selector */}
-      <div className="p-3 border-b border-[#E7E0D6] flex items-center justify-between bg-white">
+      {/* Top Header */}
+      <div className="p-3 border-b border-slate-200 flex items-center justify-between bg-white">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-[#FAF1E8] border border-[#DFC7B1] flex items-center justify-center text-[#A86B32]">
-            <Bot className="w-3.5 h-3.5" />
+          <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-2xs">
+            <Sparkles className="w-3.5 h-3.5" />
           </div>
-          <span className="font-bold text-[#1C1917]">NONA Agent</span>
+          <span className="font-bold text-slate-900">NONA AI</span>
         </div>
 
-        {/* Model dropdown */}
-        <div className="flex items-center gap-1">
-          <Cpu className="w-3 h-3 text-[#8C827A]" />
-          <select
-            value={currentModel}
-            onChange={(e) => setCurrentModel(e.target.value)}
-            className="text-[11px] font-semibold text-[#1C1917] bg-[#FAF7F2] border border-[#E7E0D6] rounded-md px-2 py-0.5 outline-none cursor-pointer hover:border-[#DFC7B1]"
-          >
-            {modelsList.map((m) => (
-              <option key={m.name} value={m.name}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <span className="text-[10px] flex items-center gap-1.5 text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+          Motor Activo
+        </span>
       </div>
 
       {/* Messages List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50">
         {messages.map((msg) => {
           const isUser = msg.role === 'user';
           return (
             <div key={msg.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-              <div className="flex items-center gap-1.5 mb-1 text-[10px] text-[#8C827A]">
+              <div className="flex items-center gap-1.5 mb-1 text-[10px] text-slate-400">
                 {isUser ? (
                   <>
                     <span>Tú</span>
@@ -205,39 +174,39 @@ Genera el código necesario o la explicación. Si modificas o creas código, enc
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-3 h-3 text-[#A86B32]" />
-                    <span className="font-semibold text-[#A86B32]">NONA ({msg.modelUsed || currentModel})</span>
+                    <Sparkles className="w-3 h-3 text-indigo-600" />
+                    <span className="font-semibold text-indigo-600">NONA</span>
                   </>
                 )}
                 <span>• {msg.timestamp}</span>
               </div>
 
               <div
-                className={`p-3 rounded-2xl max-w-[92%] leading-relaxed break-words shadow-2xs ${
+                className={`p-3.5 rounded-2xl max-w-[92%] leading-relaxed break-words shadow-2xs ${
                   isUser
-                    ? 'bg-[#A86B32] text-white rounded-tr-xs'
-                    : 'bg-white text-[#1C1917] border border-[#E7E0D6] rounded-tl-xs'
+                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-tr-xs shadow-indigo-500/10'
+                    : 'bg-white text-slate-900 border border-slate-200 rounded-tl-xs'
                 }`}
               >
                 <div className="whitespace-pre-wrap font-sans text-xs">
                   {msg.content}
                 </div>
 
-                {/* If AI provided code blocks, show quick action button */}
+                {/* If AI provided code blocks */}
                 {msg.codeSnippets && msg.codeSnippets.length > 0 && (
-                  <div className="mt-3 pt-2 border-t border-[#E7E0D6] space-y-2">
+                  <div className="mt-3 pt-2.5 border-t border-slate-200 space-y-2">
                     {msg.codeSnippets.map((snippet, sIdx) => {
                       const snippetKey = `${msg.id}-${sIdx}`;
                       const isApplied = appliedSnippets[snippetKey];
                       return (
-                        <div key={sIdx} className="bg-[#FAF7F2] p-2 rounded-xl border border-[#E7E0D6]">
+                        <div key={sIdx} className="bg-slate-50 p-2 rounded-xl border border-slate-200">
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10px] font-bold text-[#8C827A] uppercase">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">
                               {snippet.language} {snippet.filename ? `• ${snippet.filename}` : ''}
                             </span>
                             <button
-                              onClick={() => handleApplySnippet(snippetKey, snippet.code, snippet.filename)}
-                              className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#A86B32] hover:bg-[#8F5622] text-white text-[10px] font-semibold transition-all cursor-pointer"
+                              onClick={() => handleManualApplySnippet(snippetKey, snippet.code, snippet.filename)}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-semibold transition-all cursor-pointer shadow-2xs"
                             >
                               {isApplied ? (
                                 <>
@@ -247,13 +216,13 @@ Genera el código necesario o la explicación. Si modificas o creas código, enc
                               ) : (
                                 <>
                                   <ArrowDownToLine className="w-3 h-3" />
-                                  <span>Aplicar al Editor</span>
+                                  <span>Re-aplicar al Editor</span>
                                 </>
                               )}
                             </button>
                           </div>
-                          <pre className="text-[10px] font-mono text-[#57534E] max-h-24 overflow-y-auto bg-white p-1.5 rounded-md border border-[#DFC7B1]">
-                            {snippet.code.slice(0, 300)}...
+                          <pre className="text-[10px] font-mono text-slate-600 max-h-24 overflow-y-auto bg-white p-1.5 rounded-lg border border-slate-200">
+                            {snippet.code.slice(0, 250)}...
                           </pre>
                         </div>
                       );
@@ -268,12 +237,12 @@ Genera el código necesario o la explicación. Si modificas o creas código, enc
       </div>
 
       {/* Quick Prompts Suggestions */}
-      <div className="px-3 py-1.5 border-t border-[#E7E0D6] bg-white overflow-x-auto whitespace-nowrap flex gap-1.5">
+      <div className="px-3 py-1.5 border-t border-slate-200 bg-white overflow-x-auto whitespace-nowrap flex gap-1.5">
         {quickPrompts.map((q, idx) => (
           <button
             key={idx}
             onClick={() => handleSendMessage(q)}
-            className="px-2.5 py-1 rounded-full bg-[#FAF7F2] hover:bg-[#FAF1E8] border border-[#E7E0D6] hover:border-[#DFC7B1] text-[10px] text-[#57534E] hover:text-[#8F5622] transition-colors cursor-pointer"
+            className="px-2.5 py-1 rounded-full bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-[10px] text-slate-600 hover:text-indigo-600 transition-colors cursor-pointer"
           >
             {q}
           </button>
@@ -281,7 +250,7 @@ Genera el código necesario o la explicación. Si modificas o creas código, enc
       </div>
 
       {/* Chat Input Bar */}
-      <div className="p-3 bg-white border-t border-[#E7E0D6]">
+      <div className="p-3 bg-white border-t border-slate-200">
         <div className="relative flex items-center">
           <textarea
             value={inputPrompt}
@@ -292,22 +261,22 @@ Genera el código necesario o la explicación. Si modificas o creas código, enc
                 handleSendMessage();
               }
             }}
-            placeholder="Pídele a Qwen 3.8 crear o modificar código..."
+            placeholder="Pídele a NONA crear un juego 3D, app o interfaz..."
             rows={2}
-            className="w-full resize-none bg-[#FAF7F2] border border-[#E7E0D6] focus:border-[#A86B32] focus:bg-white rounded-xl p-2.5 pr-10 text-xs text-[#1C1917] outline-none transition-all placeholder-[#8C827A]"
+            className="w-full resize-none bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl p-2.5 pr-10 text-xs text-slate-900 outline-none transition-all placeholder-slate-400"
           />
           <button
             onClick={() => handleSendMessage()}
             disabled={!inputPrompt.trim() || isGenerating}
-            className="absolute right-2.5 p-1.5 rounded-lg bg-[#A86B32] hover:bg-[#8F5622] disabled:opacity-40 text-white transition-all shadow-2xs cursor-pointer"
+            className="absolute right-2.5 p-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-40 text-white transition-all shadow-xs cursor-pointer"
           >
             {isGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           </button>
         </div>
 
-        <div className="mt-1.5 flex items-center justify-between text-[10px] text-[#8C827A] px-1">
+        <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400 px-1">
           <span>Enter para enviar • Shift + Enter salto de línea</span>
-          <span className="flex items-center gap-0.5 text-[#A86B32] font-semibold">
+          <span className="flex items-center gap-0.5 text-indigo-600 font-semibold">
             <Zap className="w-2.5 h-2.5" /> 1 Crédito / prompt
           </span>
         </div>

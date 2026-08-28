@@ -30,29 +30,29 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   const editorRef = useRef<any>(null);
 
   const handleEditorWillMount = (monaco: Monaco) => {
-    monaco.editor.defineTheme('nona-cream', {
+    monaco.editor.defineTheme('nona-modern', {
       base: 'vs',
       inherit: true,
       rules: [
-        { token: 'comment', foreground: '8C827A', fontStyle: 'italic' },
-        { token: 'keyword', foreground: 'A86B32', fontStyle: 'bold' },
-        { token: 'string', foreground: '2E7D32' },
-        { token: 'number', foreground: 'D97706' },
-        { token: 'tag', foreground: 'A86B32' },
-        { token: 'attribute.name', foreground: '4B5563' },
-        { token: 'attribute.value', foreground: '059669' },
+        { token: 'comment', foreground: '94A3B8', fontStyle: 'italic' },
+        { token: 'keyword', foreground: '6366F1', fontStyle: 'bold' },
+        { token: 'string', foreground: '059669' },
+        { token: 'number', foreground: '7C3AED' },
+        { token: 'tag', foreground: '4F46E5' },
+        { token: 'attribute.name', foreground: '64748B' },
+        { token: 'attribute.value', foreground: '0D9488' },
       ],
       colors: {
         'editor.background': '#FFFFFF',
-        'editor.foreground': '#1C1917',
-        'editorLineNumber.foreground': '#C4BAAC',
-        'editorLineNumber.activeForeground': '#A86B32',
-        'editorCursor.foreground': '#A86B32',
-        'editor.selectionBackground': '#F4E2D2',
-        'editor.inactiveSelectionBackground': '#FAF1E8',
-        'editorIndentGuide.background': '#F0EAE2',
-        'editorIndentGuide.activeBackground': '#DFC7B1',
-        'editorGutter.background': '#FAF7F2',
+        'editor.foreground': '#0F172A',
+        'editorLineNumber.foreground': '#CBD5E1',
+        'editorLineNumber.activeForeground': '#6366F1',
+        'editorCursor.foreground': '#4F46E5',
+        'editor.selectionBackground': '#E0E7FF',
+        'editor.inactiveSelectionBackground': '#EEF2FF',
+        'editorIndentGuide.background': '#F1F5F9',
+        'editorIndentGuide.activeBackground': '#CBD5E1',
+        'editorGutter.background': '#F8FAFC',
       }
     });
   };
@@ -72,17 +72,17 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
 
   if (!activeFile) {
     return (
-      <div className="flex-1 bg-white flex items-center justify-center text-[#8C827A] text-xs">
+      <div className="flex-1 bg-white flex items-center justify-center text-slate-400 text-xs">
         No hay archivos abiertos.
       </div>
     );
   }
 
   return (
-    <section className="flex-1 bg-white flex flex-col h-full overflow-hidden border-r border-[#E7E0D6]">
+    <section className="flex-1 bg-white flex flex-col h-full overflow-hidden border-r border-slate-200">
       
       {/* File Tabs Bar */}
-      <div className="h-10 bg-[#FAF7F2] border-b border-[#E7E0D6] flex items-center justify-between px-2 overflow-x-auto select-none">
+      <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center justify-between px-2 overflow-x-auto select-none">
         
         {/* Open Tabs */}
         <div className="flex items-center gap-1 overflow-x-auto">
@@ -94,13 +94,13 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                 onClick={() => onSelectFile(file.id)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-t-lg text-xs font-medium border-t border-x transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-white text-[#1C1917] border-[#E7E0D6] border-b-transparent shadow-2xs font-semibold'
-                    : 'bg-transparent text-[#57534E] hover:bg-[#F4EFEA] border-transparent'
+                    ? 'bg-white text-slate-900 border-slate-200 border-b-transparent shadow-2xs font-semibold'
+                    : 'bg-transparent text-slate-500 hover:bg-slate-100 border-transparent'
                 }`}
               >
-                <FileCode className="w-3.5 h-3.5 text-[#A86B32]" />
+                <FileCode className="w-3.5 h-3.5 text-indigo-600" />
                 <span>{file.name}</span>
-                {file.isModified && <span className="w-1.5 h-1.5 rounded-full bg-[#A86B32]" />}
+                {file.isModified && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />}
               </button>
             );
           })}
@@ -111,8 +111,8 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           <button
             onClick={() => setWordWrap(wordWrap === 'on' ? 'off' : 'on')}
             title="Ajuste de línea (Word Wrap)"
-            className={`p-1.5 rounded-md hover:bg-[#EADBCE] transition-colors cursor-pointer ${
-              wordWrap === 'on' ? 'text-[#A86B32] bg-[#FAF1E8]' : 'text-[#57534E]'
+            className={`p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer ${
+              wordWrap === 'on' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'
             }`}
           >
             <WrapText className="w-3.5 h-3.5" />
@@ -121,7 +121,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           <button
             onClick={handleFormat}
             title="Formatear Código"
-            className="p-1.5 rounded-md hover:bg-[#EADBCE] text-[#57534E] hover:text-[#1C1917] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-slate-200/60 text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
           >
             <Code2 className="w-3.5 h-3.5" />
           </button>
@@ -129,7 +129,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           <button
             onClick={handleCopy}
             title="Copiar Código"
-            className="p-1.5 rounded-md hover:bg-[#EADBCE] text-[#57534E] hover:text-[#1C1917] transition-colors flex items-center gap-1 cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-slate-200/60 text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1 cursor-pointer"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
@@ -143,7 +143,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           height="100%"
           language={activeFile.language}
           value={activeFile.content}
-          theme="nona-cream"
+          theme="nona-modern"
           beforeMount={handleEditorWillMount}
           onMount={(editor) => {
             editorRef.current = editor;
@@ -155,7 +155,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
             minimap: { enabled: false },
             fontSize: 13,
             lineHeight: 20,
-            fontFamily: "'JetBrains Mono', Consolas, 'Courier New', monospace",
+            fontFamily: "'JetBrains Mono', Consolas, monospace",
             wordWrap: wordWrap,
             scrollBeyondLastLine: false,
             smoothScrolling: true,
