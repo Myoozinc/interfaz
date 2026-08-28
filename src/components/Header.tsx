@@ -125,17 +125,17 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
       </div>
 
-      {/* Right: ComfyUI, Credits, Auth & Settings */}
+      {/* Right: Media Studio, Credits, Auth & Settings */}
       <div className="flex items-center gap-2">
         
-        {/* ComfyUI Studio Button */}
+        {/* Media Studio Button */}
         <button
           onClick={onOpenComfyModal}
-          title="Generar Imágenes y Video con ComfyUI local"
+          title="Generar Imágenes y Assets Visuales"
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100/80 border border-violet-200 text-xs font-semibold text-violet-700 transition-all shadow-2xs cursor-pointer"
         >
           <Wand2 className="w-3.5 h-3.5 text-violet-600" />
-          <span className="hidden lg:inline">ComfyUI Media</span>
+          <span className="hidden lg:inline">Media Studio</span>
         </button>
 
         {/* Credits Pill */}

@@ -3,7 +3,7 @@ import type { OllamaModelInfo } from '../types';
 export class OllamaService {
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'http://127.0.0.1:11434') {
+  constructor(baseUrl: string = 'https://timely-diane-frozen-described.trycloudflare.com') {
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 
@@ -18,42 +18,38 @@ export class OllamaService {
   async checkConnection(): Promise<{ ok: boolean; message: string }> {
     const urls = [
       this.baseUrl,
+      'https://timely-diane-frozen-described.trycloudflare.com',
       '/api/ollama',
       'http://127.0.0.1:11434',
-      'http://localhost:11434'
     ];
 
     for (const u of urls) {
       try {
         const response = await fetch(`${u.replace(/\/$/, '')}/api/tags`, {
           method: 'GET',
-          headers: {
-            'Bypass-Tunnel-Reminder': 'true',
-          },
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(4000),
         });
 
         if (response.ok) {
           const data = await response.json();
-          const hasQwen = (data.models || []).some((m: any) => m.name.includes('qwen3.8'));
           this.baseUrl = u;
+          const modelsCount = (data.models || []).length;
           return { 
             ok: true, 
-            message: hasQwen ? 'Motor Qwen 3.8 Conectado y Listo' : 'Motor IA Activo' 
+            message: `Motor IA Conectado (${modelsCount} modelos disponibles en tu Mac)` 
           };
         }
       } catch {}
     }
 
-    return { ok: false, message: 'Motor local listo' };
+    return { ok: false, message: 'Motor IA no disponible temporalmente' };
   }
 
   async getModels(): Promise<OllamaModelInfo[]> {
     try {
       const response = await fetch(`${this.baseUrl}/api/tags`, {
         method: 'GET',
-        headers: { 'Bypass-Tunnel-Reminder': 'true' },
-        signal: AbortSignal.timeout(3500),
+        signal: AbortSignal.timeout(4000),
       });
 
       if (!response.ok) throw new Error('Error');
@@ -66,7 +62,8 @@ export class OllamaService {
       }));
     } catch {
       return [
-        { name: 'qwen3.8:latest', modified_at: new Date().toISOString(), size: 17741872154, digest: 'local' }
+        { name: 'qwen3.8:latest', modified_at: new Date().toISOString(), size: 17741872154, digest: 'local' },
+        { name: 'qwen2.5-coder:14b', modified_at: new Date().toISOString(), size: 8988124298, digest: 'local' }
       ];
     }
   }
@@ -82,8 +79,7 @@ export class OllamaService {
     const response = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/json',
-        'Bypass-Tunnel-Reminder': 'true',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: targetModel,
