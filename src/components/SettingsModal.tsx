@@ -40,8 +40,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setTesting(true);
     setTestResult(null);
 
+    const isGroq = apiKey.trim().startsWith('gsk_');
+    const endpoint = isGroq 
+      ? 'https://api.groq.com/openai/v1/chat/completions'
+      : 'https://openrouter.ai/api/v1/chat/completions';
+
+    const model = isGroq ? 'qwen/qwen3.8-27b' : 'qwen/qwen-2.5-coder-32b-instruct';
+
     try {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -50,19 +57,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           'X-Title': 'NONA App',
         },
         body: JSON.stringify({
-          model: 'qwen/qwen-2.5-coder-32b-instruct',
+          model,
           messages: [{ role: 'user', content: 'Ping' }],
         }),
       });
 
       if (res.ok) {
-        setTestResult({ ok: true, message: 'Qwen 2.5 Coder 32B Cloud Conectado y Verificado' });
+        setTestResult({ 
+          ok: true, 
+          message: isGroq 
+            ? 'Qwen 3.8 27B en Groq Cloud Conectado (Ultra Rápido)' 
+            : 'Qwen 2.5 Coder 32B en OpenRouter Conectado' 
+        });
       } else {
         const err = await res.json();
         setTestResult({ ok: false, message: `Error: ${err.error?.message || res.statusText}` });
       }
     } catch {
-      setTestResult({ ok: false, message: 'Error al conectar con OpenRouter Cloud' });
+      setTestResult({ ok: false, message: 'Error al conectar con el servidor cloud' });
     } finally {
       setTesting(false);
     }
@@ -100,20 +112,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Motor IA Cloud Activo
               </span>
               <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">
-                100% Cloud (0% Mac)
+                Groq LPUs / OpenRouter
               </span>
             </div>
             <p className="text-[11px] text-indigo-900/80 font-medium">
-              <strong>Qwen 2.5 Coder 32B Instruct</strong> (32 mil millones de parámetros) ejecutándose en OpenRouter Cloud.
+              <strong>Qwen 3.8 (27B)</strong> ejecutándose en la nube de alta velocidad con 0% de uso en tu Mac.
             </p>
           </div>
 
-          {/* OpenRouter API Key Input */}
+          {/* API Key Input */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-900 flex items-center gap-1.5">
                 <Key className="w-4 h-4 text-indigo-600" />
-                Clave API OpenRouter
+                Clave API (Groq o OpenRouter)
               </span>
               <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
                 {apiKey ? 'Configurada' : 'Sin Configurar'}
@@ -122,14 +134,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <div>
               <label className="text-[11px] text-slate-500 block mb-1">
-                Pega tu OpenRouter API Key:
+                Pega tu clave API (Groq `gsk_...` o OpenRouter `sk-or-...`):
               </label>
               <div className="flex gap-2">
                 <input
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-or-v1-..."
+                  placeholder="gsk_... o sk-or-..."
                   className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 font-mono"
                 />
                 <button

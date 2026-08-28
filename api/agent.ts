@@ -10,23 +10,24 @@ export default async function handler(req: Request) {
   try {
     const authHeader = req.headers.get('Authorization');
     const { messages, apiKey } = await req.json();
-    const token = apiKey || (authHeader ? authHeader.replace('Bearer ', '') : '') || process.env.OPENROUTER_API_KEY;
+    const token = apiKey || (authHeader ? authHeader.replace('Bearer ', '') : '') || process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY;
 
     if (!token) {
-      return new Response(JSON.stringify({ error: 'Falta configurar OPENROUTER_API_KEY en Vercel o en los Ajustes' }), { status: 401 });
+      return new Response(JSON.stringify({ error: 'Falta configurar API KEY de Groq o OpenRouter en los Ajustes' }), { status: 401 });
     }
 
-    // Check if any message has attached images
-    const hasImages = messages.some((m: any) => m.images && m.images.length > 0);
+    const isGroq = token.startsWith('gsk_');
+    const endpoint = isGroq 
+      ? 'https://api.groq.com/openai/v1/chat/completions'
+      : 'https://openrouter.ai/api/v1/chat/completions';
 
-    // If multimodal images are attached, use Qwen 2.5 VL or Gemini 2.0 Flash; otherwise use Qwen 2.5 Coder 32B
-    const targetModel = hasImages 
-      ? 'google/gemini-2.0-flash-001' 
+    const targetModel = isGroq
+      ? 'qwen/qwen3.8-27b'
       : 'qwen/qwen-2.5-coder-32b-instruct';
 
-    // Format messages for OpenRouter OpenAI-compatible schema
+    // Format messages
     const formattedMessages = messages.map((m: any) => {
-      if (m.images && m.images.length > 0) {
+      if (m.images && m.images.length > 0 && !isGroq) {
         const contentParts: any[] = [{ type: 'text', text: m.content }];
         m.images.forEach((img: string) => {
           const formattedUrl = img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
@@ -40,7 +41,7 @@ export default async function handler(req: Request) {
       return { role: m.role, content: m.content };
     });
 
-    const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const aiResponse = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -57,13 +58,13 @@ export default async function handler(req: Request) {
       }),
     });
 
-    if (!openRouterRes.ok) {
-      const errText = await openRouterRes.text();
-      throw new Error(`OpenRouter Cloud Error (${openRouterRes.status}): ${errText}`);
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      throw new Error(`Error en API (${aiResponse.status}): ${errText}`);
     }
 
-    const reader = openRouterRes.body?.getReader();
-    if (!reader) throw new Error('No se pudo abrir el stream de lectura de OpenRouter');
+    const reader = aiResponse.body?.getReader();
+    if (!reader) throw new Error('No se pudo abrir el stream de lectura');
 
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
