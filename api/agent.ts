@@ -9,24 +9,28 @@ export default async function handler(req: Request) {
 
   try {
     const authHeader = req.headers.get('Authorization');
-    const { messages, apiKey } = await req.json();
+    const { messages, apiKey, openrouterKey, groqKey } = await req.json();
 
     const hasImages = messages.some((m: any) => m.images && m.images.length > 0);
 
-    let userKey = (apiKey && apiKey.trim()) || (authHeader ? authHeader.replace('Bearer ', '').trim() : '');
+    const clientBearer = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
+    
+    // Auto-detect keys from environment or payload
+    const envOpenRouter = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_KEY || '';
+    const envGroq = process.env.GROQ_API_KEY || process.env.GROQ_KEY || '';
 
-    // Preferred primary key: OpenRouter for 12,000 token capacity, with Groq as fast engine
-    let openrouterKey = process.env.OPENROUTER_API_KEY || '';
-    let groqKey = process.env.GROQ_API_KEY || '';
+    const effectiveOpenRouter = openrouterKey || (apiKey?.startsWith('sk-or-') ? apiKey : '') || (clientBearer.startsWith('sk-or-') ? clientBearer : '') || envOpenRouter;
+    const effectiveGroq = groqKey || (apiKey?.startsWith('gsk_') ? apiKey : '') || (clientBearer.startsWith('gsk_') ? clientBearer : '') || envGroq;
 
-    let primaryKey = userKey || openrouterKey || groqKey;
+    // Prioritize OpenRouter for massive 12,000 token capacity and no 8000 TPM limit
+    let primaryKey = effectiveOpenRouter || effectiveGroq;
+    let backupKey = effectiveGroq !== primaryKey ? effectiveGroq : effectiveOpenRouter;
+
     if (!primaryKey) {
       return new Response(JSON.stringify({ 
-        error: '⚠️ Claves no configuradas en Vercel o en Ajustes (⚙️).' 
+        error: '⚠️ Claves no configuradas. Agrega tu clave en Ajustes (⚙️) o en Vercel.' 
       }), { status: 401 });
     }
-
-    const isPrimaryOpenRouter = primaryKey.startsWith('sk-or-') || !primaryKey.startsWith('gsk_');
 
     const formatMessages = (msgs: any[], forOpenRouter: boolean) => {
       return msgs.map((m: any) => {
@@ -45,7 +49,8 @@ export default async function handler(req: Request) {
       });
     };
 
-    const makeRequest = async (key: string, isOpenRouter: boolean) => {
+    const makeRequest = async (key: string) => {
+      const isOpenRouter = key.startsWith('sk-or-') || !key.startsWith('gsk_');
       const endpoint = isOpenRouter
         ? 'https://openrouter.ai/api/v1/chat/completions'
         : 'https://api.groq.com/openai/v1/chat/completions';
@@ -78,16 +83,12 @@ export default async function handler(req: Request) {
       });
     };
 
-    let aiResponse = await makeRequest(primaryKey, isPrimaryOpenRouter);
+    let aiResponse = await makeRequest(primaryKey);
 
     // Auto-Failover on 429 rate limits or any HTTP error:
-    if (!aiResponse.ok) {
-      console.warn(`Primary endpoint returned status ${aiResponse.status}. Executing automatic failover...`);
-      const backupKey = isPrimaryOpenRouter ? groqKey : openrouterKey;
-      if (backupKey) {
-        const isBackupOpenRouter = backupKey.startsWith('sk-or-') || !backupKey.startsWith('gsk_');
-        aiResponse = await makeRequest(backupKey, isBackupOpenRouter);
-      }
+    if (!aiResponse.ok && backupKey && backupKey !== primaryKey) {
+      console.warn(`Primary endpoint returned status ${aiResponse.status}. Executing automatic failover to backup engine...`);
+      aiResponse = await makeRequest(backupKey);
     }
 
     if (!aiResponse.ok) {

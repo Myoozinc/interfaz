@@ -2,7 +2,7 @@ import type { AIProvider, AIMessage, AICompletionOptions } from './AIProvider';
 
 export class OllamaProvider implements AIProvider {
   id = 'nona-cloud';
-  name = 'Qwen 3.8 / Groq Cloud Engine';
+  name = 'Qwen 3.8 / OpenRouter & Groq Engine';
   private baseUrl: string;
   private defaultModel: string;
 
@@ -47,14 +47,14 @@ export class OllamaProvider implements AIProvider {
 
     return {
       ok: true,
-      message: 'Qwen 3.8 Cloud Activo',
-      details: { model: 'qwen/qwen3.8-27b', host: 'Cloud LPU' }
+      message: 'Qwen 3.8 Cloud Activo (12,000 Tokens)',
+      details: { model: 'qwen/qwen3.8-27b', host: 'Cloud Multi-Agent' }
     };
   }
 
   async listModels(): Promise<string[]> {
     return [
-      'qwen/qwen3.8-27b (Groq LPUs - Ultra Rápido)',
+      'qwen/qwen3.8-27b (OpenRouter & Groq - 12k Tokens)',
       'qwen/qwen-2.5-coder-32b-instruct (Cloud)',
       'google/gemini-2.0-flash-001 (Multimodal Vision)',
     ];
@@ -70,7 +70,9 @@ export class OllamaProvider implements AIProvider {
     options?: AICompletionOptions
   ): Promise<string> {
     const model = options?.model || this.defaultModel;
-    const apiKey = localStorage.getItem('nona_cloud_api_key') || '';
+    const openrouterKey = localStorage.getItem('nona_openrouter_key') || '';
+    const groqKey = localStorage.getItem('nona_groq_key') || '';
+    const apiKey = openrouterKey || groqKey || localStorage.getItem('nona_cloud_api_key') || '';
 
     const formattedMessages = messages.map(m => {
       const cleanImages = (m.images || []).map(img => img.replace(/^data:image\/[a-z]+;base64,/, ''));
@@ -81,7 +83,7 @@ export class OllamaProvider implements AIProvider {
       };
     });
 
-    onToken('⚡ Conectando con Qwen 3.8 Cloud...', '', false);
+    onToken('⚡ Conectando con Qwen 3.8 Cloud (12,000 Tokens)...', '', false);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -97,6 +99,8 @@ export class OllamaProvider implements AIProvider {
         model,
         messages: formattedMessages,
         apiKey: apiKey.trim() || undefined,
+        openrouterKey: openrouterKey.trim() || undefined,
+        groqKey: groqKey.trim() || undefined,
         stream: true,
       }),
       signal: options?.signal,
@@ -137,7 +141,6 @@ export class OllamaProvider implements AIProvider {
       }
     }
 
-    // Process any remaining tail in buffer
     if (lineBuffer.trim()) {
       try {
         const parsed = JSON.parse(lineBuffer.trim());

@@ -8,7 +8,8 @@ import {
   CheckCircle2, 
   AlertCircle, 
   ExternalLink,
-  Key
+  Key,
+  Sparkles
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -22,37 +23,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const [apiKey, setApiKey] = useState(() => {
-    return localStorage.getItem('nona_cloud_api_key') || '';
+  const [openRouterKey, setOpenRouterKey] = useState(() => {
+    return localStorage.getItem('nona_openrouter_key') || localStorage.getItem('nona_cloud_api_key') || '';
   });
+  const [groqKey, setGroqKey] = useState(() => {
+    return localStorage.getItem('nona_groq_key') || '';
+  });
+
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   if (!isOpen) return null;
 
   const handleSaveApiKey = () => {
-    localStorage.setItem('nona_cloud_api_key', apiKey.trim());
+    if (openRouterKey.trim()) {
+      localStorage.setItem('nona_openrouter_key', openRouterKey.trim());
+      localStorage.setItem('nona_cloud_api_key', openRouterKey.trim());
+    }
+    if (groqKey.trim()) {
+      localStorage.setItem('nona_groq_key', groqKey.trim());
+    }
     onClose();
   };
 
   const handleTestKey = async () => {
-    if (!apiKey.trim()) return;
+    const keyToTest = openRouterKey.trim() || groqKey.trim();
+    if (!keyToTest) return;
     setTesting(true);
     setTestResult(null);
 
-    const isGroq = apiKey.trim().startsWith('gsk_');
+    const isGroq = keyToTest.startsWith('gsk_');
     const endpoint = isGroq 
       ? 'https://api.groq.com/openai/v1/chat/completions'
       : 'https://openrouter.ai/api/v1/chat/completions';
 
-    const model = isGroq ? 'qwen/qwen3.8-27b' : 'qwen/qwen-2.5-coder-32b-instruct';
+    const model = 'qwen/qwen3.8-27b';
 
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey.trim()}`,
+          'Authorization': `Bearer ${keyToTest}`,
           'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
           'X-Title': 'NONA App',
         },
@@ -66,8 +78,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setTestResult({ 
           ok: true, 
           message: isGroq 
-            ? 'Qwen 3.8 27B en Groq Cloud Conectado (Ultra Rápido)' 
-            : 'Qwen 2.5 Coder 32B en OpenRouter Conectado' 
+            ? 'Qwen 3.8 27B en Groq Cloud Conectado (LPUs)' 
+            : 'Qwen 3.8 27B en OpenRouter Conectado (12,000 Tokens Sin Límites)' 
         });
       } else {
         const err = await res.json();
@@ -91,7 +103,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Settings className="w-4 h-4" />
             </div>
             <h2 className="text-sm font-extrabold text-slate-900">
-              Ajustes del Motor IA Cloud
+              Ajustes del Motor IA Cloud (Qwen 3.8)
             </h2>
           </div>
           <button
@@ -109,49 +121,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="font-bold text-indigo-950 flex items-center gap-1.5">
                 <Cpu className="w-4 h-4 text-indigo-600" />
-                Motor IA Cloud Activo
+                Motor IA Cloud Primario
               </span>
               <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">
-                Groq LPUs / OpenRouter
+                Qwen 3.8 (12,000 Tokens)
               </span>
             </div>
             <p className="text-[11px] text-indigo-900/80 font-medium">
-              <strong>Qwen 3.8 (27B)</strong> ejecutándose en la nube de alta velocidad con 0% de uso en tu Mac.
+              Pipeline multi-agente autónomo con <strong>Qwen 3.8 (27B)</strong> en la nube. 0% de cómputo en tu Mac.
             </p>
           </div>
 
-          {/* API Key Input */}
+          {/* OpenRouter API Key Input */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                <Key className="w-4 h-4 text-indigo-600" />
-                Clave API (Groq o OpenRouter)
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                OpenRouter API Key (Recomendado para 3D & SaaS)
               </span>
-              <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
-                {apiKey ? 'Configurada' : 'Sin Configurar'}
+              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-200">
+                Sin Límites TPM
               </span>
             </div>
 
             <div>
               <label className="text-[11px] text-slate-500 block mb-1">
-                Pega tu clave API (Groq `gsk_...` o OpenRouter `sk-or-...`):
+                Clave de OpenRouter (`sk-or-...`):
               </label>
               <div className="flex gap-2">
                 <input
                   type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="gsk_... o sk-or-..."
+                  value={openRouterKey}
+                  onChange={(e) => setOpenRouterKey(e.target.value)}
+                  placeholder="sk-or-v1-..."
                   className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 font-mono"
                 />
                 <button
                   onClick={handleTestKey}
-                  disabled={testing || !apiKey.trim()}
+                  disabled={testing || !openRouterKey.trim()}
                   className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
                 >
                   {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Probar'}
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Groq API Key Input */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                <Key className="w-4 h-4 text-slate-600" />
+                Groq API Key (Motor Secundario de Alta Velocidad)
+              </span>
+              <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold border border-slate-200">
+                Groq LPUs
+              </span>
+            </div>
+
+            <div>
+              <label className="text-[11px] text-slate-500 block mb-1">
+                Clave de Groq (`gsk_...`):
+              </label>
+              <input
+                type="password"
+                value={groqKey}
+                onChange={(e) => setGroqKey(e.target.value)}
+                placeholder="gsk_..."
+                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 font-mono"
+              />
             </div>
 
             {testResult && (
