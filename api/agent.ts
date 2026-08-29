@@ -54,6 +54,18 @@ export default async function handler(req: Request) {
       return { role: m.role, content: m.content };
     });
 
+    const requestPayload: any = {
+      model: targetModel,
+      messages: formattedMessages,
+      stream: true,
+      temperature: 0.3,
+      max_tokens: maxTokens,
+    };
+
+    if (isOpenRouter) {
+      requestPayload.include_reasoning = false;
+    }
+
     let aiResponse = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -62,13 +74,7 @@ export default async function handler(req: Request) {
         'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
         'X-Title': 'NONA AI Software Factory',
       },
-      body: JSON.stringify({
-        model: targetModel,
-        messages: formattedMessages,
-        stream: true,
-        temperature: 0.3,
-        max_tokens: maxTokens,
-      }),
+      body: JSON.stringify(requestPayload),
     });
 
     // Fallback: If primary request fails, try secondary engine
@@ -81,6 +87,17 @@ export default async function handler(req: Request) {
           : 'https://api.groq.com/openai/v1/chat/completions';
         const fallbackModel = fallbackIsOpenRouter ? 'qwen/qwen3.8-27b' : 'qwen/qwen3.8-27b';
 
+        const fallbackPayload: any = {
+          model: fallbackModel,
+          messages: formattedMessages,
+          stream: true,
+          temperature: 0.3,
+          max_tokens: fallbackIsOpenRouter ? 12000 : 4096,
+        };
+        if (fallbackIsOpenRouter) {
+          fallbackPayload.include_reasoning = false;
+        }
+
         aiResponse = await fetch(fallbackEndpoint, {
           method: 'POST',
           headers: {
@@ -89,13 +106,7 @@ export default async function handler(req: Request) {
             'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
             'X-Title': 'NONA AI Software Factory',
           },
-          body: JSON.stringify({
-            model: fallbackModel,
-            messages: formattedMessages,
-            stream: true,
-            temperature: 0.3,
-            max_tokens: fallbackIsOpenRouter ? 12000 : 4096,
-          }),
+          body: JSON.stringify(fallbackPayload),
         });
       }
     }
@@ -134,7 +145,8 @@ export default async function handler(req: Request) {
             if (trimmed.startsWith('data: ')) {
               try {
                 const parsed = JSON.parse(trimmed.slice(6));
-                const deltaContent = parsed.choices?.[0]?.delta?.content;
+                const delta = parsed.choices?.[0]?.delta;
+                const deltaContent = delta?.content || (delta?.reasoning ? '' : '');
                 if (deltaContent) {
                   const payload = JSON.stringify({ message: { content: deltaContent } }) + '\n';
                   controller.enqueue(encoder.encode(payload));

@@ -39,7 +39,7 @@ export class OllamaProvider implements AIProvider {
         const latency = Math.round(performance.now() - start);
         return {
           ok: true,
-          message: `Groq LPU Cloud Activo (${latency}ms)`,
+          message: `Qwen 3.8 Cloud Activo (${latency}ms)`,
           details: data,
         };
       }
@@ -48,7 +48,7 @@ export class OllamaProvider implements AIProvider {
     return {
       ok: true,
       message: 'Qwen 3.8 Cloud Activo',
-      details: { model: 'qwen/qwen3.8-27b', host: 'Groq Cloud' }
+      details: { model: 'qwen/qwen3.8-27b', host: 'Cloud LPU' }
     };
   }
 
@@ -81,7 +81,7 @@ export class OllamaProvider implements AIProvider {
       };
     });
 
-    onToken('⚡ Conectando con Qwen 3.8 en Groq Cloud...', '', false);
+    onToken('⚡ Conectando con Qwen 3.8 Cloud...', '', false);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -112,17 +112,22 @@ export class OllamaProvider implements AIProvider {
 
     const decoder = new TextDecoder();
     let fullText = '';
+    let lineBuffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n').filter(l => l.trim() !== '');
+      lineBuffer += decoder.decode(value, { stream: true });
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() || '';
 
       for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
         try {
-          const parsed = JSON.parse(line);
+          const parsed = JSON.parse(trimmed);
           const msg = parsed.message;
           if (msg && msg.content) {
             fullText += msg.content;
@@ -130,6 +135,18 @@ export class OllamaProvider implements AIProvider {
           }
         } catch {}
       }
+    }
+
+    // Process any remaining tail in buffer
+    if (lineBuffer.trim()) {
+      try {
+        const parsed = JSON.parse(lineBuffer.trim());
+        const msg = parsed.message;
+        if (msg && msg.content) {
+          fullText += msg.content;
+          onToken(msg.content, fullText, false);
+        }
+      } catch {}
     }
 
     if (fullText.trim().length === 0) {
