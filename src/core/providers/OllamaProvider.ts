@@ -2,7 +2,7 @@ import type { AIProvider, AIMessage, AICompletionOptions } from './AIProvider';
 
 export class OllamaProvider implements AIProvider {
   id = 'nona-cloud';
-  name = 'Qwen 3.8 / OpenRouter & Groq Engine';
+  name = 'Qwen 3.8 / OpenRouter Engine';
   private baseUrl: string;
   private defaultModel: string;
 
@@ -12,6 +12,12 @@ export class OllamaProvider implements AIProvider {
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.defaultModel = defaultModel;
+
+    // Clean up stale rate-limited Groq keys from previous sessions
+    const stale = localStorage.getItem('nona_cloud_api_key');
+    if (stale && stale.startsWith('gsk_')) {
+      localStorage.removeItem('nona_cloud_api_key');
+    }
   }
 
   setBaseUrl(url: string) {
@@ -48,13 +54,13 @@ export class OllamaProvider implements AIProvider {
     return {
       ok: true,
       message: 'Qwen 3.8 Cloud Activo (12,000 Tokens)',
-      details: { model: 'qwen/qwen3.8-27b', host: 'Cloud Multi-Agent' }
+      details: { model: 'qwen/qwen3.8-27b', host: 'OpenRouter Cloud' }
     };
   }
 
   async listModels(): Promise<string[]> {
     return [
-      'qwen/qwen3.8-27b (OpenRouter & Groq - 12k Tokens)',
+      'qwen/qwen3.8-27b (OpenRouter - 12,000 Tokens)',
       'qwen/qwen-2.5-coder-32b-instruct (Cloud)',
       'google/gemini-2.0-flash-001 (Multimodal Vision)',
     ];
@@ -71,8 +77,6 @@ export class OllamaProvider implements AIProvider {
   ): Promise<string> {
     const model = options?.model || this.defaultModel;
     const openrouterKey = localStorage.getItem('nona_openrouter_key') || '';
-    const groqKey = localStorage.getItem('nona_groq_key') || '';
-    const apiKey = openrouterKey || groqKey || localStorage.getItem('nona_cloud_api_key') || '';
 
     const formattedMessages = messages.map(m => {
       const cleanImages = (m.images || []).map(img => img.replace(/^data:image\/[a-z]+;base64,/, ''));
@@ -88,9 +92,6 @@ export class OllamaProvider implements AIProvider {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    if (apiKey.trim()) {
-      headers['Authorization'] = `Bearer ${apiKey.trim()}`;
-    }
 
     const res = await fetch('/api/agent', {
       method: 'POST',
@@ -98,9 +99,7 @@ export class OllamaProvider implements AIProvider {
       body: JSON.stringify({
         model,
         messages: formattedMessages,
-        apiKey: apiKey.trim() || undefined,
         openrouterKey: openrouterKey.trim() || undefined,
-        groqKey: groqKey.trim() || undefined,
         stream: true,
       }),
       signal: options?.signal,

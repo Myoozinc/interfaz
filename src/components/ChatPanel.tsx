@@ -419,7 +419,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
           <span className="text-[10px] flex items-center gap-1.5 text-indigo-700 font-bold bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" />
-            Qwen 3.8 Cloud (Groq LPU)
+            Qwen 3.8 Multi-Agent (12k Tokens)
           </span>
         </div>
       </div>
