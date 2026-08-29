@@ -76,7 +76,7 @@ export default async function handler(req: Request) {
           stream: true,
           temperature: 0.3,
           max_tokens: tokens,
-          include_reasoning: false,
+          reasoning: { effort: 'none' },
         }),
       });
     };
@@ -100,20 +100,20 @@ export default async function handler(req: Request) {
       });
     };
 
-    // 1. Initial attempt with balanced 5,200 tokens (fits well within credit balance)
-    let initialTokens = maxTokensRequested || 5200;
+    // 1. Primary generation with OpenRouter and reasoning effort none
+    let initialTokens = maxTokensRequested || 4500;
     let aiResponse = await sendOpenRouter(initialTokens);
 
-    // 2. If OpenRouter returns 402 (token reservation error), auto-retry with 3,800 tokens
+    // 2. If 402, retry with 3200 tokens
     if (aiResponse.status === 402) {
-      console.warn('OpenRouter 402 credit limit, auto-retrying with 3800 tokens...');
-      aiResponse = await sendOpenRouter(3800);
+      console.warn('OpenRouter 402, retrying with 3200 tokens...');
+      aiResponse = await sendOpenRouter(3200);
     }
 
-    // 3. If OpenRouter fails, auto-fallback to Groq
+    // 3. Fallback to Groq if OpenRouter fails
     if (!aiResponse.ok && groqToken) {
       console.warn(`OpenRouter returned status ${aiResponse.status}. Retrying with Groq...`);
-      aiResponse = await sendGroq(3500);
+      aiResponse = await sendGroq(3000);
     }
 
     if (!aiResponse.ok) {
