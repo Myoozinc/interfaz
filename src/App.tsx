@@ -74,6 +74,7 @@ export function App() {
   const [ollamaUrl, setOllamaUrl] = useState(() => {
     return localStorage.getItem('nona_inference_url') || '/api/agent';
   });
+  const [inspectedElement, setInspectedElement] = useState<string | null>(null);
 
   useEffect(() => {
     aiEngine.setOllamaUrl(ollamaUrl);
@@ -425,7 +426,7 @@ export function App() {
                       />
 
                       <div style={{ flex: 1 - splitRatio }} className="h-full overflow-hidden">
-                        <PreviewPanel files={files} />
+                        <PreviewPanel files={files} onElementSelect={setInspectedElement} />
                       </div>
                     </>
                   )}
@@ -445,7 +446,7 @@ export function App() {
                   {/* Mode Preview Only */}
                   {viewMode === 'preview' && (
                     <div className="flex-1 h-full overflow-hidden">
-                      <PreviewPanel files={files} />
+                      <PreviewPanel files={files} onElementSelect={setInspectedElement} />
                     </div>
                   )}
 
@@ -473,6 +474,8 @@ export function App() {
                     onClearPendingPrompt={() => setPendingPrompt(null)}
                     onNewProject={handleNewCleanProject}
                     onSwitchView={(v) => setViewMode(v)}
+                    inspectedElement={inspectedElement}
+                    onClearInspectedElement={() => setInspectedElement(null)}
                   />
                 </div>
 
