@@ -22,9 +22,8 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
 
   const htmlFile = files.find(f => f.name.endsWith('.html'))?.content || '';
   const cssFile = files.find(f => f.name.endsWith('.css'))?.content || '';
-  const jsFile = files.find(f => f.name.endsWith('.js'))?.content || '';
 
-  // Clean compilation & bundling of source document (Lovable / Antigravity Sandbox Engine)
+  // Clean compilation & bundling of source document (Antigravity Zero-Artifact Engine)
   const srcDoc = useMemo(() => {
     if (!htmlFile || htmlFile.trim().length === 0) {
       return `<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-900 text-white min-h-screen flex items-center justify-center font-sans"><div class="text-center p-6"><h2 class="text-lg font-bold">Esperando generación...</h2></div></body></html>`;
@@ -37,15 +36,21 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
           const _err = console.error;
           const _warn = console.warn;
           console.log = function(...args) {
-            window.parent.postMessage({ type: 'NONA_LOG', level: 'info', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') }, '*');
+            try {
+              window.parent.postMessage({ type: 'NONA_LOG', level: 'info', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+            } catch(e) {}
             _log.apply(console, args);
           };
           console.error = function(...args) {
-            window.parent.postMessage({ type: 'NONA_LOG', level: 'error', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') }, '*');
+            try {
+              window.parent.postMessage({ type: 'NONA_LOG', level: 'error', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+            } catch(e) {}
             _err.apply(console, args);
           };
           console.warn = function(...args) {
-            window.parent.postMessage({ type: 'NONA_LOG', level: 'warn', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') }, '*');
+            try {
+              window.parent.postMessage({ type: 'NONA_LOG', level: 'warn', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+            } catch(e) {}
             _warn.apply(console, args);
           };
           window.addEventListener('error', function(e) {
@@ -72,7 +77,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
             }
           };
 
-          // Web Audio sound synthesizer for real game audio & UX clicks
+          // Web Audio sound synthesizer for real game audio, pet sounds & clicks
           window.playSynthSound = function(type) {
             try {
               const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -88,6 +93,14 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
                 gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
                 osc.start();
                 osc.stop(ctx.currentTime + 0.2);
+              } else if (type === 'eat' || type === 'happy' || type === 'pet') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.15);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.15);
               } else if (type === 'click' || type === 'button') {
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(500, ctx.currentTime);
@@ -119,7 +132,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
         <script src="https://unpkg.com/lucide@latest"></script>
         ${consoleCaptureScript}
         ${backendMockScript}
-        ${cssFile ? `<style>${cssFile}</style>` : ''}
+        ${cssFile && !cssFile.includes('Custom Refined Cream Aesthetic') ? `<style>${cssFile}</style>` : ''}
       `;
 
       if (doc.includes('<head>')) {
@@ -131,11 +144,10 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
       const bodyInject = `
         <script>
           try {
-            if (window.lucide) { window.lucide.createIcons(); }
-            ${jsFile}
-          } catch(e) {
-            console.error('Error de ejecución:', e.message);
-          }
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+              window.lucide.createIcons();
+            }
+          } catch(e) {}
         </script>
       `;
 
@@ -159,22 +171,21 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ files }) => {
           <script src="https://unpkg.com/lucide@latest"></script>
           ${consoleCaptureScript}
           ${backendMockScript}
-          <style>${cssFile}</style>
+          ${cssFile && !cssFile.includes('Custom Refined Cream Aesthetic') ? `<style>${cssFile}</style>` : ''}
         </head>
         <body class="bg-slate-950 text-white min-h-screen">
           ${htmlFile}
           <script>
             try {
-              if (window.lucide) { window.lucide.createIcons(); }
-              ${jsFile}
-            } catch(e) {
-              console.error('Error de ejecución:', e.message);
-            }
+              if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+              }
+            } catch(e) {}
           </script>
         </body>
       </html>
     `;
-  }, [htmlFile, cssFile, jsFile]);
+  }, [htmlFile, cssFile]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
