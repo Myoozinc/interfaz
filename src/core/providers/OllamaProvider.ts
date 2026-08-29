@@ -13,7 +13,7 @@ export class OllamaProvider implements AIProvider {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.defaultModel = defaultModel;
 
-    // Clean up stale rate-limited Groq keys from previous sessions
+    // Purge stale rate-limited Groq keys
     const stale = localStorage.getItem('nona_cloud_api_key');
     if (stale && stale.startsWith('gsk_')) {
       localStorage.removeItem('nona_cloud_api_key');
@@ -53,7 +53,7 @@ export class OllamaProvider implements AIProvider {
 
     return {
       ok: true,
-      message: 'Qwen 3.8 Cloud Activo (12,000 Tokens)',
+      message: 'Qwen 3.8 Cloud Activo (Alta Capacidad)',
       details: { model: 'qwen/qwen3.8-27b', host: 'OpenRouter Cloud' }
     };
   }
@@ -87,7 +87,7 @@ export class OllamaProvider implements AIProvider {
       };
     });
 
-    onToken('⚡ Conectando con Qwen 3.8 Cloud (12,000 Tokens)...', '', false);
+    onToken('⚡ Conectando con Qwen 3.8 Cloud...', '', false);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -100,6 +100,7 @@ export class OllamaProvider implements AIProvider {
         model,
         messages: formattedMessages,
         openrouterKey: openrouterKey.trim() || undefined,
+        maxTokensRequested: options?.maxTokens,
         stream: true,
       }),
       signal: options?.signal,
