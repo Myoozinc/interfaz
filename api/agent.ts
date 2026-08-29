@@ -13,101 +13,80 @@ export default async function handler(req: Request) {
 
     const hasImages = messages.some((m: any) => m.images && m.images.length > 0);
 
-    let token = (apiKey && apiKey.trim()) || (authHeader ? authHeader.replace('Bearer ', '').trim() : '');
+    let userKey = (apiKey && apiKey.trim()) || (authHeader ? authHeader.replace('Bearer ', '').trim() : '');
 
-    if (!token) {
-      token = process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY;
-    }
+    // Preferred primary key: OpenRouter for 12,000 token capacity, with Groq as fast engine
+    let openrouterKey = process.env.OPENROUTER_API_KEY || '';
+    let groqKey = process.env.GROQ_API_KEY || '';
 
-    if (!token) {
+    let primaryKey = userKey || openrouterKey || groqKey;
+    if (!primaryKey) {
       return new Response(JSON.stringify({ 
         error: '⚠️ Claves no configuradas en Vercel o en Ajustes (⚙️).' 
       }), { status: 401 });
     }
 
-    const isOpenRouter = token.startsWith('sk-or-') || !token.startsWith('gsk_');
+    const isPrimaryOpenRouter = primaryKey.startsWith('sk-or-') || !primaryKey.startsWith('gsk_');
 
-    // High-capacity models with up to 12,000 completion tokens
-    let endpoint = isOpenRouter
-      ? 'https://openrouter.ai/api/v1/chat/completions'
-      : 'https://api.groq.com/openai/v1/chat/completions';
-
-    let targetModel = isOpenRouter
-      ? (hasImages ? 'google/gemini-2.0-flash-001' : 'qwen/qwen3.8-27b')
-      : 'qwen/qwen3.8-27b';
-
-    let maxTokens = isOpenRouter ? 12000 : 4096;
-
-    // Format messages for OpenAI / OpenRouter schema
-    const formattedMessages = messages.map((m: any) => {
-      if (m.images && m.images.length > 0 && isOpenRouter) {
-        const contentParts: any[] = [{ type: 'text', text: m.content }];
-        m.images.forEach((img: string) => {
-          const formattedUrl = img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
-          contentParts.push({
-            type: 'image_url',
-            image_url: { url: formattedUrl }
+    const formatMessages = (msgs: any[], forOpenRouter: boolean) => {
+      return msgs.map((m: any) => {
+        if (m.images && m.images.length > 0 && forOpenRouter) {
+          const contentParts: any[] = [{ type: 'text', text: m.content }];
+          m.images.forEach((img: string) => {
+            const formattedUrl = img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
+            contentParts.push({
+              type: 'image_url',
+              image_url: { url: formattedUrl }
+            });
           });
-        });
-        return { role: m.role, content: contentParts };
-      }
-      return { role: m.role, content: m.content };
-    });
-
-    const requestPayload: any = {
-      model: targetModel,
-      messages: formattedMessages,
-      stream: true,
-      temperature: 0.3,
-      max_tokens: maxTokens,
+          return { role: m.role, content: contentParts };
+        }
+        return { role: m.role, content: m.content };
+      });
     };
 
-    if (isOpenRouter) {
-      requestPayload.include_reasoning = false;
-    }
+    const makeRequest = async (key: string, isOpenRouter: boolean) => {
+      const endpoint = isOpenRouter
+        ? 'https://openrouter.ai/api/v1/chat/completions'
+        : 'https://api.groq.com/openai/v1/chat/completions';
 
-    let aiResponse = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-        'X-Title': 'NONA AI Software Factory',
-      },
-      body: JSON.stringify(requestPayload),
-    });
+      const model = isOpenRouter
+        ? (hasImages ? 'google/gemini-2.0-flash-001' : 'qwen/qwen3.8-27b')
+        : 'qwen/qwen3.8-27b';
 
-    // Fallback: If primary request fails, try secondary engine
+      const payload: any = {
+        model,
+        messages: formatMessages(messages, isOpenRouter),
+        stream: true,
+        temperature: 0.3,
+        max_tokens: isOpenRouter ? 12000 : 3800,
+      };
+
+      if (isOpenRouter) {
+        payload.include_reasoning = false;
+      }
+
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`,
+          'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
+          'X-Title': 'NONA AI Software Factory',
+        },
+        body: JSON.stringify(payload),
+      });
+    };
+
+    let aiResponse = await makeRequest(primaryKey, isPrimaryOpenRouter);
+
+    // Auto-Failover on 429 rate limits or any HTTP error:
     if (!aiResponse.ok) {
-      const fallbackToken = token.startsWith('sk-or-') ? process.env.GROQ_API_KEY : process.env.OPENROUTER_API_KEY;
-      if (fallbackToken) {
-        const fallbackIsOpenRouter = fallbackToken.startsWith('sk-or-');
-        const fallbackEndpoint = fallbackIsOpenRouter 
-          ? 'https://openrouter.ai/api/v1/chat/completions' 
-          : 'https://api.groq.com/openai/v1/chat/completions';
-        const fallbackModel = fallbackIsOpenRouter ? 'qwen/qwen3.8-27b' : 'qwen/qwen3.8-27b';
-
-        const fallbackPayload: any = {
-          model: fallbackModel,
-          messages: formattedMessages,
-          stream: true,
-          temperature: 0.3,
-          max_tokens: fallbackIsOpenRouter ? 12000 : 4096,
-        };
-        if (fallbackIsOpenRouter) {
-          fallbackPayload.include_reasoning = false;
-        }
-
-        aiResponse = await fetch(fallbackEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${fallbackToken}`,
-            'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-            'X-Title': 'NONA AI Software Factory',
-          },
-          body: JSON.stringify(fallbackPayload),
-        });
+      console.warn(`Primary endpoint returned status ${aiResponse.status}. Executing automatic failover...`);
+      const backupKey = isPrimaryOpenRouter ? groqKey : openrouterKey;
+      if (backupKey) {
+        const isBackupOpenRouter = backupKey.startsWith('sk-or-') || !backupKey.startsWith('gsk_');
+        aiResponse = await makeRequest(backupKey, isBackupOpenRouter);
       }
     }
 
@@ -146,7 +125,7 @@ export default async function handler(req: Request) {
               try {
                 const parsed = JSON.parse(trimmed.slice(6));
                 const delta = parsed.choices?.[0]?.delta;
-                const deltaContent = delta?.content || (delta?.reasoning ? '' : '');
+                const deltaContent = delta?.content || '';
                 if (deltaContent) {
                   const payload = JSON.stringify({ message: { content: deltaContent } }) + '\n';
                   controller.enqueue(encoder.encode(payload));
