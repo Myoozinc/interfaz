@@ -16,11 +16,7 @@ export default async function handler(req: Request) {
     let token = (apiKey && apiKey.trim()) || (authHeader ? authHeader.replace('Bearer ', '').trim() : '');
 
     if (!token) {
-      if (hasImages && process.env.OPENROUTER_API_KEY) {
-        token = process.env.OPENROUTER_API_KEY;
-      } else {
-        token = process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY;
-      }
+      token = process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY;
     }
 
     if (!token) {
@@ -29,18 +25,22 @@ export default async function handler(req: Request) {
       }), { status: 401 });
     }
 
-    const isGroq = token.startsWith('gsk_') && !hasImages;
-    let endpoint = isGroq 
-      ? 'https://api.groq.com/openai/v1/chat/completions'
-      : 'https://openrouter.ai/api/v1/chat/completions';
+    const isOpenRouter = token.startsWith('sk-or-') || !token.startsWith('gsk_');
 
-    let targetModel = isGroq
-      ? 'qwen/qwen3.8-27b'
-      : (hasImages ? 'google/gemini-2.0-flash-001' : 'qwen/qwen-2.5-coder-32b-instruct');
+    // High-capacity models with up to 12,000 completion tokens
+    let endpoint = isOpenRouter
+      ? 'https://openrouter.ai/api/v1/chat/completions'
+      : 'https://api.groq.com/openai/v1/chat/completions';
 
-    // Format messages for OpenAI / OpenRouter / Groq schema
+    let targetModel = isOpenRouter
+      ? (hasImages ? 'google/gemini-2.0-flash-001' : 'qwen/qwen3.8-27b')
+      : 'qwen/qwen3.8-27b';
+
+    let maxTokens = isOpenRouter ? 12000 : 4096;
+
+    // Format messages for OpenAI / OpenRouter schema
     const formattedMessages = messages.map((m: any) => {
-      if (m.images && m.images.length > 0 && !isGroq) {
+      if (m.images && m.images.length > 0 && isOpenRouter) {
         const contentParts: any[] = [{ type: 'text', text: m.content }];
         m.images.forEach((img: string) => {
           const formattedUrl = img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
@@ -66,30 +66,38 @@ export default async function handler(req: Request) {
         model: targetModel,
         messages: formattedMessages,
         stream: true,
-        temperature: 0.7,
-        max_tokens: 4096,
+        temperature: 0.3,
+        max_tokens: maxTokens,
       }),
     });
 
-    // Auto-fallback: If Groq hit its 8000 TPM limit or rate limit, automatically fallback to OpenRouter!
-    if (!aiResponse.ok && isGroq && process.env.OPENROUTER_API_KEY) {
-      console.warn('Groq TPM rate limit hit, automatically switching to OpenRouter Qwen 2.5 Coder 32B...');
-      aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-          'X-Title': 'NONA AI Software Factory',
-        },
-        body: JSON.stringify({
-          model: 'qwen/qwen-2.5-coder-32b-instruct',
-          messages: formattedMessages,
-          stream: true,
-          temperature: 0.7,
-          max_tokens: 4096,
-        }),
-      });
+    // Fallback: If primary request fails, try secondary engine
+    if (!aiResponse.ok) {
+      const fallbackToken = token.startsWith('sk-or-') ? process.env.GROQ_API_KEY : process.env.OPENROUTER_API_KEY;
+      if (fallbackToken) {
+        const fallbackIsOpenRouter = fallbackToken.startsWith('sk-or-');
+        const fallbackEndpoint = fallbackIsOpenRouter 
+          ? 'https://openrouter.ai/api/v1/chat/completions' 
+          : 'https://api.groq.com/openai/v1/chat/completions';
+        const fallbackModel = fallbackIsOpenRouter ? 'qwen/qwen3.8-27b' : 'qwen/qwen3.8-27b';
+
+        aiResponse = await fetch(fallbackEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${fallbackToken}`,
+            'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
+            'X-Title': 'NONA AI Software Factory',
+          },
+          body: JSON.stringify({
+            model: fallbackModel,
+            messages: formattedMessages,
+            stream: true,
+            temperature: 0.3,
+            max_tokens: fallbackIsOpenRouter ? 12000 : 4096,
+          }),
+        });
+      }
     }
 
     if (!aiResponse.ok) {
