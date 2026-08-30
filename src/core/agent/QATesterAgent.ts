@@ -11,7 +11,7 @@ export interface QATestResult {
 export class QATesterAgent {
   /**
    * Performs deep automated linting, syntax analysis, DOM element verification,
-   * and evaluates Functional & Visual Density (Lovable & Antigravity Pro Standard).
+   * runtime safety checks, and evaluates Functional & Visual Density (v5.0 Pro Standard).
    */
   public testAndAudit(htmlCode: string): QATestResult {
     const errors: string[] = [];
@@ -25,14 +25,25 @@ export class QATesterAgent {
         warnings: [],
         visualDensityScore: 0,
         needsVisualEnrichment: true,
-        enrichmentPrompt: 'El código generado está vacío. Genera la aplicación completa con Tailwind CSS, interactividad y audio.',
+        enrichmentPrompt: 'El código generado está vacío. Genera la aplicación completa con Tailwind CSS, Three.js (si aplica), interactividad y audio.',
       };
     }
 
-    // 1. Basic Structure Checks & Document Framing
+    // 1. Basic Structure Checks & Modern Library Injection
     if (!repaired.includes('<!DOCTYPE html>') && !repaired.includes('<html')) {
       errors.push('Falta la declaración <!DOCTYPE html> o etiqueta <html>.');
-      repaired = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <script src="https://cdn.tailwindcss.com"></script>\n  <script src="https://unpkg.com/lucide@latest"></script>\n</head>\n<body class="bg-slate-950 text-white min-h-screen">\n${repaired}\n</body>\n</html>`;
+      repaired = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <script src="https://cdn.tailwindcss.com"></script>\n  <script src="https://unpkg.com/lucide@latest"></script>\n</head>\n<body class="bg-slate-950 text-white min-h-screen font-sans">\n${repaired}\n</body>\n</html>`;
+    }
+
+    // Replace legacy tailwind CSS links with modern CDN
+    if (repaired.includes('tailwindcss@2') || repaired.includes('tailwind.min.css')) {
+      repaired = repaired.replace(/<link[^>]*tailwindcss[^>]*>/gi, '<script src="https://cdn.tailwindcss.com"></script>');
+      warnings.push('Enlace CSS legado de Tailwind reemplazado por CDN moderno.');
+    }
+
+    // Ensure modern Tailwind CDN is present
+    if (!repaired.includes('cdn.tailwindcss.com') && !repaired.includes('tailwindcss')) {
+      repaired = repaired.replace('<head>', '<head>\n  <script src="https://cdn.tailwindcss.com"></script>');
     }
 
     // 2. Unclosed Tag Auto-Repair
@@ -85,7 +96,26 @@ export class QATesterAgent {
       }
     }
 
-    // 5. Visual & Functional Density Evaluation (Pro Standard)
+    // 5. Check 3D WebGL / Three.js Specific Integrity
+    const is3D = /three\.min\.js|three@0|THREE\./i.test(repaired);
+    if (is3D) {
+      if (!repaired.includes('THREE.Scene') && !repaired.includes('new THREE.Scene')) {
+        errors.push('Falta inicialización de la escena 3D (new THREE.Scene()).');
+      }
+      if (!repaired.includes('PerspectiveCamera')) {
+        errors.push('Falta cámara 3D (new THREE.PerspectiveCamera()).');
+      }
+      if (!repaired.includes('WebGLRenderer')) {
+        errors.push('Falta renderizador WebGL (new THREE.WebGLRenderer()).');
+      }
+      // Check for broken pointer-events: none on hud that blocks buttons
+      if (/#hud\s*\{[^}]*pointer-events:\s*none/i.test(repaired) && !/#hud\s+button\s*\{[^}]*pointer-events:\s*auto/i.test(repaired)) {
+        repaired = repaired.replace(/pointer-events:\s*none;/gi, 'pointer-events: auto;');
+        warnings.push('Corregido pointer-events en HUD para habilitar clics de botones.');
+      }
+    }
+
+    // 6. Visual & Functional Density Evaluation (Pro Standard)
     let densityPoints = 0;
     const missingFeatures: string[] = [];
 
@@ -114,17 +144,17 @@ export class QATesterAgent {
       missingFeatures.push('Persistencia de datos en localStorage o window.NONA_DB');
     }
 
-    // Criterion D: Rich Components & Lucide Icons (20 pts)
+    // Criterion D: Rich UI / Lucide Icons / 3D Graphics (20 pts)
     const hasLucide = /lucide|data-lucide/i.test(repaired);
-    const hasTailwindGlass = /backdrop-blur|bg-slate-900|bg-opacity|shadow-xl|rounded-2xl|rounded-3xl/i.test(repaired);
-    if (hasLucide && hasTailwindGlass) {
+    const hasTailwindGlass = /backdrop-blur|bg-slate-900|bg-opacity|shadow-xl|rounded-2xl|rounded-3xl|shadow-lg/i.test(repaired);
+    if ((hasLucide || is3D) && (hasTailwindGlass || is3D)) {
       densityPoints += 20;
     } else {
       missingFeatures.push('Diseño visual premium con tarjetas backdrop-blur, sombras e iconos Lucide');
     }
 
     // Criterion E: Responsive layout (15 pts)
-    const hasResponsive = /sm:|md:|lg:|max-w-/i.test(repaired);
+    const hasResponsive = /sm:|md:|lg:|max-w-|mobile/i.test(repaired);
     if (hasResponsive) {
       densityPoints += 15;
     } else {
@@ -132,12 +162,16 @@ export class QATesterAgent {
     }
 
     const visualDensityScore = densityPoints;
-    const needsVisualEnrichment = errors.length === 0 && visualDensityScore < 60;
+    const needsVisualEnrichment = visualDensityScore < 70;
     const isValid = errors.length === 0 && !needsVisualEnrichment;
 
     let enrichmentPrompt: string | undefined;
-    if (needsVisualEnrichment) {
-      enrichmentPrompt = `La aplicación generada carece de la riqueza visual e interactiva requerida por el estándar comercial Lovable/Antigravity (Score: ${visualDensityScore}/100).\nPor favor enriquece el código agregando los siguientes elementos faltantes:\n${missingFeatures.map(f => '- ' + f).join('\n')}\nDevuelve el código 100% completo, autocontenido y enriquecido en \`\`\`html filename=index.html:`;
+    if (needsVisualEnrichment || errors.length > 0) {
+      const issueList = [
+        ...errors,
+        ...missingFeatures.map(f => `Falta: ${f}`)
+      ];
+      enrichmentPrompt = `El código generado requiere mayor riqueza visual y corrección técnica (Score: ${visualDensityScore}/100).\nPor favor enriquece y corrige el código agregando los siguientes elementos:\n${issueList.map(f => '- ' + f).join('\n')}\nDevuelve el código 100% completo, autocontenido y funcional en \`\`\`html filename=index.html:`;
     }
 
     return {

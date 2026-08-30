@@ -52,10 +52,12 @@ export class MultiAgentEngine {
       const architectSystemPrompt = `${NONA_MASTER_SYSTEM_PROMPT_V5}
 
 Tu misión como AGENT A — LEAD SYSTEM ARCHITECT es definir el APP_MANIFEST técnico para la solicitud del usuario.
-Estructura de salida requerida:
-${APP_MANIFEST_SCHEMA}
+REGLAS PARA NAVEGADOR (LIVE RUNTIME):
+- Si es JUEGO 3D (Snake 3D, Fútbol, Carreras, etc.): Especifica Three.js r128, WebGLRenderer, PerspectiveCamera, luces (AmbientLight + DirectionalLight con sombras), cuadrícula/piso 3D, mallas 3D con materiales brillantes, HUD en Tailwind, controles táctiles y de teclado, modal de Game Over y audio.
+- Si es SAAS / E-COMMERCE / APP: Especifica Tailwind CSS, Lucide Icons, modales CRUD, estados reactivos y persistencia en localStorage.
 
-Devuelve un resumen técnico y el APP_MANIFEST estructurado.`;
+Estructura de salida requerida:
+${APP_MANIFEST_SCHEMA}`;
 
       let appManifest = '';
       try {
@@ -83,11 +85,14 @@ Devuelve un resumen técnico y el APP_MANIFEST estructurado.`;
 
 ${FEW_SHOT_PATTERNS}
 
-RECUERDA:
-- Cero código de prueba o botones inertes.
-- Cero placeholders o "TODO".
-- Todo botón, formulario y componente debe funcionar.
-- Comienza directamente con \`\`\`html filename=index.html y concluye con </html>\`\`\`.`;
+REGLAS DE ORO OBLIGATORIAS:
+1. NUNCA uses CDNs desactualizados o fondos negros vacíos. Usa siempre:
+   <script src="https://cdn.tailwindcss.com"></script>
+   <script src="https://unpkg.com/lucide@latest"></script>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+2. Para juegos 3D: Crea un mundo 3D vibrante (luces, sombras, materiales de color, suelo con rejilla, animaciones de rotación, partículas), HUD flotante moderno con Tailwind, controles táctiles en pantalla para móvil + teclado WASD/Flechas, selector de velocidad, sonido y modal de Game Over.
+3. Envuelve la inicialización en window.addEventListener('DOMContentLoaded', ...) para garantizar que los elementos del DOM existan.
+4. Comienza DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`.`;
 
       const engineerUserPrompt = `APP_MANIFEST Y ARQUITECTURA (ETAPA 1):
 ${appManifest}
@@ -95,7 +100,7 @@ ${appManifest}
 INSTRUCCIÓN EXACTA DEL USUARIO:
 "${userInstruction}"
 
-Implementa la aplicación de software 100% completa, interactiva y funcional. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`:`;
+Implementa la aplicación de software 100% completa, visualmente impactante, interactiva y funcional. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`:`;
 
       let generatedCode = '';
       await this.aiProvider.streamChat(
@@ -107,7 +112,7 @@ Implementa la aplicación de software 100% completa, interactiva y funcional. In
           generatedCode = full;
           onProgress('🎨 & ⚙️ Etapa 2 - NONA Full-Stack & 3D Engine', 'Programando componentes y lógica interactiva...', token);
         },
-        { signal, model: 'openai/gpt-oss-120b', maxTokens: 3400 }
+        { signal, model: 'openai/gpt-oss-120b', maxTokens: 3500 }
       );
 
       agentEvents.emit('agent.completed', '🎨 Etapa 2: Código de software compilado con éxito.');
@@ -132,21 +137,22 @@ Implementa la aplicación de software 100% completa, interactiva y funcional. In
     let qaReport = qaTesterAgent.testAndAudit(candidateCode);
     let finalCode = qaReport.repairedCode || candidateCode;
 
-    // Self-Healing Loop: If errors exist, repair automatically
-    if (!qaReport.valid && qaReport.errors.length > 0) {
-      onProgress('🔄 Etapa 3 - Self-Healing Loop', `Auto-reparando ${qaReport.errors.length} fallas detectadas...`);
-      agentEvents.emit('agent.thinking', `🔄 QA Self-Healing: ${qaReport.errors.join(', ')}`);
+    // Self-Healing Loop: If errors exist OR density score is < 70, force enrichment cycle
+    if (!qaReport.valid || qaReport.errors.length > 0 || qaReport.needsVisualEnrichment || qaReport.visualDensityScore < 70) {
+      const issueCount = qaReport.errors.length > 0 ? `${qaReport.errors.length} fallas técnicas` : `densidad visual baja (${qaReport.visualDensityScore}/100)`;
+      onProgress('🔄 Etapa 3 - Self-Healing Loop', `Auto-enriqueciendo y reparando software (${issueCount})...`);
+      agentEvents.emit('agent.thinking', `🔄 QA Self-Healing: ${issueCount}`);
 
       try {
-        const repairPrompt = `Corrige los siguientes errores de sintaxis y ejecución detectados por el Auditor QA:
+        const repairPrompt = qaReport.enrichmentPrompt || `Corrige los siguientes errores y enriquece la aplicación para alcanzar el estándar comercial Pro:
 ${qaReport.errors.map(e => '- ' + e).join('\n')}
 
-CÓDIGO A CORREGIR:
+CÓDIGO A ENRIQUECER/CORREGIR:
 \`\`\`html
 ${finalCode}
 \`\`\`
 
-Devuelve el código de software 100% completo y funcional en \`\`\`html filename=index.html:`;
+Devuelve el código de software 100% completo, visualmente enriquecido y funcional en \`\`\`html filename=index.html:`;
 
         const repairedResponse = await this.aiProvider.streamChat(
           [
@@ -154,7 +160,7 @@ Devuelve el código de software 100% completo y funcional en \`\`\`html filename
             { role: 'user', content: repairPrompt }
           ],
           () => {},
-          { signal, model: 'openai/gpt-oss-120b', maxTokens: 3400 }
+          { signal, model: 'openai/gpt-oss-120b', maxTokens: 3500 }
         );
 
         const repMatch = repairedResponse.match(/```html(?:\s+filename=[^\n]+)?\n([\s\S]*)/);
