@@ -47,7 +47,7 @@ export function App() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: '¡Hola! Soy **NONA AI Software Factory** con **Qwen 3.8**. Pídeme crear cualquier aplicación web, SaaS, videojuego 3D o plataforma interactiva.',
+      content: '¡Hola! Soy **NONA AI Software Factory (Architecture v5.0)**. Transforma cualquier requerimiento en software real, funcional, probado y desplegable.',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   ]);

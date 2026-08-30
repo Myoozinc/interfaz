@@ -2,7 +2,7 @@ import { agentEvents } from './AgentEvents';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { surgicalDiffAgent } from './SurgicalDiffAgent';
 import { qaTesterAgent, type QATestResult } from './QATesterAgent';
-import { PRO_COMPLEXITY_GUARDRAIL, FEW_SHOT_PATTERNS } from './PromptGuardrails';
+import { NONA_MASTER_SYSTEM_PROMPT_V5, APP_MANIFEST_SCHEMA, FEW_SHOT_PATTERNS } from './PromptGuardrails';
 
 export class MultiAgentEngine {
   private aiProvider: OllamaProvider;
@@ -27,83 +27,75 @@ export class MultiAgentEngine {
     let candidateCode = '';
 
     if (isPartialEdit) {
-      // MODE A: ⚡ Surgical Component Edit Loop
-      onProgress('⚡ Agente de Edición Quirúrgica (Surgical Diff)', 'Localizando componentes y aplicando modificaciones precisas...');
-      agentEvents.emit('agent.thinking', '⚡ Agente Quirúrgico: Modificando componentes específicos...');
+      // MODE A: ⚡ Surgical Component Edit Loop (Agent C)
+      onProgress('⚡ NONA Surgical Diff Engine', 'Localizando componentes y aplicando modificaciones precisas...');
+      agentEvents.emit('agent.thinking', '⚡ NONA Surgical Diff: Modificando componentes específicos...');
 
       candidateCode = await surgicalDiffAgent.applySurgicalEdit(
         userInstruction,
         currentCode,
-        (token) => onProgress('⚡ Agente de Edición Quirúrgica', 'Aplicando parche y re-renderizando...', token),
+        (token) => onProgress('⚡ NONA Surgical Diff Engine', 'Aplicando parche y re-renderizando...', token),
         signal
       );
 
       agentEvents.emit('agent.completed', '⚡ Modificación quirúrgica aplicada con éxito.');
 
     } else {
-      // MODE B: 🚀 3-Stage Strict Production Pipeline (Lovable & Antigravity Pro Standard)
+      // MODE B: 🚀 3-Stage Strict Production Pipeline (Architecture v5.0)
 
       // ==========================================
-      // ETAPA 1: Planificación Técnica en Browser Stack
+      // ETAPA 1: Planificación y Manifiesto (Agent A - Lead Architect)
       // ==========================================
-      onProgress('🧠 Etapa 1 - Lead System Architect (120B)', 'Diseñando especificación técnica para navegador (Three.js / HTML5)...');
-      agentEvents.emit('agent.thinking', '🧠 Etapa 1 (120B): Diseñando arquitectura y controles...');
+      onProgress('🧠 Etapa 1 - NONA Lead System Architect', 'Creando APP_MANIFEST y arquitectura técnica...');
+      agentEvents.emit('agent.thinking', '🧠 Etapa 1: Diseñando APP_MANIFEST, flujos y arquitectura de ejecución...');
 
-      const architectSystemPrompt = `Eres LEAD SYSTEM ARCHITECT de Google Antigravity & Lovable.
-Tu misión es diseñar el plano técnico para ejecutar la aplicación DIRECTAMENTE EN EL NAVEGADOR WEB (Live Sandbox).
+      const architectSystemPrompt = `${NONA_MASTER_SYSTEM_PROMPT_V5}
 
-REGLAS DE ARQUITECTURA:
-1. Pila Tecnológica en Navegador:
-   - Si el usuario pide un JUEGO 3D (Fútbol, Carreras, Naves, Espacio): Three.js (<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>) + WebGLRenderer a pantalla completa + Canvas 3D + luces + controles (WASD/Ratón/Click) + HUD en Tailwind.
-   - Si pide una MASCOTA VIRTUAL: Canvas / SVG animado con estados (hambre, energía, diversión, nivel) + Web Audio API + localStorage.
-   - Si pide una TIENDA E-COMMERCE / SAAS: Tailwind CSS + Lucide Icons + Carrito flotante / Tablas reactivas + Modales CRUD.
-2. Devuelve un resumen técnico de 2 párrafos indicando la escena 3D / componentes DOM y controles.`;
+Tu misión como AGENT A — LEAD SYSTEM ARCHITECT es definir el APP_MANIFEST técnico para la solicitud del usuario.
+Estructura de salida requerida:
+${APP_MANIFEST_SCHEMA}
 
-      let technicalBlueprint = '';
+Devuelve un resumen técnico y el APP_MANIFEST estructurado.`;
+
+      let appManifest = '';
       try {
-        technicalBlueprint = await this.aiProvider.streamChat(
+        appManifest = await this.aiProvider.streamChat(
           [
             { role: 'system', content: architectSystemPrompt },
-            { role: 'user', content: `INSTRUCCIÓN DEL USUARIO:\n"${userInstruction}"\n\nDiseña la arquitectura en navegador:` }
+            { role: 'user', content: `INSTRUCCIÓN DEL PRODUCTO:\n"${userInstruction}"\n\nGenera la arquitectura y el APP_MANIFEST:` }
           ],
           () => {},
           { signal, model: 'openai/gpt-oss-120b', maxTokens: 600 }
         );
       } catch (err) {
-        technicalBlueprint = 'Arquitectura interactiva en navegador con Three.js / Tailwind CSS / Web Audio API.';
+        appManifest = 'Arquitectura interactiva en navegador con Three.js / Tailwind CSS / Web Audio API y persistencia reactiva.';
       }
 
-      agentEvents.emit('agent.completed', '🧠 Etapa 1: Arquitectura técnica definida.');
+      agentEvents.emit('agent.completed', '🧠 Etapa 1: APP_MANIFEST y arquitectura definidas.');
 
       // ==========================================
-      // ETAPA 2: Generación Full-Stack (120B / Qwen 3.8)
+      // ETAPA 2: Generación Full-Stack (Agent B - Senior Engineer)
       // ==========================================
-      onProgress('🎨 & ⚙️ Etapa 2 - Senior Full-Stack & 3D Engineer', 'Escribiendo el código completo con Three.js, Tailwind y JavaScript...');
-      agentEvents.emit('agent.thinking', '🎨 Etapa 2: Programando escena 3D / componentes y renderizando en vivo...');
+      onProgress('🎨 & ⚙️ Etapa 2 - NONA Full-Stack & 3D Engine', 'Escribiendo software completo con Three.js, Tailwind y JavaScript...');
+      agentEvents.emit('agent.thinking', '🎨 Etapa 2: Implementando lógica, estado, interfaz y renderizando en vivo...');
 
-      const engineerSystemPrompt = `Eres SENIOR FULL-STACK & 3D ENGINEER de Google Antigravity & Lovable.
-Tu misión es escribir el código HTML5 + JavaScript 100% COMPLETO, FUNCIONAL Y AUTOCONTENIDO para el usuario.
+      const engineerSystemPrompt = `${NONA_MASTER_SYSTEM_PROMPT_V5}
 
-${PRO_COMPLEXITY_GUARDRAIL}
+${FEW_SHOT_PATTERNS}
 
-REGLAS ESPECÍFICAS SEGÚN TIPO DE APP:
-- PARA JUEGOS 3D (Fútbol, Carreras, Acción):
-  * Carga Three.js (<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>) y Tailwind CSS (<script src="https://cdn.tailwindcss.com"></script>).
-  * WebGLRenderer a pantalla completa, Scene, PerspectiveCamera, luces (AmbientLight + DirectionalLight con sombras).
-  * Elementos 3D reales: Para fútbol (campo verde con líneas, porterías 3D con postes blancos y red, pelota 3D con físicas de tiro/rebote, portero 3D interactivo). Para carreras (pista 3D, auto 3D, controles WASD).
-  * HUD flotante con marcador de Goles/Puntos, botón de Reiniciar y sonidos de silbato/victoria con Web Audio API.
-- PARA APPS 2D / TIENDAS / SAAS / MASCOTAS:
-  * Interfaz rica con Tailwind CSS, Lucide Icons, animaciones CSS, persistencia en localStorage y sonidos con window.playSynthSound.
+RECUERDA:
+- Cero código de prueba o botones inertes.
+- Cero placeholders o "TODO".
+- Todo botón, formulario y componente debe funcionar.
+- Comienza directamente con \`\`\`html filename=index.html y concluye con </html>\`\`\`.`;
 
-${FEW_SHOT_PATTERNS}`;
-
-      const engineerUserPrompt = `PLANO TÉCNICO DE LA ETAPA 1:
-${technicalBlueprint}
+      const engineerUserPrompt = `APP_MANIFEST Y ARQUITECTURA (ETAPA 1):
+${appManifest}
 
 INSTRUCCIÓN EXACTA DEL USUARIO:
 "${userInstruction}"
 
-Escribe el archivo index.html 100% completo, funcional y listo para interactuar. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`:`;
+Implementa la aplicación de software 100% completa, interactiva y funcional. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`:`;
 
       let generatedCode = '';
       await this.aiProvider.streamChat(
@@ -113,12 +105,12 @@ Escribe el archivo index.html 100% completo, funcional y listo para interactuar.
         ],
         (token, full) => {
           generatedCode = full;
-          onProgress('🎨 & ⚙️ Etapa 2 - Senior Full-Stack & 3D Engineer', 'Programando escena y lógica interactiva...', token);
+          onProgress('🎨 & ⚙️ Etapa 2 - NONA Full-Stack & 3D Engine', 'Programando componentes y lógica interactiva...', token);
         },
         { signal, model: 'openai/gpt-oss-120b', maxTokens: 3400 }
       );
 
-      agentEvents.emit('agent.completed', '🎨 Etapa 2: Código compilado con éxito.');
+      agentEvents.emit('agent.completed', '🎨 Etapa 2: Código de software compilado con éxito.');
 
       const match = generatedCode.match(/```html(?:\s+filename=[^\n]+)?\n([\s\S]*)/);
       if (match) {
@@ -132,10 +124,10 @@ Escribe el archivo index.html 100% completo, funcional y listo para interactuar.
     }
 
     // ==========================================
-    // ETAPA 3: Auditoría QA & Self-Healing Loop
+    // ETAPA 3: Auditoría QA & Self-Healing Loop (Agent E)
     // ==========================================
-    onProgress('🛡️ Etapa 3 - QA Tester & Density Auditor', 'Auditando sintaxis, Three.js/DOM y Densidad Visual/Funcional...');
-    agentEvents.emit('agent.thinking', '🛡️ Etapa 3 (QA): Validando físicas, controles y empaquetado...');
+    onProgress('🛡️ Etapa 3 - NONA QA & Self-Healing Engine', 'Auditando sintaxis, runtime, DOM y densidad funcional...');
+    agentEvents.emit('agent.thinking', '🛡️ Etapa 3 (QA): Verificando integridad, controles y ejecutando validaciones...');
 
     let qaReport = qaTesterAgent.testAndAudit(candidateCode);
     let finalCode = qaReport.repairedCode || candidateCode;
@@ -154,11 +146,11 @@ CÓDIGO A CORREGIR:
 ${finalCode}
 \`\`\`
 
-Devuelve el código 100% completo y funcional en \`\`\`html filename=index.html:`;
+Devuelve el código de software 100% completo y funcional en \`\`\`html filename=index.html:`;
 
         const repairedResponse = await this.aiProvider.streamChat(
           [
-            { role: 'system', content: `Eres LEAD CODE HEALER de Google Antigravity.\n${PRO_COMPLEXITY_GUARDRAIL}` },
+            { role: 'system', content: `${NONA_MASTER_SYSTEM_PROMPT_V5}\nEres LEAD CODE HEALER de NONA AI Software Factory.` },
             { role: 'user', content: repairPrompt }
           ],
           () => {},
@@ -179,8 +171,8 @@ Devuelve el código 100% completo y funcional en \`\`\`html filename=index.html:
     agentEvents.emit('agent.completed', `🛡️ Etapa 3: Calidad QA ${qaReport.visualDensityScore}/100 — 0 Errores Críticos.`);
 
     const summary = isPartialEdit
-      ? `⚡ **Modificación Quirúrgica Completada**:\n- **Agente Editor**: Modificó con precisión los componentes solicitados.\n- **Auditor QA**: Validó la integridad del código (Densidad Visual: ${qaReport.visualDensityScore}/100).`
-      : `🚀 **Aplicación Construida con Estándar Antigravity & Lovable Pro**:\n1. **🧠 Etapa 1 (Architect 120B)**: Diseñó la arquitectura de escena 3D y componentes.\n2. **🎨 & ⚙️ Etapa 2 (Senior Engineer 120B)**: Programó el motor Three.js/Tailwind con físicas y controles.\n3. **🛡️ Etapa 3 (QA Tester)**: Validó sintaxis y Densidad Visual (${qaReport.visualDensityScore}/100).`;
+      ? `⚡ **Modificación Quirúrgica Completada**:\n- **NONA Surgical Diff**: Modificó con precisión los componentes solicitados.\n- **NONA QA Engine**: Validó la integridad del código (Densidad Funcional: ${qaReport.visualDensityScore}/100).`
+      : `🚀 **Software Construido con Estándar NONA Architecture v5.0**:\n1. **🧠 Etapa 1 (Lead Architect)**: Diseñó el APP_MANIFEST y la arquitectura técnica.\n2. **🎨 & ⚙️ Etapa 2 (Full-Stack Engine)**: Implementó lógica real, Three.js/Tailwind y persistencia.\n3. **🛡️ Etapa 3 (QA Engine)**: Validó sintaxis y Densidad Funcional (${qaReport.visualDensityScore}/100).`;
 
     return { fullCode: finalCode, summary, qaReport };
   }

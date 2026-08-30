@@ -288,7 +288,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     setInputPrompt('');
     setAttachedImages([]);
     setIsGenerating(true);
-    setThinkingText('⚡ Inicializando Pipeline Multi-Agente Antigravity...');
+    setThinkingText('⚡ Inicializando NONA Software Factory Engine...');
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -297,7 +297,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       const projectPayload: FullStackProject = {
         id: 'workspace_proj',
         name: 'Workspace Project',
-        description: 'Auto-generated with Qwen 3.8',
+        description: 'Auto-generated with NONA AI Engine',
         files: files.reduce((acc, f) => {
           acc[f.name] = {
             path: f.name,
@@ -342,7 +342,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         )
       );
 
-      creditLedger.deductCredits(5, `Generación Qwen 3.8: "${promptToSend.slice(0, 30)}..."`);
+      creditLedger.deductCredits(5, `Generación de Software NONA: "${promptToSend.slice(0, 30)}..."`);
 
       confetti({
         particleCount: 50,
@@ -357,7 +357,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, content: `⚠️ Error del servidor cloud: ${err.message}` }
+              ? { ...msg, content: `⚠️ Error en la generación: ${err.message}` }
               : msg
           )
         );
@@ -409,7 +409,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
           <span className="text-[10px] flex items-center gap-1.5 text-indigo-700 font-bold bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" />
-            Antigravity Multi-Agent Engine
+            NONA Multi-Agent Factory
           </span>
         </div>
       </div>
@@ -430,7 +430,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-3 h-3 text-indigo-600" />
-                    <span className="font-semibold text-indigo-600">Qwen 3.8 Cloud</span>
+                    <span className="font-semibold text-indigo-600">NONA AI Engine</span>
                     <span>•</span>
                     <span>{msg.timestamp}</span>
                   </>
@@ -464,7 +464,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 {!isUser && msg.content && (
                   <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
                     <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                      <Check className="w-3 h-3" /> Aplicación actualizada
+                      <Check className="w-3 h-3" /> Software generado y verificado
                     </span>
                     <div className="flex items-center gap-1">
                       {onSwitchView && (
@@ -517,7 +517,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         {isGenerating && (
           <div className="flex items-center gap-2 p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-xs text-indigo-900 animate-pulse">
             <RefreshCw className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
-            <span className="font-semibold">{thinkingText || 'Generando código con Qwen 3.8...'}</span>
+            <span className="font-semibold">{thinkingText || 'Generando software con NONA Code Engine...'}</span>
           </div>
         )}
 
