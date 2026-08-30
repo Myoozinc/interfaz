@@ -9,7 +9,7 @@ export class AgentOrchestrator {
   private toolRegistry: ToolRegistry;
 
   constructor() {
-    this.aiProvider = new OllamaProvider('/api/agent', 'qwen/qwen3.8-27b');
+    this.aiProvider = new OllamaProvider('/api/agent', 'openai/gpt-oss-120b');
     this.toolRegistry = new ToolRegistry();
   }
 
@@ -24,19 +24,19 @@ export class AgentOrchestrator {
 
   private isNewAppRequest(instruction: string): boolean {
     const lower = instruction.toLowerCase().trim();
-    const creationKeywords = [
-      'haz una', 'haz un', 'crea una', 'crea un', 'crear', 'hacer', 'desarrolla',
-      'construye', 'quiero una', 'quiero un', 'quiero hacer', 'nuevo proyecto',
-      'juego de', 'app de', 'saas de', 'plataforma de', 'simulador de', 'juego 3d',
-      'carrera', 'carreras', 'mario kart'
-    ];
-    const isModification = [
-      'cambia', 'modifica', 'agrega', 'añade', 'elimina', 'quita', 'pon de color',
-      'corrige', 'arregla', 'ajusta', 'reemplaza', 'mejora este', 'actualiza'
-    ].some(k => lower.startsWith(k));
+    if (lower.startsWith('[elemento seleccionado')) return false;
 
-    if (isModification) return false;
-    return creationKeywords.some(k => lower.includes(k));
+    const modificationStarts = [
+      'cambia el', 'cambia la', 'modifica el', 'modifica la', 'pon de color',
+      'haz el botón', 'añade un campo', 'agrega un campo', 'elimina el botón',
+      'quita el botón', 'corrige el error', 'arregla el', 'hazlo más grande',
+      'hazlo más pequeño', 'cambia el título', 'cambia el fondo'
+    ];
+    if (modificationStarts.some(m => lower.startsWith(m))) {
+      return false;
+    }
+
+    return true; // Default to full generation
   }
 
   async run(
@@ -49,7 +49,7 @@ export class AgentOrchestrator {
       signal?: AbortSignal;
     }
   ): Promise<{ responseText: string; updatedProject: FullStackProject }> {
-    agentEvents.emit('agent.started', `Iniciando Pipeline Multi-Agente Antigravity: "${userInstruction.slice(0, 45)}..."`);
+    agentEvents.emit('agent.started', `Iniciando Pipeline de Software NONA: "${userInstruction.slice(0, 45)}..."`);
 
     const mainFile = project.files['index.html'] || Object.values(project.files)[0];
     let currentCode = mainFile?.content || '';
@@ -67,7 +67,7 @@ export class AgentOrchestrator {
             agentStepsLog = stepName;
             onProgress(`**${stepName}**\n${detail}`, true);
           } else if (streamToken) {
-            onProgress(`**${stepName}**\n*(Escribiendo código...)*`, false);
+            onProgress(`**${stepName}**\n*(Escribiendo software...)*`, false);
           }
         },
         options?.signal
@@ -89,12 +89,12 @@ export class AgentOrchestrator {
         arguments: {}
       }, project);
 
-      agentEvents.emit('agent.completed', 'Pipeline Multi-Agente finalizado con éxito.');
+      agentEvents.emit('agent.completed', 'Software generado y validado con éxito.');
 
       return { responseText: summary, updatedProject: project };
 
     } catch (err: any) {
-      agentEvents.emit('agent.error', `Error en Pipeline Multi-Agente: ${err.message}`);
+      agentEvents.emit('agent.error', `Error en generación: ${err.message}`);
       throw err;
     }
   }

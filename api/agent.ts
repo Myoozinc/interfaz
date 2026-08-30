@@ -75,7 +75,7 @@ export default async function handler(req: Request) {
           model: targetModel,
           messages: formatMessages(messages),
           stream: true,
-          temperature: 0.2,
+          temperature: 0.15,
           max_tokens: targetTokens,
         }),
       });
@@ -95,7 +95,7 @@ export default async function handler(req: Request) {
           model: orModel,
           messages: formatMessages(messages),
           stream: true,
-          temperature: 0.2,
+          temperature: 0.15,
           max_tokens: Math.min(targetTokens, 3000),
           reasoning: { effort: 'none' },
         }),
