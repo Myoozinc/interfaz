@@ -67,7 +67,7 @@ ${APP_MANIFEST_SCHEMA}`;
             { role: 'user', content: `INSTRUCCIÓN DEL PRODUCTO:\n"${userInstruction}"\n\nGenera la arquitectura y el APP_MANIFEST:` }
           ],
           () => {},
-          { signal, model: 'openai/gpt-oss-120b', maxTokens: 600 }
+          { signal, model: 'openai/gpt-oss-120b', maxTokens: 1000 }
         );
       } catch (err) {
         appManifest = 'Arquitectura interactiva en navegador con Three.js / Tailwind CSS / Web Audio API y persistencia reactiva.';
@@ -86,18 +86,19 @@ ${APP_MANIFEST_SCHEMA}`;
 ${FEW_SHOT_PATTERNS}
 
 REGLAS DE ORO OBLIGATORIAS:
-1. NUNCA uses CDNs desactualizados o fondos negros vacíos. Usa siempre:
+1. SÉ 100% FIEL A LA INSTRUCCIÓN DEL USUARIO: Si pidió un juego de Snake 3D, crea EXCLUSIVAMENTE el juego de Snake 3D con Three.js. No crees un SaaS o Project Manager.
+2. NUNCA uses CDNs desactualizados. Usa siempre:
    <script src="https://cdn.tailwindcss.com"></script>
    <script src="https://unpkg.com/lucide@latest"></script>
    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-2. Para juegos 3D: Crea un mundo 3D vibrante (luces, sombras, materiales de color, suelo con rejilla, animaciones de rotación, partículas), HUD flotante moderno con Tailwind, controles táctiles en pantalla para móvil + teclado WASD/Flechas, selector de velocidad, sonido y modal de Game Over.
-3. Envuelve la inicialización en window.addEventListener('DOMContentLoaded', ...) para garantizar que los elementos del DOM existan.
-4. Comienza DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`.`;
+3. Para juegos 3D: Crea un mundo 3D vibrante (luces, sombras, materiales de color, suelo con rejilla, animaciones de rotación, partículas), HUD flotante moderno con Tailwind, controles táctiles en pantalla para móvil + teclado WASD/Flechas, selector de velocidad, sonido y modal de Game Over.
+4. Envuelve la inicialización en window.addEventListener('DOMContentLoaded', ...) para garantizar que los elementos del DOM existan.
+5. Comienza DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`.`;
 
       const engineerUserPrompt = `APP_MANIFEST Y ARQUITECTURA (ETAPA 1):
 ${appManifest}
 
-INSTRUCCIÓN EXACTA DEL USUARIO:
+INSTRUCCIÓN EXACTA DEL USUARIO (MANTÉN ESTE TEMA EXACTO):
 "${userInstruction}"
 
 Implementa la aplicación de software 100% completa, visualmente impactante, interactiva y funcional. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`:`;
@@ -134,7 +135,7 @@ Implementa la aplicación de software 100% completa, visualmente impactante, int
     onProgress('🛡️ Etapa 3 - NONA QA & Self-Healing Engine', 'Auditando sintaxis, runtime, DOM y densidad funcional...');
     agentEvents.emit('agent.thinking', '🛡️ Etapa 3 (QA): Verificando integridad, controles y ejecutando validaciones...');
 
-    let qaReport = qaTesterAgent.testAndAudit(candidateCode);
+    let qaReport = qaTesterAgent.testAndAudit(candidateCode, userInstruction);
     let finalCode = qaReport.repairedCode || candidateCode;
 
     // Self-Healing Loop: If errors exist OR density score is < 70, force enrichment cycle
@@ -144,14 +145,18 @@ Implementa la aplicación de software 100% completa, visualmente impactante, int
       agentEvents.emit('agent.thinking', `🔄 QA Self-Healing: ${issueCount}`);
 
       try {
-        const repairPrompt = qaReport.enrichmentPrompt || `Corrige los siguientes errores y enriquece la aplicación para alcanzar el estándar comercial Pro:
-${qaReport.errors.map(e => '- ' + e).join('\n')}
+        const repairPrompt = `INSTRUCCIÓN ORIGINAL DEL USUARIO (OBLIGATORIO: MANTÉN ESTE PRODUCTO EXACTO):
+"${userInstruction}"
 
-CÓDIGO A ENRIQUECER/CORREGIR:
+DIAGNÓSTICO DEL AUDITOR QA:
+${qaReport.errors.map(e => '- ' + e).join('\n') || '- ' + qaReport.enrichmentPrompt}
+
+CÓDIGO ACTUAL A ENRIQUECER/CORREGIR:
 \`\`\`html
 ${finalCode}
 \`\`\`
 
+REGLA CRÍTICA: NO cambies la temática del producto. Si el usuario pidió un juego 3D, mantén el juego 3D y agrega las luces, controles o texturas faltantes.
 Devuelve el código de software 100% completo, visualmente enriquecido y funcional en \`\`\`html filename=index.html:`;
 
         const repairedResponse = await this.aiProvider.streamChat(
@@ -167,7 +172,7 @@ Devuelve el código de software 100% completo, visualmente enriquecido y funcion
         if (repMatch) {
           finalCode = repMatch[1].replace(/```\s*$/, '').trim();
         }
-        qaReport = qaTesterAgent.testAndAudit(finalCode);
+        qaReport = qaTesterAgent.testAndAudit(finalCode, userInstruction);
         finalCode = qaReport.repairedCode || finalCode;
       } catch (e) {
         console.warn('QA Self-healing fallback to rule-based repairs');

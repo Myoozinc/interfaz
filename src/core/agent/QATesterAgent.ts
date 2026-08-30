@@ -11,9 +11,9 @@ export interface QATestResult {
 export class QATesterAgent {
   /**
    * Performs deep automated linting, syntax analysis, DOM element verification,
-   * runtime safety checks, and evaluates Functional & Visual Density (v5.0 Pro Standard).
+   * domain-aware scoring (Games vs SaaS), and runtime safety checks.
    */
-  public testAndAudit(htmlCode: string): QATestResult {
+  public testAndAudit(htmlCode: string, userInstruction?: string): QATestResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     let repaired = htmlCode;
@@ -96,9 +96,14 @@ export class QATesterAgent {
       }
     }
 
-    // 5. Check 3D WebGL / Three.js Specific Integrity
-    const is3D = /three\.min\.js|three@0|THREE\./i.test(repaired);
+    // 5. Domain Detection (3D Game vs SaaS / Web App)
+    const is3D = /three\.min\.js|three@0|THREE\./i.test(repaired) || (userInstruction ? /juego|snake|3d|futbol|carrera|nave/i.test(userInstruction) : false);
+
+    let densityPoints = 0;
+    const missingFeatures: string[] = [];
+
     if (is3D) {
+      // DOMAIN A: 3D Games & WebGL Simulations
       if (!repaired.includes('THREE.Scene') && !repaired.includes('new THREE.Scene')) {
         errors.push('Falta inicialización de la escena 3D (new THREE.Scene()).');
       }
@@ -108,61 +113,73 @@ export class QATesterAgent {
       if (!repaired.includes('WebGLRenderer')) {
         errors.push('Falta renderizador WebGL (new THREE.WebGLRenderer()).');
       }
-      // Check for broken pointer-events: none on hud that blocks buttons
       if (/#hud\s*\{[^}]*pointer-events:\s*none/i.test(repaired) && !/#hud\s+button\s*\{[^}]*pointer-events:\s*auto/i.test(repaired)) {
         repaired = repaired.replace(/pointer-events:\s*none;/gi, 'pointer-events: auto;');
         warnings.push('Corregido pointer-events en HUD para habilitar clics de botones.');
       }
-    }
 
-    // 6. Visual & Functional Density Evaluation (Pro Standard)
-    let densityPoints = 0;
-    const missingFeatures: string[] = [];
+      // 3D Quality Criteria (100 pts total)
+      if (repaired.includes('Scene') && repaired.includes('PerspectiveCamera') && repaired.includes('WebGLRenderer')) {
+        densityPoints += 30; // Core 3D engine setup
+      }
+      if (repaired.includes('AmbientLight') || repaired.includes('DirectionalLight') || repaired.includes('HemisphereLight')) {
+        densityPoints += 25; // 3D Lighting
+      } else {
+        missingFeatures.push('Iluminación 3D (AmbientLight / DirectionalLight)');
+      }
+      if (repaired.includes('keydown') || repaired.includes('addEventListener(\'click\'') || repaired.includes('touch')) {
+        densityPoints += 25; // Controls & Interaction
+      } else {
+        missingFeatures.push('Controles de juego (Teclado WASD/Flechas o Clics)');
+      }
+      if (repaired.includes('score') || repaired.includes('Puntuación') || repaired.includes('hud') || repaired.includes('restart')) {
+        densityPoints += 20; // HUD & Game loop
+      } else {
+        missingFeatures.push('HUD flotante con marcador de puntuación y reinicio');
+      }
 
-    // Criterion A: Micro-interactions & Smooth Transitions (25 pts)
-    const hasTransitions = /transition-all|transition-colors|duration-|ease-in-out/i.test(repaired);
-    const hasHovers = /hover:scale-|hover:bg-|hover:border-|hover:shadow-|active:scale-/i.test(repaired);
-    if (hasTransitions && hasHovers) {
-      densityPoints += 25;
     } else {
-      missingFeatures.push('Micro-interacciones visuales (hover:scale-105, active:scale-95, transition-all)');
-    }
+      // DOMAIN B: 2D Web Apps / SaaS / E-Commerce
+      const hasTransitions = /transition-all|transition-colors|duration-|ease-in-out/i.test(repaired);
+      const hasHovers = /hover:scale-|hover:bg-|hover:border-|hover:shadow-|active:scale-/i.test(repaired);
+      if (hasTransitions && hasHovers) {
+        densityPoints += 25;
+      } else {
+        missingFeatures.push('Micro-interacciones visuales (hover:scale-105, active:scale-95, transition-all)');
+      }
 
-    // Criterion B: Native Web Audio Sound Effects (20 pts)
-    const hasAudio = /playSynthSound/i.test(repaired) || /AudioContext/i.test(repaired);
-    if (hasAudio) {
-      densityPoints += 20;
-    } else {
-      missingFeatures.push('Efectos de sonido interactivos con window.playSynthSound(type)');
-    }
+      const hasAudio = /playSynthSound/i.test(repaired) || /AudioContext/i.test(repaired);
+      if (hasAudio) {
+        densityPoints += 20;
+      } else {
+        missingFeatures.push('Efectos de sonido interactivos con window.playSynthSound(type)');
+      }
 
-    // Criterion C: State Persistence (20 pts)
-    const hasPersistence = /localStorage|NONA_DB/i.test(repaired);
-    if (hasPersistence) {
-      densityPoints += 20;
-    } else {
-      missingFeatures.push('Persistencia de datos en localStorage o window.NONA_DB');
-    }
+      const hasPersistence = /localStorage|NONA_DB/i.test(repaired);
+      if (hasPersistence) {
+        densityPoints += 20;
+      } else {
+        missingFeatures.push('Persistencia de datos en localStorage o window.NONA_DB');
+      }
 
-    // Criterion D: Rich UI / Lucide Icons / 3D Graphics (20 pts)
-    const hasLucide = /lucide|data-lucide/i.test(repaired);
-    const hasTailwindGlass = /backdrop-blur|bg-slate-900|bg-opacity|shadow-xl|rounded-2xl|rounded-3xl|shadow-lg/i.test(repaired);
-    if ((hasLucide || is3D) && (hasTailwindGlass || is3D)) {
-      densityPoints += 20;
-    } else {
-      missingFeatures.push('Diseño visual premium con tarjetas backdrop-blur, sombras e iconos Lucide');
-    }
+      const hasLucide = /lucide|data-lucide/i.test(repaired);
+      const hasTailwindGlass = /backdrop-blur|bg-slate-900|bg-opacity|shadow-xl|rounded-2xl|rounded-3xl|shadow-lg/i.test(repaired);
+      if (hasLucide && hasTailwindGlass) {
+        densityPoints += 20;
+      } else {
+        missingFeatures.push('Diseño visual premium con tarjetas backdrop-blur, sombras e iconos Lucide');
+      }
 
-    // Criterion E: Responsive layout (15 pts)
-    const hasResponsive = /sm:|md:|lg:|max-w-|mobile/i.test(repaired);
-    if (hasResponsive) {
-      densityPoints += 15;
-    } else {
-      missingFeatures.push('Diseño responsive adaptado a móvil y escritorio (sm:, md:, lg:)');
+      const hasResponsive = /sm:|md:|lg:|max-w-|mobile/i.test(repaired);
+      if (hasResponsive) {
+        densityPoints += 15;
+      } else {
+        missingFeatures.push('Diseño responsive adaptado a móvil y escritorio (sm:, md:, lg:)');
+      }
     }
 
     const visualDensityScore = densityPoints;
-    const needsVisualEnrichment = visualDensityScore < 70;
+    const needsVisualEnrichment = visualDensityScore < 70 && errors.length === 0;
     const isValid = errors.length === 0 && !needsVisualEnrichment;
 
     let enrichmentPrompt: string | undefined;
@@ -171,7 +188,7 @@ export class QATesterAgent {
         ...errors,
         ...missingFeatures.map(f => `Falta: ${f}`)
       ];
-      enrichmentPrompt = `El código generado requiere mayor riqueza visual y corrección técnica (Score: ${visualDensityScore}/100).\nPor favor enriquece y corrige el código agregando los siguientes elementos:\n${issueList.map(f => '- ' + f).join('\n')}\nDevuelve el código 100% completo, autocontenido y funcional en \`\`\`html filename=index.html:`;
+      enrichmentPrompt = `Problemas detectados por el Auditor QA (Score: ${visualDensityScore}/100):\n${issueList.map(f => '- ' + f).join('\n')}`;
     }
 
     return {
