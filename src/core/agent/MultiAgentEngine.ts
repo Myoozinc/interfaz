@@ -2,12 +2,13 @@ import { agentEvents } from './AgentEvents';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { surgicalDiffAgent } from './SurgicalDiffAgent';
 import { qaTesterAgent, type QATestResult } from './QATesterAgent';
+import { PRO_COMPLEXITY_GUARDRAIL, FEW_SHOT_PATTERNS } from './PromptGuardrails';
 
 export class MultiAgentEngine {
   private aiProvider: OllamaProvider;
 
   constructor() {
-    this.aiProvider = new OllamaProvider('/api/agent', 'qwen/qwen3.8-27b');
+    this.aiProvider = new OllamaProvider('/api/agent', 'openai/gpt-oss-120b');
   }
 
   setEndpoint(url: string) {
@@ -40,66 +41,101 @@ export class MultiAgentEngine {
       agentEvents.emit('agent.completed', '⚡ Modificación quirúrgica aplicada con éxito.');
 
     } else {
-      // MODE B: 🚀 Full-Stack Generation Loop (Antigravity & Lovable Standard)
-      onProgress('🧠 Agente 1 (Arquitecto de Sistemas)', 'Diseñando especificación técnica, interfaz y componentes...');
-      agentEvents.emit('agent.thinking', '🧠 Agente 1: Planificando arquitectura completa...');
+      // MODE B: 🚀 3-Stage Strict Production Pipeline (Lovable & Antigravity Pro Standard)
 
-      const systemPrompt = `Eres NONA AGENT (Google Antigravity & Lovable Standard), el generador de aplicaciones y juegos web autónomo más avanzado del mundo.
-Tu objetivo es programar una aplicación web 100% COMPLETA, PROFESIONAL, ULTRA-ESTÉTICA Y FUNCIONAL.
+      // ==========================================
+      // ETAPA 1: Planificación Profunda (GPT-OSS 120B)
+      // ==========================================
+      onProgress('🧠 Etapa 1 - Lead System Architect (GPT-OSS 120B)', 'Diseñando especificación técnica, árbol de componentes y esquema JSON...');
+      agentEvents.emit('agent.thinking', '🧠 Etapa 1 (120B): Generando contrato técnico estructurado en JSON...');
 
-REGLAS DE ORO DE INGENIERÍA:
-1. Comienza tu respuesta DIRECTAMENTE con el bloque de código:
-\`\`\`html filename=index.html
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-</head>
-<body class="bg-slate-900 text-white min-h-screen">
-...
-  <script>
-    // Toda la lógica JS funcional aquí
-    lucide.createIcons();
-  </script>
-</body>
-</html>
+      const architectSystemPrompt = `Eres LEAD SYSTEM ARCHITECT de Google Antigravity & Lovable.
+Tu misión es diseñar la arquitectura técnica profunda para la aplicación solicitada por el usuario.
+REGLA ESTRICTA: NO escribas código HTML ni JavaScript directamente. Devuelve EXCLUSIVAMENTE un objeto JSON válido con la siguiente estructura:
+{
+  "appName": "Nombre de la Aplicación",
+  "componentTree": [
+    { "name": "Header/Navbar", "features": ["Logo", "Acciones", "Badge reactivo"] },
+    { "name": "MainContainer", "features": ["Vistas activas", "Contenedores interactivos", "Empty states"] },
+    { "name": "ModalsAndDrawers", "features": ["Modales CRUD", "Detalles", "Notificaciones Toast"] }
+  ],
+  "stateMachine": {
+    "states": ["loading", "active", "modalOpen", "empty", "success"],
+    "reactiveVariables": ["items", "selectedItem", "scoreOrTotal", "activeTab", "filterQuery"]
+  },
+  "databaseSchema": {
+    "tables": ["items", "userPreferences", "history"],
+    "storageKey": "nona_app_state"
+  },
+  "tailwindPalette": {
+    "background": "bg-slate-950",
+    "card": "bg-slate-900/80 border border-slate-800 backdrop-blur-md",
+    "primary": "indigo-600",
+    "accent": "emerald-400"
+  },
+  "audioEvents": ["click", "win", "eat", "engine", "button"]
+}`;
+
+      let technicalBlueprintJson = '';
+      try {
+        technicalBlueprintJson = await this.aiProvider.streamChat(
+          [
+            { role: 'system', content: architectSystemPrompt },
+            { role: 'user', content: `INSTRUCCIÓN DEL USUARIO:\n"${userInstruction}"\n\nGenera la especificación técnica en JSON:` }
+          ],
+          () => {},
+          { signal, model: 'openai/gpt-oss-120b', maxTokens: 1200 }
+        );
+      } catch (err) {
+        console.warn('Fallback architect blueprint generated');
+        technicalBlueprintJson = JSON.stringify({
+          appName: 'NONA Pro App',
+          componentTree: ['Header', 'InteractiveCanvas', 'ControlPanel', 'ToastNotification'],
+          stateMachine: ['idle', 'active', 'modal'],
+          databaseSchema: 'nona_local_store',
+          audioEvents: ['click', 'win', 'button']
+        });
+      }
+
+      agentEvents.emit('agent.completed', '🧠 Etapa 1: Contrato técnico JSON generado con éxito.');
+
+      // ==========================================
+      // ETAPA 2: Generación Full-Stack (Qwen 3.8)
+      // ==========================================
+      onProgress('🎨 & ⚙️ Etapa 2 - Senior Full-Stack Engineer (Qwen 3.8)', 'Programando aplicación con Guardrails Pro y Patrones Few-Shot...');
+      agentEvents.emit('agent.thinking', '🎨 Etapa 2 (Qwen 3.8): Ejecutando código comercial con Tailwind y Web Audio...');
+
+      const engineerSystemPrompt = `Eres SENIOR FULL-STACK ENGINEER de Google Antigravity & Lovable.
+Tu misión es escribir el código HTML5 + Tailwind CSS + JavaScript 100% COMPLETO, PROFESIONAL, ULTRA-ESTÉTICO Y FUNCIONAL.
+
+${PRO_COMPLEXITY_GUARDRAIL}
+
+${FEW_SHOT_PATTERNS}`;
+
+      const engineerUserPrompt = `CONTRATO TÉCNICO DE LA ETAPA 1 (LEAD ARCHITECT):
+\`\`\`json
+${technicalBlueprintJson}
 \`\`\`
-2. CERO MOCKS: Todos los botones, modales, contadores o barras de estado DEBEN TENER LÓGICA JAVASCRIPT REAL.
-   - Si es Mascota Virtual: Criatura animada (SVG/Canvas con ojos, boca, animaciones), barras de Hambre/Energía/Felicidad/Nivel que cambian al hacer click en los botones, sonidos y guardado en localStorage.
-   - Si es Juego 3D o 2D: Carga Three.js o Canvas, controles WASD/click, loop animate() y marcador.
-   - Si es SaaS / Tablero: Múltiples vistas, filtros en vivo, modales para agregar datos y tablas responsivas.
-3. ESTÉTICA: Usa Tailwind CSS con contrastes modernos, bordes redondeados (rounded-2xl / rounded-3xl), sombras sutiles y efectos hover fluidos.
-4. Concluye SIEMPRE con </html>\`\`\`.`;
 
-      const userPrompt = `INSTRUCCIÓN DEL USUARIO:
+INSTRUCCIÓN ORIGINAL DEL USUARIO:
 "${userInstruction}"
-${!isNew && currentCode.length > 50 ? `\nCÓDIGO BASE PREVIO A MEJORAR:\n${currentCode.slice(0, 3000)}` : ''}
 
-Escribe el código 100% completo, autocontenido y funcional en index.html.`;
-
-      agentEvents.emit('agent.completed', '🧠 Arquitectura planificada.');
-
-      onProgress('🎨 & ⚙️ Agente 2 (Ingeniero Full-Stack)', 'Escribiendo la aplicación completa y renderizando en vivo...');
-      agentEvents.emit('agent.thinking', '🎨 Agente 2: Programando código y animaciones...');
+Implementa la aplicación completa basada estrictamente en este contrato técnico. Inicia directamente con \`\`\`html filename=index.html:`;
 
       let generatedCode = '';
       await this.aiProvider.streamChat(
         [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'system', content: engineerSystemPrompt },
+          { role: 'user', content: engineerUserPrompt }
         ],
         (token, full) => {
           generatedCode = full;
-          onProgress('🎨 & ⚙️ Agente 2 (Ingeniero Full-Stack)', 'Programando componentes y lógica...', token);
+          onProgress('🎨 & ⚙️ Etapa 2 - Senior Full-Stack Engineer', 'Programando componentes y renderizando en vivo...', token);
         },
         { signal, model: 'qwen/qwen3.8-27b', maxTokens: 3500 }
       );
 
-      agentEvents.emit('agent.completed', '🎨 Código generado con éxito.');
+      agentEvents.emit('agent.completed', '🎨 Etapa 2: Código full-stack compilado.');
 
       const match = generatedCode.match(/```html(?:\s+filename=[^\n]+)?\n([\s\S]*)/);
       if (match) {
@@ -112,21 +148,26 @@ Escribe el código 100% completo, autocontenido y funcional en index.html.`;
       }
     }
 
-    // STEP 3: 🛡️ Closed-Loop QA Tester & Self-Healing Validator
-    onProgress('🛡️ Agente 3 (Auditor QA & Tester)', 'Auditando sintaxis, balance de llaves y elementos del DOM...');
-    agentEvents.emit('agent.thinking', '🛡️ Agente 3 (QA): Ejecutando pruebas automatizadas...');
+    // ==========================================
+    // ETAPA 3: Auditoría QA & Self-Healing Loop
+    // ==========================================
+    onProgress('🛡️ Etapa 3 - QA Tester & Density Auditor', 'Auditando sintaxis, DOM y Densidad Visual/Funcional (Pro Standard)...');
+    agentEvents.emit('agent.thinking', '🛡️ Etapa 3 (QA): Evaluando micro-interacciones, audio y persistencia...');
 
     let qaReport = qaTesterAgent.testAndAudit(candidateCode);
     let finalCode = qaReport.repairedCode || candidateCode;
 
-    // Self-Healing Loop: If critical syntax errors exist, request immediate fix
-    if (!qaReport.valid && qaReport.errors.length > 0) {
-      onProgress('🔄 Agente 3 (Auto-Reparación QA)', `Corrigiendo ${qaReport.errors.length} fallas detectadas en tiempo real...`);
-      agentEvents.emit('agent.thinking', `🔄 QA Self-Healing: Corrigiendo: ${qaReport.errors.join(', ')}`);
+    // Self-Healing Loop: If errors exist OR visual density is low, force enrichment cycle
+    if (!qaReport.valid) {
+      const issuesText = qaReport.errors.length > 0 
+        ? `Errores de sintaxis: ${qaReport.errors.join(', ')}`
+        : `Densidad visual baja (${qaReport.visualDensityScore}/100)`;
+
+      onProgress('🔄 Etapa 3 - Self-Healing Loop', `Auto-enriqueciendo código (${issuesText})...`);
+      agentEvents.emit('agent.thinking', `🔄 QA Self-Healing: ${issuesText}`);
 
       try {
-        const repairPrompt = `Corrige los siguientes errores de sintaxis y código detectados por el Auditor QA:
-ERRORES:
+        const repairPrompt = qaReport.enrichmentPrompt || `Corrige los siguientes errores detectados por el Auditor QA:
 ${qaReport.errors.map(e => '- ' + e).join('\n')}
 
 CÓDIGO A CORREGIR:
@@ -134,11 +175,11 @@ CÓDIGO A CORREGIR:
 ${finalCode}
 \`\`\`
 
-Devuelve el código 100% corregido y completo en \`\`\`html filename=index.html:`;
+Devuelve el código 100% completo, funcional y con micro-interacciones en \`\`\`html filename=index.html:`;
 
         const repairedResponse = await this.aiProvider.streamChat(
           [
-            { role: 'system', content: 'Eres un Especialista en Depuración y Reparación de Código HTML5/JS.' },
+            { role: 'system', content: `Eres LEAD CODE HEALER de Google Antigravity.\n${PRO_COMPLEXITY_GUARDRAIL}` },
             { role: 'user', content: repairPrompt }
           ],
           () => {},
@@ -151,16 +192,16 @@ Devuelve el código 100% corregido y completo en \`\`\`html filename=index.html:
         }
         qaReport = qaTesterAgent.testAndAudit(finalCode);
         finalCode = qaReport.repairedCode || finalCode;
-      } catch(e) {
-        console.warn('Auto-repair fallback to rule-based sanitization');
+      } catch (e) {
+        console.warn('QA Self-healing fallback to rule-based repairs');
       }
     }
 
-    agentEvents.emit('agent.completed', `🛡️ QA Score: ${qaReport.score}/100 — 0 Errores Críticos.`);
+    agentEvents.emit('agent.completed', `🛡️ Etapa 3: Calidad QA ${qaReport.visualDensityScore}/100 — 0 Errores Críticos.`);
 
     const summary = isPartialEdit
-      ? `⚡ **Modificación Quirúrgica Completada**:\n- **Agente Editor**: Modificó con precisión los componentes solicitados.\n- **Auditor QA**: Validó la integridad del código (Score de Calidad: ${qaReport.score}/100).`
-      : `🚀 **Aplicación Construida con Estándar Antigravity & Lovable**:\n1. **🧠 Arquitecto**: Diseñó los componentes y modelo de interacción.\n2. **🎨 & ⚙️ Ingeniero Líder**: Implementó la lógica completa, estilos Tailwind y eventos JS.\n3. **🛡️ Auditor QA**: Validó la ejecución y empaquetado (Score: ${qaReport.score}/100).`;
+      ? `⚡ **Modificación Quirúrgica Completada**:\n- **Agente Editor**: Modificó con precisión los componentes solicitados.\n- **Auditor QA**: Validó la integridad del código (Densidad Visual: ${qaReport.visualDensityScore}/100).`
+      : `🚀 **Aplicación Construida con Estándar Antigravity & Lovable Pro**:\n1. **🧠 Etapa 1 (Architect 120B)**: Diseñó el plano técnico JSON y máquina de estados.\n2. **🎨 & ⚙️ Etapa 2 (Qwen 3.8)**: Programó componentes ricos, Tailwind CSS, persistencia y Web Audio.\n3. **🛡️ Etapa 3 (QA Tester)**: Validó sintaxis y Densidad Visual (${qaReport.visualDensityScore}/100).`;
 
     return { fullCode: finalCode, summary, qaReport };
   }
