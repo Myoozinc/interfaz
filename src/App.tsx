@@ -426,7 +426,11 @@ export function App() {
                       />
 
                       <div style={{ flex: 1 - splitRatio }} className="h-full overflow-hidden">
-                        <PreviewPanel files={files} onElementSelect={setInspectedElement} />
+                        <PreviewPanel
+                          files={files}
+                          onElementSelect={(info) => setInspectedElement(info.selector ? `${info.tagName} (${info.selector})` : info.outerHTML)}
+                          onAutoFixErrors={(errors) => setPendingPrompt('Corrige los siguientes errores de ejecución en consola y haz que el botón de jugar y todos los eventos funcionen al 100%:\n' + errors.map(e => '- ' + e).join('\n'))}
+                        />
                       </div>
                     </>
                   )}
@@ -446,7 +450,11 @@ export function App() {
                   {/* Mode Preview Only */}
                   {viewMode === 'preview' && (
                     <div className="flex-1 h-full overflow-hidden">
-                      <PreviewPanel files={files} onElementSelect={setInspectedElement} />
+                      <PreviewPanel
+                        files={files}
+                        onElementSelect={(info) => setInspectedElement(info.selector ? `${info.tagName} (${info.selector})` : info.outerHTML)}
+                        onAutoFixErrors={(errors) => setPendingPrompt('Corrige los siguientes errores de ejecución en consola y haz que el botón de jugar y todos los eventos funcionen al 100%:\n' + errors.map(e => '- ' + e).join('\n'))}
+                      />
                     </div>
                   )}
 
