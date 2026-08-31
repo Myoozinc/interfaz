@@ -21,6 +21,8 @@ export interface ChatMessage {
   diffSummary?: string;
   costCredits?: number;
   modelUsed?: string;
+  intent?: string;
+  actionChips?: string[];
 }
 
 export interface ProjectRecord {

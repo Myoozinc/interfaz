@@ -25,7 +25,7 @@ export default async function handler(req: Request) {
 
   try {
     const authHeader = req.headers.get('Authorization');
-    const { model, messages, apiKey, openrouterKey, groqKey, maxTokensRequested } = await req.json();
+    const { model, messages, apiKey, openrouterKey, groqKey, maxTokensRequested, temperature } = await req.json();
 
     const hasImages = messages.some((m: any) => m.images && m.images.length > 0);
     const clientBearer = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
@@ -61,8 +61,17 @@ export default async function handler(req: Request) {
 
     const targetTokens = maxTokensRequested || 3500;
     const requestedModel = model || 'openai/gpt-oss-120b';
+    const temp = typeof temperature === 'number' ? temperature : 0.15;
 
     const sendGroq = async (targetModel: string) => {
+      // Map model aliases for Groq
+      let groqModelName = targetModel;
+      if (targetModel.includes('70b') || targetModel.includes('llama')) {
+        groqModelName = 'llama-3.3-70b-versatile';
+      } else if (targetModel.includes('120b')) {
+        groqModelName = 'openai/gpt-oss-120b';
+      }
+
       return fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -72,17 +81,20 @@ export default async function handler(req: Request) {
           'X-Title': 'NONA AI Software Factory',
         },
         body: JSON.stringify({
-          model: targetModel,
+          model: groqModelName,
           messages: formatMessages(messages),
           stream: true,
-          temperature: 0.15,
+          temperature: temp,
           max_tokens: targetTokens,
         }),
       });
     };
 
     const sendOpenRouter = async (targetModel: string) => {
-      const orModel = hasImages ? 'google/gemini-2.0-flash-001' : (targetModel.includes('120b') ? 'openai/gpt-4o-mini' : 'qwen/qwen3.8-27b');
+      const orModel = hasImages
+        ? 'google/gemini-2.0-flash-001'
+        : (targetModel.includes('120b') ? 'openai/gpt-4o-mini' : 'qwen/qwen-2.5-coder-32b-instruct');
+
       return fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -95,18 +107,17 @@ export default async function handler(req: Request) {
           model: orModel,
           messages: formatMessages(messages),
           stream: true,
-          temperature: 0.15,
-          max_tokens: Math.min(targetTokens, 3000),
-          reasoning: { effort: 'none' },
+          temperature: temp,
+          max_tokens: Math.min(targetTokens, 3500),
         }),
       });
     };
 
     let aiResponse = await sendGroq(requestedModel);
 
-    // Failover 1: Groq alternative (if 120b requested, try qwen3.8-27b; if qwen requested, try 120b)
+    // Failover 1: Alternative Groq Model
     if (!aiResponse.ok) {
-      const altModel = requestedModel === 'openai/gpt-oss-120b' ? 'qwen/qwen3.8-27b' : 'openai/gpt-oss-120b';
+      const altModel = requestedModel === 'openai/gpt-oss-120b' ? 'llama-3.3-70b-versatile' : 'openai/gpt-oss-120b';
       console.warn(`Groq ${requestedModel} failed, trying alternative Groq model ${altModel}...`);
       aiResponse = await sendGroq(altModel);
     }

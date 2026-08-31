@@ -3,19 +3,17 @@ import {
   Send, 
   Sparkles, 
   RefreshCw, 
-  Image as ImageIcon, 
   Mic, 
   MicOff, 
   Paperclip, 
   Zap, 
-  Monitor,
-  Copy,
-  Check,
-  Edit3,
-  PlusCircle,
-  Code2,
-  Play,
-  Crosshair,
+  Copy, 
+  Check, 
+  Edit3, 
+  PlusCircle, 
+  Code2, 
+  Play, 
+  Crosshair, 
   X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -39,7 +37,7 @@ interface ChatPanelProps {
   onClearInspectedElement?: () => void;
 }
 
-export const ChatPanel: React.FC<ChatPanelProps> = ({
+export const ChatPanel = ({
   files,
   messages,
   setMessages,
@@ -52,69 +50,39 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onSwitchView,
   inspectedElement,
   onClearInspectedElement,
-}) => {
+}: ChatPanelProps) => {
   const [inputPrompt, setInputPrompt] = useState('');
-  const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [thinkingText, setThinkingText] = useState('');
+  const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   const recognitionRef = useRef<any>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const scrollToBottom = () => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, [messages, thinkingText]);
 
+  // Voice to text setup
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isGenerating, thinkingText]);
-
-  useEffect(() => {
-    if (pendingPrompt && pendingPrompt.trim()) {
-      handleSendMessage(pendingPrompt);
-      if (onClearPendingPrompt) onClearPendingPrompt();
-    }
-  }, [pendingPrompt]);
-
-  // Speech to Text Dictation
-  const toggleSpeechRecognition = () => {
-    if (isRecording) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      setIsRecording(false);
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Tu navegador no soporta reconocimiento de voz nativo. Prueba con Google Chrome.');
-      return;
-    }
-
-    try {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
-      recognition.lang = 'es-ES';
       recognition.continuous = true;
       recognition.interimResults = true;
-
-      recognition.onstart = () => {
-        setIsRecording(true);
-      };
+      recognition.lang = 'es-ES';
 
       recognition.onresult = (event: any) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          transcript += event.results[i][0].transcript;
+        let currentTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          currentTranscript += event.results[i][0].transcript;
         }
-        if (transcript) {
-          setInputPrompt(prev => (prev ? prev + ' ' : '') + transcript);
-        }
+        setInputPrompt(prev => (prev ? prev + ' ' + currentTranscript : currentTranscript));
       };
 
       recognition.onerror = () => {
@@ -126,44 +94,36 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       };
 
       recognitionRef.current = recognition;
-      recognition.start();
-    } catch (e) {
-      setIsRecording(false);
     }
-  };
+  }, []);
 
-  // Screen Capture for Multimodal Vision Inspection
-  const handleCaptureScreen = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-      });
+  // Handle external pending prompts
+  useEffect(() => {
+    if (pendingPrompt && !isGenerating) {
+      handleSendMessage(pendingPrompt);
+      if (onClearPendingPrompt) onClearPendingPrompt();
+    }
+  }, [pendingPrompt, isGenerating]);
 
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      await video.play();
-
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const base64Image = canvas.toDataURL('image/png');
-      setAttachedImages(prev => [...prev, base64Image]);
-
-      // Stop stream tracks
-      stream.getTracks().forEach(track => track.stop());
-    } catch (e) {
-      console.warn('Screen capture cancelled or not allowed');
+  const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      alert('El reconocimiento de voz no está soportado en este navegador.');
+      return;
+    }
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    } else {
+      recognitionRef.current.start();
+      setIsRecording(true);
     }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const uploadedFiles = e.target.files;
-    if (!uploadedFiles) return;
+    const files = e.target.files;
+    if (!files) return;
 
-    Array.from(uploadedFiles).forEach(file => {
+    Array.from(files).forEach(file => {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = () => {
@@ -288,7 +248,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     setInputPrompt('');
     setAttachedImages([]);
     setIsGenerating(true);
-    setThinkingText('⚡ Inicializando NONA Software Factory Engine...');
+    setThinkingText('⚡ Analizando intención y contexto con NONA Engine...');
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -312,7 +272,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         updatedAt: new Date().toISOString(),
       };
 
-      const { responseText, updatedProject } = await agentOrchestrator.run(
+      const result = await agentOrchestrator.run(
         promptToSend,
         projectPayload,
         (progressText: string) => {
@@ -324,32 +284,41 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         }
       );
 
-      const updatedFileList: FileItem[] = Object.entries(updatedProject.files).map(([name, file], idx) => ({
-        id: (idx + 1).toString(),
-        name,
-        language: file.language as any,
-        content: file.content,
-        isModified: true,
-      }));
-
-      onUpdateFiles(updatedFileList);
+      // If code was created or modified, update workspace files
+      if (result.intent.type === 'FULL_BUILD' || result.intent.type === 'SURGICAL_EDIT') {
+        const updatedFileList: FileItem[] = Object.entries(result.updatedProject.files).map(([name, file], idx) => ({
+          id: (idx + 1).toString(),
+          name,
+          language: file.language as any,
+          content: file.content,
+          isModified: true,
+        }));
+        onUpdateFiles(updatedFileList);
+      }
 
       setMessages(prev =>
         prev.map(msg =>
           msg.id === assistantPlaceholderId
-            ? { ...msg, content: responseText }
+            ? { 
+                ...msg, 
+                content: result.responseText, 
+                intent: result.intent.type, 
+                actionChips: result.actionChips 
+              }
             : msg
         )
       );
 
-      creditLedger.deductCredits(5, `Generación de Software NONA: "${promptToSend.slice(0, 30)}..."`);
+      creditLedger.deductCredits(5, `NONA [${result.intent.type}]: "${promptToSend.slice(0, 30)}..."`);
 
-      confetti({
-        particleCount: 50,
-        spread: 80,
-        origin: { y: 0.7 },
-        colors: ['#6366F1', '#7C3AED', '#A855F7', '#10B981']
-      });
+      if (result.intent.type === 'FULL_BUILD' || result.intent.type === 'SURGICAL_EDIT') {
+        confetti({
+          particleCount: 50,
+          spread: 80,
+          origin: { y: 0.7 },
+          colors: ['#6366F1', '#7C3AED', '#A855F7', '#10B981']
+        });
+      }
 
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -357,7 +326,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, content: `⚠️ Error en la generación: ${err.message}` }
+              ? { ...msg, content: `⚠️ Error: ${err.message}` }
               : msg
           )
         );
@@ -369,89 +338,104 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  const quickPrompts = [
-    '🛍️ Tienda E-Commerce con Carrito y Pasarela',
-    '📱 App Móvil de Fitness con Marco iOS',
-    '🐾 Mascota Virtual Interactiva con Sonidos',
-    '🏎️ Juego 3D de Carreras con Three.js',
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const quickStarters = [
+    { label: '🛍️ Tienda E-Commerce con Carrito y Pasarela', prompt: 'Crea una tienda de productos tecnológicos estilo Apple con carrito interactivo, cálculo de envíos, búsqueda y checkout modal.' },
+    { label: '📱 App Móvil de Fitness con Marco iOS', prompt: 'Desarrolla una aplicación móvil de fitness con contador de calorías, gráficos semanales, cronómetro de entrenamiento y diseño en modo oscuro.' },
+    { label: '👾 Mascota Virtual Tamagotchi Pro', prompt: 'Construye un Tamagotchi interactivo en 3D/2D con barras de hambre, felicidad, minijuegos y efectos de sonido.' },
   ];
 
   return (
     <div 
+      className={`flex flex-col h-full bg-white border-l border-slate-200 select-none font-sans relative transition-colors ${
+        isDraggingOver ? 'bg-indigo-50/50 ring-2 ring-indigo-400 ring-inset' : ''
+      }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`relative bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden text-xs select-none font-sans transition-all ${
-        isDraggingOver ? 'ring-4 ring-indigo-500/20 bg-indigo-50/20' : ''
-      }`}
     >
       
       {/* Top Header */}
-      <div className="p-3 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+      <div className="h-11 px-3.5 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-2xs">
-            <Sparkles className="w-3.5 h-3.5" />
+          <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center shadow-xs">
+            <Zap className="w-3.5 h-3.5 text-white" />
           </div>
-          <span className="font-bold text-slate-900">NONA Agent Core</span>
+          <div>
+            <h2 className="text-xs font-black text-slate-800 tracking-tight">NONA Agent Core</h2>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {onNewProject && (
             <button
               onClick={onNewProject}
-              title="Nuevo Proyecto / Limpiar Chat"
-              className="p-1 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center gap-1 text-[10px] font-semibold cursor-pointer border border-slate-200"
+              title="Nuevo proyecto limpio"
+              className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 rounded-xl border border-slate-200 transition-all cursor-pointer shadow-2xs"
             >
               <PlusCircle className="w-3 h-3 text-indigo-600" />
               <span>Nuevo</span>
             </button>
           )}
 
-          <span className="text-[10px] flex items-center gap-1.5 text-indigo-700 font-bold bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" />
-            NONA Multi-Agent Factory
-          </span>
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-100">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
+            <span>NONA Multi-Agent Factory</span>
+          </div>
         </div>
       </div>
 
-      {/* Messages List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50">
+      {/* Messages Scroll Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => {
           const isUser = msg.role === 'user';
           return (
-            <div key={msg.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} group relative`}>
-              <div className="flex items-center gap-1.5 mb-1 text-[10px] text-slate-400">
-                {isUser ? (
-                  <>
-                    <span>Tú</span>
-                    <span>•</span>
-                    <span>{msg.timestamp}</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3 h-3 text-indigo-600" />
-                    <span className="font-semibold text-indigo-600">NONA AI Engine</span>
-                    <span>•</span>
-                    <span>{msg.timestamp}</span>
-                  </>
+            <div
+              key={msg.id}
+              className={`flex flex-col group ${isUser ? 'items-end' : 'items-start'}`}
+            >
+              {/* Role Header */}
+              <div className="flex items-center gap-1.5 mb-1 px-1">
+                {!isUser && (
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-600">
+                    <Sparkles className="w-3 h-3" />
+                    <span>NONA AI Engine</span>
+                  </div>
                 )}
+                {msg.intent && !isUser && (
+                  <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-indigo-100 text-indigo-800">
+                    {msg.intent === 'CHAT_CONSULT' ? '💬 Consulta Técnica' :
+                     msg.intent === 'INTERACTIVE_PLAN' ? '🗺️ Propuesta & Opciones' :
+                     msg.intent === 'FULL_BUILD' ? '🚀 Software Construido' :
+                     '⚡ Edición Quirúrgica'}
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-400 font-medium">{msg.timestamp}</span>
               </div>
 
+              {/* Message Bubble */}
               <div
-                className={`relative max-w-[90%] p-3 rounded-2xl text-xs leading-relaxed transition-all shadow-2xs ${
+                className={`max-w-[92%] p-3.5 rounded-2xl text-xs leading-relaxed transition-all shadow-xs ${
                   isUser
-                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-tr-xs'
-                    : 'bg-white border border-slate-200 text-slate-800 rounded-tl-xs'
+                    ? 'bg-indigo-600 text-white rounded-br-xs font-medium'
+                    : 'bg-slate-50 border border-slate-200/80 text-slate-800 rounded-bl-xs'
                 }`}
               >
-                {msg.images && msg.images.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-1.5">
+                {/* User Image Attachment in chat bubble */}
+                {isUser && msg.images && msg.images.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
                     {msg.images.map((img, idx) => (
                       <img
                         key={idx}
                         src={img}
                         alt="Adjunto"
-                        className="w-20 h-20 object-cover rounded-xl border border-white/20 shadow-xs"
+                        className="w-28 h-28 object-cover rounded-xl border border-white/20 shadow-xs"
                       />
                     ))}
                   </div>
@@ -461,8 +445,25 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   {msg.content}
                 </div>
 
-                {!isUser && msg.content && (
-                  <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                {/* Interactive Action Chips (Lovable / Antigravity Style) */}
+                {!isUser && msg.actionChips && msg.actionChips.length > 0 && (
+                  <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex flex-wrap gap-1.5 animate-fade-in">
+                    {msg.actionChips.map((chip, cIdx) => (
+                      <button
+                        key={cIdx}
+                        onClick={() => handleSendMessage(chip)}
+                        className="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 text-indigo-700 text-[11px] font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 cursor-pointer shadow-2xs"
+                      >
+                        <Sparkles className="w-3 h-3 text-indigo-500" />
+                        <span>{chip}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Software Verification Badge & View Switches */}
+                {!isUser && msg.content && (msg.intent === 'FULL_BUILD' || msg.intent === 'SURGICAL_EDIT') && (
+                  <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px]">
                     <span className="text-emerald-700 font-semibold flex items-center gap-1">
                       <Check className="w-3 h-3" /> Software generado y verificado
                     </span>
@@ -517,7 +518,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         {isGenerating && (
           <div className="flex items-center gap-2 p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-xs text-indigo-900 animate-pulse">
             <RefreshCw className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
-            <span className="font-semibold">{thinkingText || 'Generando software con NONA Code Engine...'}</span>
+            <span className="font-semibold">{thinkingText || 'Procesando instrucción con NONA Engine...'}</span>
           </div>
         )}
 
@@ -559,115 +560,95 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               </button>
             </div>
           ))}
-          <span className="text-[10px] font-bold text-indigo-700">
-            {attachedImages.length} imagen(es) listas
-          </span>
         </div>
       )}
 
-      {/* Quick Prompts Suggestions */}
-      <div className="px-3 py-1.5 border-t border-slate-200 bg-white overflow-x-auto whitespace-nowrap flex gap-1.5 shrink-0">
-        {quickPrompts.map((q, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleSendMessage(q)}
-            className="px-2.5 py-1 rounded-full bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-[10px] text-slate-600 hover:text-indigo-600 transition-colors cursor-pointer"
-          >
-            {q}
-          </button>
-        ))}
-      </div>
+      {/* Quick Starter Chips */}
+      {messages.length <= 1 && (
+        <div className="px-3 pb-2 pt-1 flex items-center gap-1.5 overflow-x-auto shrink-0">
+          {quickStarters.map((qs, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleSendMessage(qs.prompt)}
+              className="text-[11px] font-bold px-3 py-1.5 bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl border border-slate-200 transition-all shrink-0 cursor-pointer shadow-2xs hover:scale-105"
+            >
+              {qs.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Chat Input Bar */}
-      <div className="p-3 bg-white border-t border-slate-200 shrink-0">
-        
-        {/* Hidden File Input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,.txt,.js,.ts,.html,.css,.json,.sql"
-          multiple
-          className="hidden"
-          onChange={handleImageUpload}
-        />
-
-        <div className="relative flex items-center">
+      {/* Input Form */}
+      <div className="p-3 border-t border-slate-200 bg-white shrink-0">
+        <div className="relative border border-slate-200 rounded-2xl focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 bg-slate-50/50 transition-all">
           <textarea
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
+            onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-            placeholder={isRecording ? '🎙️ Escuchando... habla ahora' : (inspectedElement ? '¿Qué cambio deseas en este elemento?' : 'Escribe tu instrucción o pega/arrastra capturas (Cmd+V)...')}
+            placeholder={
+              isRecording
+                ? '🎙️ Escuchando tu voz...'
+                : inspectedElement
+                ? '¿Qué deseas modificar en este elemento seleccionado?'
+                : 'Escribe tu instrucción, pregunta técnica o arrastra capturas...'
+            }
             rows={2}
-            className={`w-full resize-none bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl p-2.5 pl-24 pr-10 text-xs text-slate-900 outline-none transition-all placeholder-slate-400 ${
-              isRecording ? 'border-red-500 bg-red-50/20 animate-pulse' : ''
-            }`}
+            className="w-full p-3 pr-20 text-xs bg-transparent border-none resize-none focus:outline-none placeholder-slate-400 text-slate-800"
           />
 
-          {/* Attach & Audio Buttons Toolbar */}
-          <div className="absolute left-2 flex items-center gap-0.5">
+          {/* Action Buttons Inside Input Box */}
+          <div className="absolute right-2 bottom-2 flex items-center gap-1">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*,.txt,.md,.json,.html,.css,.js,.ts"
+              multiple
+              className="hidden"
+            />
+
             <button
               type="button"
-              onClick={toggleSpeechRecognition}
-              title={isRecording ? 'Detener grabación de voz' : 'Dictar por voz con micrófono'}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                isRecording ? 'bg-red-500 text-white animate-bounce' : 'text-slate-400 hover:text-red-500 hover:bg-red-50'
+              onClick={toggleRecording}
+              className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                isRecording 
+                  ? 'bg-red-500 text-white animate-pulse' 
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/60'
               }`}
+              title={isRecording ? 'Detener grabación de voz' : 'Dictar instrucción por voz'}
             >
               {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
             </button>
 
             <button
               type="button"
-              onClick={handleCaptureScreen}
-              title="Capturar Pantalla en Vivo para Análisis de IA"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+              title="Adjuntar imagen o archivo de código"
             >
-              <Monitor className="w-3.5 h-3.5" />
+              <Paperclip className="w-3.5 h-3.5" />
             </button>
 
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              title="Adjuntar Imágenes o Archivos"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+              onClick={() => handleSendMessage()}
+              disabled={isGenerating || (!inputPrompt.trim() && attachedImages.length === 0 && !inspectedElement)}
+              className="p-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
+              title="Enviar mensaje"
             >
-              <ImageIcon className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              title="Subir Archivo de Código"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-            >
-              <Paperclip className="w-3 h-3" />
+              <Send className="w-3.5 h-3.5" />
             </button>
           </div>
-
-          {/* Send Button */}
-          <button
-            onClick={() => handleSendMessage()}
-            disabled={(!inputPrompt.trim() && attachedImages.length === 0 && !inspectedElement) || isGenerating}
-            className="absolute right-2.5 p-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-40 text-white transition-all shadow-xs cursor-pointer"
-          >
-            {isGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-          </button>
         </div>
 
-        <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400 px-1">
-          <span className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Voz, Pantalla & Multi-Agent Activos
-          </span>
-          <span className="flex items-center gap-0.5 text-indigo-600 font-bold">
-            <Zap className="w-2.5 h-2.5" /> 5 Créditos / Run
-          </span>
+        {/* Footer Credit & Model Indicator */}
+        <div className="mt-1.5 px-1 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Inteligencia Multi-Modal & Co-Creación Activa</span>
+          </div>
+          <span className="text-indigo-600 font-bold">⚡ 5 Créditos / Run</span>
         </div>
       </div>
 
