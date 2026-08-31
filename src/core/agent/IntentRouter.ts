@@ -11,12 +11,12 @@ export interface IntentClassificationResult {
 
 export class IntentRouter {
   /**
-   * Fast rule-based heuristic classifier with semantic intent detection.
+   * High-Precision Semantic & Heuristic Classifier (Google Antigravity & Lovable Standard).
    * Classifies user prompts into:
-   * 1. CHAT_CONSULT: Conceptual questions, code explanations, technology inquiries.
+   * 1. SURGICAL_EDIT: Specific bug fixes, visual tweaks or localized modifications.
    * 2. INTERACTIVE_PLAN: Vague ideas, brainstorming, asking for advice/features.
-   * 3. FULL_BUILD: Explicit new software / 3D game creation requests.
-   * 4. SURGICAL_EDIT: Specific bug fixes, visual tweaks or localized modifications.
+   * 3. CHAT_CONSULT: Conceptual questions, code explanations, technology inquiries.
+   * 4. FULL_BUILD: Explicit new software / 3D game creation requests.
    */
   public classifyIntent(
     userInstruction: string,
@@ -25,8 +25,9 @@ export class IntentRouter {
   ): IntentClassificationResult {
     const raw = userInstruction.trim();
     const lower = raw.toLowerCase();
+    const hasExistingApp = !!(currentCode && currentCode.trim().length > 30 && !currentCode.includes('Lienzo Listo'));
 
-    // 0. Click-to-Inspect or explicitly selected element in UI
+    // Priority 0: Click-to-Inspect or explicitly selected element in UI
     if (lower.startsWith('[elemento seleccionado') || lower.startsWith('modifica este elemento')) {
       return {
         type: 'SURGICAL_EDIT',
@@ -35,7 +36,53 @@ export class IntentRouter {
       };
     }
 
-    // 1. Pure Conversational / Consultation Inquiries (CHAT_CONSULT)
+    // Priority 1: Bug Fixes & Localized Edits on Existing App (SURGICAL_EDIT)
+    const bugFixKeywords = [
+      'no funciona', 'no pasa nada', 'no inicia', 'no responde', 'no hace nada',
+      'corrige', 'arregla', 'repara', 'edita eso', 'cuando presiono',
+      'al hacer click', 'al hacer clic', 'el boton', 'el botón',
+      'cambia el', 'cambia la', 'cambia el color', 'cambia la velocidad',
+      'hazlo más rápido', 'hazlo más lento', 'aumenta el', 'agrega un sonido',
+      'agrega una función', 'quita el', 'elimina el', 'modifica el', 'modifica la'
+    ];
+
+    const hasExplicitNewVerb = [
+      'crea una nueva', 'crea un nuevo', 'haz un nuevo', 'haz una nueva',
+      'nuevo proyecto', 'desde cero', 'reinicia todo', 'crea otro juego'
+    ].some(nv => lower.startsWith(nv));
+
+    if (hasExistingApp && !hasExplicitNewVerb && bugFixKeywords.some(bk => lower.includes(bk))) {
+      return {
+        type: 'SURGICAL_EDIT',
+        confidence: 0.96,
+        reason: 'Reporte de bug o solicitud de modificación sobre la aplicación activa.'
+      };
+    }
+
+    // Priority 2: Interactive Planning & Brainstorming (INTERACTIVE_PLAN)
+    const planKeywords = [
+      'no se como', 'no sé cómo', 'no se por donde', 'no sé por dónde',
+      'que me recomiendas', 'qué me recomiendas', 'dame ideas', 'sugerencias para',
+      'como deberiamos estructurar', 'cómo deberíamos estructurar',
+      'ayudame a planear', 'ayúdame a planear', 'que funciones le pondrias',
+      'qué funciones le pondrías', 'opciones para', 'proponme', 'propónme',
+      'ideas para', 'como planearias', 'cómo planearías'
+    ];
+
+    if (planKeywords.some(pk => lower.includes(pk))) {
+      return {
+        type: 'INTERACTIVE_PLAN',
+        confidence: 0.92,
+        reason: 'Solicitud de co-creación, ideas y planificación arquitectónica interactiva.',
+        suggestedActionChips: [
+          '🚀 Desarrollar Opción A (Recomendada)',
+          '🎨 Probar con Estilo Cyberpunk / Neón',
+          '📱 Optimizar para Móviles y Pantalla Táctil'
+        ]
+      };
+    }
+
+    // Priority 3: Pure Conversational / Consultation Inquiries (CHAT_CONSULT)
     const questionPatterns = [
       '¿', '?', 'que es', 'qué es', 'como funciona', 'cómo funciona',
       'que librerias', 'qué librerías', 'que tecnologias', 'qué tecnologías',
@@ -44,10 +91,9 @@ export class IntentRouter {
       'cual es', 'cuál es', 'dime como', 'dime cómo', 'como hiciste', 'cómo hiciste'
     ];
 
-    const isQuestionWithoutCreationVerbs = questionPatterns.some(q => lower.includes(q)) &&
-      !['crea', 'haz', 'has', 'construye', 'desarrolla', 'genera', 'agrega', 'cambia'].some(v => lower.startsWith(v));
+    const hasCreationVerb = ['crea', 'haz', 'has', 'construye', 'desarrolla', 'genera'].some(v => lower.startsWith(v));
 
-    if (isQuestionWithoutCreationVerbs) {
+    if (questionPatterns.some(q => lower.includes(q)) && !hasCreationVerb) {
       return {
         type: 'CHAT_CONSULT',
         confidence: 0.95,
@@ -55,76 +101,11 @@ export class IntentRouter {
       };
     }
 
-    // 2. Interactive Planning / Brainstorming (INTERACTIVE_PLAN)
-    const planKeywords = [
-      'quiero hacer una app pero no se', 'quiero hacer un juego pero no se',
-      'que me recomiendas', 'qué me recomiendas', 'dame ideas', 'sugerencias para',
-      'como deberiamos estructurar', 'cómo deberíamos estructurar',
-      'ayudame a planear', 'ayúdame a planear', 'que funciones le pondrias',
-      'qué funciones le pondrías', 'opciones para'
-    ];
-
-    if (planKeywords.some(pk => lower.includes(pk))) {
-      return {
-        type: 'INTERACTIVE_PLAN',
-        confidence: 0.9,
-        reason: 'Solicitud de co-creación, ideas y planificación arquitectónica interactiva.',
-        suggestedActionChips: [
-          '🚀 Comenzar Desarrollo Completo',
-          '🎨 Definir Paleta y Estilo Visual',
-          '🎮 Añadir Efectos de Sonido y Físicas'
-        ]
-      };
-    }
-
-    // 3. Bug Fixes & Localized Edits (SURGICAL_EDIT)
-    const bugFixKeywords = [
-      'no funciona', 'no pasa nada', 'no inicia', 'no responde', 'no hace nada',
-      'corrige el error', 'arregla el', 'repara el', 'cuando presiono',
-      'al hacer click', 'al hacer clic', 'el boton', 'el botón',
-      'cambia el color', 'cambia la velocidad', 'hazlo más rápido',
-      'hazlo más lento', 'aumenta el', 'agrega un sonido', 'quita el'
-    ];
-
-    const hasExistingApp = currentCode && currentCode.trim().length > 100 && !currentCode.includes('Lienzo Listo');
-
-    if (hasExistingApp && bugFixKeywords.some(bk => lower.includes(bk))) {
-      return {
-        type: 'SURGICAL_EDIT',
-        confidence: 0.95,
-        reason: 'Reporte de bug o solicitud de modificación sobre la aplicación activa.'
-      };
-    }
-
-    // 4. Explicit Full App / Game Creation (FULL_BUILD)
-    const creationKeywords = [
-      'crea', 'haz', 'has', 'hacer', 'genera', 'construye', 'desarrolla',
-      'quiero un juego', 'quiero una app', 'quiero un saas', 'nuevo proyecto',
-      'snake en 3d', 'juego 3d', 'simulador', 'tienda', 'e-commerce',
-      'plataforma', 'calculadora', 'dashboard'
-    ];
-
-    if (creationKeywords.some(ck => lower.includes(ck)) || !hasExistingApp) {
-      return {
-        type: 'FULL_BUILD',
-        confidence: 0.95,
-        reason: 'Instrucción explícita para generar una nueva aplicación o videojuego 3D completo.'
-      };
-    }
-
-    // Default Fallback
-    if (hasExistingApp) {
-      return {
-        type: 'SURGICAL_EDIT',
-        confidence: 0.75,
-        reason: 'Modificación contextual sobre el proyecto existente.'
-      };
-    }
-
+    // Priority 4: Explicit Full App / Game Creation (FULL_BUILD)
     return {
       type: 'FULL_BUILD',
-      confidence: 0.8,
-      reason: 'Construcción inicial de proyecto.'
+      confidence: 0.9,
+      reason: 'Instrucción para generar una nueva aplicación o videojuego 3D completo.'
     };
   }
 }
