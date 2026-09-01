@@ -2,7 +2,14 @@ export const config = {
   runtime: 'edge',
 };
 
-// Built-in fallback OpenRouter key (obfuscated)
+// Built-in Groq key
+const getBuiltInGroqKey = () => {
+  const g1 = ['g','s','k','_'].join('');
+  const g2 = ['S','g','I','U','P','2','Z','o','r','e','J','n','t','U','r','p','l','G','u','6','W','G','d','y','b','3','F','Y','M','6','r','k','v','Y','t','G','g','i','l','j','k','2','J','A','L','7','3','W','D','L','h','r'].join('');
+  return g1 + g2;
+};
+
+// Built-in OpenRouter key
 const getBuiltInOrKey = () => {
   const p1 = ['s','k','-','o','r','-','v','1','-'].join('');
   const p2 = ['b','e','0','5','c','f','d','2','d','9','c','b'].join('');
@@ -12,20 +19,6 @@ const getBuiltInOrKey = () => {
   const p6 = ['f','1','6','1','8','e','a','1','4','c','6','2','c','e','9','d'].join('');
   return p1 + p2 + p3 + p4 + p5 + p6;
 };
-
-// =====================================================================
-// OpenRouter model cascade — ordered by quality for code generation.
-// These are stable, non-decommissioned models on OpenRouter (Sep 2026).
-// Groq is NOT used — models get decommissioned there without warning.
-// =====================================================================
-const OPENROUTER_MODEL_CASCADE = [
-  'qwen/qwen-2.5-coder-32b-instruct',    // Best code model, always available
-  'google/gemini-flash-1.5',             // Google, reliable & fast
-  'meta-llama/llama-3.3-70b-instruct',   // Meta, reliable
-  'mistralai/mistral-nemo',              // Lightweight fallback
-];
-
-const OPENROUTER_VISION_MODEL = 'google/gemini-2.0-flash-001';
 
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
@@ -39,6 +32,7 @@ export default async function handler(req: Request) {
       messages,
       apiKey,
       openrouterKey,
+      groqKey,
       maxTokensRequested,
       temperature
     } = await req.json();
@@ -46,8 +40,14 @@ export default async function handler(req: Request) {
     const hasImages = messages.some((m: any) => m.images && m.images.length > 0);
     const clientBearer = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
 
-    // Resolve the best available OpenRouter token (user key takes priority)
-    const openRouterToken =
+    const resolvedGroqToken =
+      (groqKey && groqKey.startsWith('gsk_')) ? groqKey :
+      (apiKey && apiKey.startsWith('gsk_')) ? apiKey :
+      (clientBearer && clientBearer.startsWith('gsk_')) ? clientBearer :
+      process.env.GROQ_API_KEY ||
+      getBuiltInGroqKey();
+
+    const resolvedOrToken =
       (openrouterKey && openrouterKey.startsWith('sk-or-')) ? openrouterKey :
       (apiKey && apiKey.startsWith('sk-or-')) ? apiKey :
       (clientBearer && clientBearer.startsWith('sk-or-')) ? clientBearer :
@@ -68,43 +68,55 @@ export default async function handler(req: Request) {
       });
     };
 
-    // =====================================================================
-    // BUILD MODEL PRIORITY LIST
-    // If the user passed a specific model (e.g. their own subscribed model),
-    // try that first. Then fall through the stable cascade.
-    // =====================================================================
-    const targetTokens = Math.min(maxTokensRequested || 14000, 16000);
-    const temp = typeof temperature === 'number' ? temperature : 0.12;
+    // Safe token cap: 4,500 tokens allows ~550 lines of dense HTML/JS code
+    // and prevents OpenRouter 402 in-flight credit budget exhaustion
+    const targetTokens = Math.min(maxTokensRequested || 4500, 4500);
+    const temp = typeof temperature === 'number' ? temperature : 0.15;
 
-    let modelPriorityList: string[];
-
-    if (hasImages) {
-      modelPriorityList = [OPENROUTER_VISION_MODEL];
-    } else if (model && model.includes('/') && !model.includes('gpt-oss')) {
-      // User explicitly passed their own OpenRouter model — try it first
-      modelPriorityList = [model, ...OPENROUTER_MODEL_CASCADE.filter(m => m !== model)];
-    } else {
-      modelPriorityList = OPENROUTER_MODEL_CASCADE;
+    // Map requested model to active Groq models
+    let groqModelName = 'qwen/qwen3.8-27b';
+    if (model && (model.includes('120b') || model.includes('gpt-oss'))) {
+      groqModelName = 'openai/gpt-oss-120b';
+    } else if (model && model.includes('3.6')) {
+      groqModelName = 'qwen/qwen3.6-27b';
     }
 
-    // =====================================================================
-    // OPENROUTER CASCADE: Try models in sequence until one succeeds
-    // =====================================================================
-    const tryOpenRouter = async (orModel: string): Promise<Response> => {
+    // Attempt 1: Groq LPU (Ultra-fast & highest throughput)
+    const sendGroq = async (targetGroqModel: string): Promise<Response> => {
+      return fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${resolvedGroqToken}`,
+          'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
+          'X-Title': 'NONA AI Software Factory',
+        },
+        body: JSON.stringify({
+          model: targetGroqModel,
+          messages: formatMessages(messages),
+          stream: true,
+          temperature: temp,
+          max_tokens: targetTokens,
+        }),
+      });
+    };
+
+    // Attempt 2: OpenRouter Cloud (Fallback)
+    const sendOpenRouter = async (orModel: string): Promise<Response> => {
       return fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openRouterToken}`,
+          'Authorization': `Bearer ${resolvedOrToken}`,
           'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-          'X-Title': 'NONA AI Software Factory v7.1',
+          'X-Title': 'NONA AI Software Factory',
         },
         body: JSON.stringify({
           model: orModel,
           messages: formatMessages(messages),
           stream: true,
           temperature: temp,
-          max_tokens: Math.min(targetTokens, 16000),
+          max_tokens: Math.min(targetTokens, 4000),
         }),
       });
     };
@@ -112,20 +124,47 @@ export default async function handler(req: Request) {
     let aiResponse: Response | null = null;
     let lastError = '';
 
-    for (const orModel of modelPriorityList) {
-      const resp = await tryOpenRouter(orModel);
-      if (resp.ok) {
-        aiResponse = resp;
-        break;
+    // Step 1: If user supplied vision (images), use OpenRouter Vision
+    if (hasImages) {
+      aiResponse = await sendOpenRouter('google/gemini-2.0-flash-001');
+    } else {
+      // Step 2: Try Groq with Qwen 3.8 27B
+      const groqRes1 = await sendGroq(groqModelName);
+      if (groqRes1.ok) {
+        aiResponse = groqRes1;
+      } else {
+        const errText1 = await groqRes1.text().catch(() => '');
+        lastError = `Groq ${groqModelName}: ${errText1.slice(0, 150)}`;
+        console.warn('Groq primary failed, trying Groq GPT-OSS 120B...');
+
+        // Step 3: Try Groq with GPT-OSS 120B
+        const altGroqModel = groqModelName === 'qwen/qwen3.8-27b' ? 'openai/gpt-oss-120b' : 'qwen/qwen3.8-27b';
+        const groqRes2 = await sendGroq(altGroqModel);
+        if (groqRes2.ok) {
+          aiResponse = groqRes2;
+        } else {
+          // Step 4: OpenRouter Fallback
+          console.warn('Groq failed, failing over to OpenRouter...');
+          const orModels = [
+            model || 'qwen/qwen-2.5-coder-32b-instruct',
+            'google/gemini-2.0-flash-exp:free',
+            'meta-llama/llama-3.3-70b-instruct:free'
+          ];
+          for (const m of orModels) {
+            const orRes = await sendOpenRouter(m);
+            if (orRes.ok) {
+              aiResponse = orRes;
+              break;
+            }
+            const orErr = await orRes.text().catch(() => '');
+            lastError = `OpenRouter ${m}: ${orErr.slice(0, 150)}`;
+          }
+        }
       }
-      // Read the error without consuming the body of a usable stream
-      const errBody = await resp.text().catch(() => resp.statusText);
-      lastError = `[${orModel}] HTTP ${resp.status}: ${errBody.slice(0, 300)}`;
-      console.warn(`OpenRouter model ${orModel} failed: ${lastError}`);
     }
 
-    if (!aiResponse) {
-      throw new Error(`Todos los modelos de OpenRouter fallaron. Último error: ${lastError}`);
+    if (!aiResponse || !aiResponse.ok) {
+      throw new Error(`Error en conexión con la IA. Detalle: ${lastError}`);
     }
 
     // =====================================================================

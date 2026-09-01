@@ -5,7 +5,7 @@ export class SurgicalDiffAgent {
   private aiProvider: OllamaProvider;
 
   constructor() {
-    this.aiProvider = new OllamaProvider('/api/agent', 'openai/gpt-oss-120b');
+    this.aiProvider = new OllamaProvider('/api/agent', 'qwen/qwen3.8-27b');
   }
 
   /**
