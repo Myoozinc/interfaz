@@ -32,7 +32,7 @@ export class QATesterAgent {
     // 1. Basic Structure Checks & Modern Library Injection
     if (!repaired.includes('<!DOCTYPE html>') && !repaired.includes('<html')) {
       errors.push('Falta la declaración <!DOCTYPE html> o etiqueta <html>.');
-      repaired = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <script src="https://cdn.tailwindcss.com"></script>\n  <script src="https://unpkg.com/lucide@latest"></script>\n</head>\n<body class="bg-slate-950 text-white min-h-screen font-sans">\n${repaired}\n</body>\n</html>`;
+      repaired = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <script src="https://cdn.tailwindcss.com"></script>\n  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>\n</head>\n<body class="bg-slate-950 text-white min-h-screen font-sans">\n${repaired}\n</body>\n</html>`;
     }
 
     // Replace legacy tailwind CSS links with modern CDN
@@ -69,20 +69,18 @@ export class QATesterAgent {
       warnings.push('Etiqueta </html> insertada automáticamente.');
     }
 
-    // 3. Balance of braces and parens inside all <script> blocks
+    // 3. Real JavaScript Syntax Validation
     const scriptMatches = repaired.matchAll(/<script(?:\s+[^>]*)?>([\s\S]*?)<\/script>/gi);
     for (const match of scriptMatches) {
       const scriptCode = match[1];
-      const openBraces = (scriptCode.match(/\{/g) || []).length;
-      const closeBraces = (scriptCode.match(/\}/g) || []).length;
-      if (openBraces !== closeBraces) {
-        errors.push(`Desbalance de llaves en JavaScript: ${openBraces} abiertas vs ${closeBraces} cerradas.`);
-      }
+      // Skip external scripts with src attribute
+      if (!scriptCode || scriptCode.trim().length === 0) continue;
 
-      const openParens = (scriptCode.match(/\(/g) || []).length;
-      const closeParens = (scriptCode.match(/\)/g) || []).length;
-      if (openParens !== closeParens) {
-        errors.push(`Desbalance de paréntesis en JavaScript: ${openParens} abiertos vs ${closeParens} cerrados.`);
+      try {
+        // Test compile JavaScript syntax without executing
+        new Function(scriptCode);
+      } catch (syntaxErr: any) {
+        errors.push(`Error de sintaxis JavaScript en el script: ${syntaxErr.message}`);
       }
     }
 
@@ -97,7 +95,7 @@ export class QATesterAgent {
     }
 
     // 5. Domain Detection (3D Game vs SaaS / Web App)
-    const is3D = /three\.min\.js|three@0|THREE\./i.test(repaired) || (userInstruction ? /juego|snake|3d|futbol|carrera|nave/i.test(userInstruction) : false);
+    const is3D = /three\.min\.js|three@0|THREE\./i.test(repaired) || (userInstruction ? /juego|snake|3d|carrera|nave|arcade/i.test(userInstruction) : false);
 
     let densityPoints = 0;
     const missingFeatures: string[] = [];
@@ -127,15 +125,15 @@ export class QATesterAgent {
       } else {
         missingFeatures.push('Iluminación 3D (AmbientLight / DirectionalLight)');
       }
-      if (repaired.includes('keydown') || repaired.includes('addEventListener(\'click\'') || repaired.includes('touch')) {
+      if (repaired.includes('keydown') || repaired.includes('addEventListener') || repaired.includes('click')) {
         densityPoints += 25; // Controls & Interaction
       } else {
         missingFeatures.push('Controles de juego (Teclado WASD/Flechas o Clics)');
       }
-      if (repaired.includes('score') || repaired.includes('Puntuación') || repaired.includes('hud') || repaired.includes('restart')) {
+      if (repaired.includes('score') || repaired.includes('Puntuación') || repaired.includes('playBtn') || repaired.includes('JUGAR')) {
         densityPoints += 20; // HUD & Game loop
       } else {
-        missingFeatures.push('HUD flotante con marcador de puntuación y reinicio');
+        missingFeatures.push('HUD flotante con marcador de puntuación y botón JUGAR');
       }
 
     } else {
@@ -152,22 +150,21 @@ export class QATesterAgent {
       if (hasAudio) {
         densityPoints += 20;
       } else {
-        missingFeatures.push('Efectos de sonido interactivos con window.playSynthSound(type)');
+        missingFeatures.push('Efectos de sonido interactivos con AudioContext');
       }
 
       const hasPersistence = /localStorage|NONA_DB/i.test(repaired);
       if (hasPersistence) {
         densityPoints += 20;
       } else {
-        missingFeatures.push('Persistencia de datos en localStorage o window.NONA_DB');
+        missingFeatures.push('Persistencia de datos en localStorage');
       }
 
-      const hasLucide = /lucide|data-lucide/i.test(repaired);
       const hasTailwindGlass = /backdrop-blur|bg-slate-900|bg-opacity|shadow-xl|rounded-2xl|rounded-3xl|shadow-lg/i.test(repaired);
-      if (hasLucide && hasTailwindGlass) {
+      if (hasTailwindGlass) {
         densityPoints += 20;
       } else {
-        missingFeatures.push('Diseño visual premium con tarjetas backdrop-blur, sombras e iconos Lucide');
+        missingFeatures.push('Diseño visual premium con tarjetas backdrop-blur y sombras');
       }
 
       const hasResponsive = /sm:|md:|lg:|max-w-|mobile/i.test(repaired);

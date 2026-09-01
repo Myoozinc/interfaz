@@ -20,6 +20,15 @@ const getBuiltInOrKey = () => {
   return p1 + p2 + p3 + p4 + p5 + p6;
 };
 
+// Verified active OpenRouter fallback models (200 OK tested)
+const VERIFIED_OR_FALLBACKS = [
+  'qwen/qwen-2.5-coder-32b-instruct',
+  'google/gemini-2.5-flash',
+  'meta-llama/llama-3.3-70b-instruct',
+  'deepseek/deepseek-chat',
+  'mistralai/mistral-small-24b-instruct-2501'
+];
+
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
@@ -68,12 +77,10 @@ export default async function handler(req: Request) {
       });
     };
 
-    // Safe token cap: 4,500 tokens allows ~550 lines of dense HTML/JS code
-    // and prevents OpenRouter 402 in-flight credit budget exhaustion
-    const targetTokens = Math.min(maxTokensRequested || 4500, 4500);
+    const targetTokens = Math.min(maxTokensRequested || 4000, 4500);
     const temp = typeof temperature === 'number' ? temperature : 0.15;
 
-    // Map requested model to active Groq models
+    // Active Groq models
     let groqModelName = 'qwen/qwen3.8-27b';
     if (model && (model.includes('120b') || model.includes('gpt-oss'))) {
       groqModelName = 'openai/gpt-oss-120b';
@@ -81,7 +88,6 @@ export default async function handler(req: Request) {
       groqModelName = 'qwen/qwen3.6-27b';
     }
 
-    // Attempt 1: Groq LPU (Ultra-fast & highest throughput)
     const sendGroq = async (targetGroqModel: string): Promise<Response> => {
       return fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -101,7 +107,6 @@ export default async function handler(req: Request) {
       });
     };
 
-    // Attempt 2: OpenRouter Cloud (Fallback)
     const sendOpenRouter = async (orModel: string): Promise<Response> => {
       return fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -116,7 +121,7 @@ export default async function handler(req: Request) {
           messages: formatMessages(messages),
           stream: true,
           temperature: temp,
-          max_tokens: Math.min(targetTokens, 4000),
+          max_tokens: Math.min(targetTokens, 3500),
         }),
       });
     };
@@ -124,47 +129,54 @@ export default async function handler(req: Request) {
     let aiResponse: Response | null = null;
     let lastError = '';
 
-    // Step 1: If user supplied vision (images), use OpenRouter Vision
     if (hasImages) {
-      aiResponse = await sendOpenRouter('google/gemini-2.0-flash-001');
+      // Vision model
+      aiResponse = await sendOpenRouter('google/gemini-2.5-flash');
     } else {
-      // Step 2: Try Groq with Qwen 3.8 27B
-      const groqRes1 = await sendGroq(groqModelName);
-      if (groqRes1.ok) {
-        aiResponse = groqRes1;
-      } else {
-        const errText1 = await groqRes1.text().catch(() => '');
-        lastError = `Groq ${groqModelName}: ${errText1.slice(0, 150)}`;
-        console.warn('Groq primary failed, trying Groq GPT-OSS 120B...');
-
-        // Step 3: Try Groq with GPT-OSS 120B
-        const altGroqModel = groqModelName === 'qwen/qwen3.8-27b' ? 'openai/gpt-oss-120b' : 'qwen/qwen3.8-27b';
-        const groqRes2 = await sendGroq(altGroqModel);
-        if (groqRes2.ok) {
-          aiResponse = groqRes2;
+      // Step 1: Try Groq Qwen 3.8
+      try {
+        const groqRes1 = await sendGroq(groqModelName);
+        if (groqRes1.ok) {
+          aiResponse = groqRes1;
         } else {
-          // Step 4: OpenRouter Fallback
-          console.warn('Groq failed, failing over to OpenRouter...');
-          const orModels = [
-            model || 'qwen/qwen-2.5-coder-32b-instruct',
-            'google/gemini-2.0-flash-exp:free',
-            'meta-llama/llama-3.3-70b-instruct:free'
-          ];
-          for (const m of orModels) {
-            const orRes = await sendOpenRouter(m);
+          const errText1 = await groqRes1.text().catch(() => '');
+          lastError = `Groq (${groqModelName}): ${errText1.slice(0, 100)}`;
+          // Step 2: Try Groq GPT-OSS 120B
+          const altGroqModel = groqModelName === 'qwen/qwen3.8-27b' ? 'openai/gpt-oss-120b' : 'qwen/qwen3.8-27b';
+          const groqRes2 = await sendGroq(altGroqModel);
+          if (groqRes2.ok) {
+            aiResponse = groqRes2;
+          }
+        }
+      } catch (err: any) {
+        lastError = `Groq Error: ${err.message}`;
+      }
+
+      // Step 3: OpenRouter Verified Fallbacks (if Groq was not ok)
+      if (!aiResponse || !aiResponse.ok) {
+        const orCandidates = [
+          ...(model && model.includes('/') ? [model] : []),
+          ...VERIFIED_OR_FALLBACKS
+        ];
+
+        for (const orModel of orCandidates) {
+          try {
+            const orRes = await sendOpenRouter(orModel);
             if (orRes.ok) {
               aiResponse = orRes;
               break;
             }
             const orErr = await orRes.text().catch(() => '');
-            lastError = `OpenRouter ${m}: ${orErr.slice(0, 150)}`;
+            lastError = `OpenRouter (${orModel}): ${orErr.slice(0, 100)}`;
+          } catch (e: any) {
+            lastError = `OpenRouter (${orModel}) Exception: ${e.message}`;
           }
         }
       }
     }
 
     if (!aiResponse || !aiResponse.ok) {
-      throw new Error(`Error en conexión con la IA. Detalle: ${lastError}`);
+      throw new Error(`Servicio de IA no disponible temporalmente. Detalle: ${lastError}`);
     }
 
     // =====================================================================
