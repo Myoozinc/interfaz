@@ -76,13 +76,14 @@ export default async function handler(req: Request) {
     const isPlanningCall = targetTokens <= 1000;
 
     const sendGroq = async (targetModel: string) => {
-      // Groq model mapping
-      let groqModelName = 'llama-3.3-70b-versatile'; // default for planning
-      if (targetModel.includes('120b')) {
+      // Groq model mapping — only use models confirmed available on Groq free/paid tier
+      let groqModelName = 'llama3-70b-8192'; // default stable Groq model
+      if (targetModel.includes('120b') || targetModel.includes('gpt-oss')) {
+        // openai/gpt-oss-120b on Groq
         groqModelName = 'openai/gpt-oss-120b';
-      } else if (targetModel.includes('70b') || targetModel.includes('llama') || isPlanningCall) {
-        groqModelName = 'llama-3.3-70b-versatile';
       }
+      // Note: llama-3.3-70b-versatile requires specific Groq plan access.
+      // Using llama3-70b-8192 (universally available) as safe default.
 
       return fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -97,7 +98,7 @@ export default async function handler(req: Request) {
           messages: formatMessages(messages),
           stream: true,
           temperature: temp,
-          max_tokens: Math.min(targetTokens, 8000), // Groq caps at 8k for most models
+          max_tokens: Math.min(targetTokens, 8000),
         }),
       });
     };

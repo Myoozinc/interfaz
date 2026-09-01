@@ -77,7 +77,7 @@ Respond with ONLY valid JSON (no markdown, no backticks) following this schema e
             { role: 'user', content: `Create the architecture blueprint for: "${userInstruction}"` }
           ],
           (_tok, full) => { blueprintJSON = full; },
-          { signal, model: 'llama-3.3-70b-versatile', maxTokens: 600, temperature: 0.1 }
+          { signal, model: 'qwen/qwen-2.5-coder-32b-instruct', maxTokens: 700, temperature: 0.1 }
         );
       } catch {
         blueprintJSON = '{"appType":"saas","colorScheme":"dark"}';

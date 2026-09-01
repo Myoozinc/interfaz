@@ -83,7 +83,7 @@ Responde de forma clara y profesional:`;
           responseText = full;
           onProgress(full, false);
         },
-        { signal: options?.signal, model: 'llama-3.3-70b-versatile', temperature: 0.3 }
+        { signal: options?.signal, model: 'qwen/qwen-2.5-coder-32b-instruct', temperature: 0.3 }
       );
 
       agentEvents.emit('agent.completed', 'Consulta técnica respondida con éxito.');
@@ -123,7 +123,7 @@ Propón la arquitectura y opciones interactivas:`;
           responseText = full;
           onProgress(full, false);
         },
-        { signal: options?.signal, model: 'llama-3.3-70b-versatile', temperature: 0.3 }
+        { signal: options?.signal, model: 'qwen/qwen-2.5-coder-32b-instruct', temperature: 0.3 }
       );
 
       agentEvents.emit('agent.completed', 'Propuesta de arquitectura y co-creación generada.');
