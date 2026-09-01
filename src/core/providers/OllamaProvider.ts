@@ -76,7 +76,8 @@ export class OllamaProvider implements AIProvider {
     options?: AICompletionOptions
   ): Promise<string> {
     const model = options?.model || this.defaultModel;
-    const openrouterKey = localStorage.getItem('nona_openrouter_key') || '';
+    const openrouterKey = localStorage.getItem('nona_openrouter_key') || localStorage.getItem('nona_cloud_api_key') || '';
+    const groqKey = localStorage.getItem('nona_groq_key') || '';
 
     const formattedMessages = messages.map(m => {
       const cleanImages = (m.images || []).map(img => img.replace(/^data:image\/[a-z]+;base64,/, ''));
@@ -87,7 +88,7 @@ export class OllamaProvider implements AIProvider {
       };
     });
 
-    onToken('⚡ Conectando con Qwen 3.8 Cloud...', '', false);
+    onToken('⚡ Conectando con OpenRouter Cloud...', '', false);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -100,7 +101,9 @@ export class OllamaProvider implements AIProvider {
         model,
         messages: formattedMessages,
         openrouterKey: openrouterKey.trim() || undefined,
+        groqKey: groqKey.trim() || undefined,
         maxTokensRequested: options?.maxTokens,
+        temperature: options?.temperature,
         stream: true,
       }),
       signal: options?.signal,
