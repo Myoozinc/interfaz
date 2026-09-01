@@ -13,55 +13,19 @@ const getBuiltInOrKey = () => {
   return p1 + p2 + p3 + p4 + p5 + p6;
 };
 
-// Built-in fallback Groq key
-const getBuiltInGroqKey = () => {
-  const g1 = ['g','s','k','_'].join('');
-  const g2 = ['S','g','I','U','P','2','Z','o','r','e','J','n','t','U','r','p','l','G','u','6','W','G','d','y','b','3','F','Y','M','6','r','k','v','Y','t','G','g','i','l','j','k','2','J','A','L','7','3','W','D','L','h','r'].join('');
-  return g1 + g2;
-};
-
 // =====================================================================
-// VALID GROQ MODELS (as of Sep 2026) — keep this list updated
-// Source: https://console.groq.com/docs/models
+// OpenRouter model cascade — ordered by quality for code generation.
+// These are stable, non-decommissioned models on OpenRouter (Sep 2026).
+// Groq is NOT used — models get decommissioned there without warning.
 // =====================================================================
-const GROQ_SAFE_MODELS: Record<string, string> = {
-  // Meta Llama 4 (newest & fastest on Groq)
-  'default':              'meta-llama/llama-4-scout-17b-16e-instruct',
-  'fast':                 'meta-llama/llama-4-scout-17b-16e-instruct',
-  'large':                'meta-llama/llama-4-maverick-17b-128e-instruct',
-  // DeepSeek (reasoning)
-  'deepseek':             'deepseek-r1-distill-llama-70b',
-  // Qwen on Groq
-  'qwen':                 'qwen-qwq-32b',
-  // Gemma
-  'gemma':                'gemma2-9b-it',
-};
+const OPENROUTER_MODEL_CASCADE = [
+  'qwen/qwen-2.5-coder-32b-instruct',    // Best code model, always available
+  'google/gemini-flash-1.5',             // Google, reliable & fast
+  'meta-llama/llama-3.3-70b-instruct',   // Meta, reliable
+  'mistralai/mistral-nemo',              // Lightweight fallback
+];
 
-function resolveGroqModel(requestedModel: string): string {
-  const lower = requestedModel.toLowerCase();
-  if (lower.includes('deepseek') || lower.includes('r1')) return GROQ_SAFE_MODELS['deepseek'];
-  if (lower.includes('qwq') || lower.includes('qwen')) return GROQ_SAFE_MODELS['qwen'];
-  if (lower.includes('maverick') || lower.includes('120b') || lower.includes('large')) return GROQ_SAFE_MODELS['large'];
-  if (lower.includes('gemma')) return GROQ_SAFE_MODELS['gemma'];
-  // For any unknown / decommissioned model name → use safe default
-  return GROQ_SAFE_MODELS['default'];
-}
-
-// =====================================================================
-// OPENROUTER MODEL SELECTION
-// The user's own model selection takes PRIORITY over defaults
-// =====================================================================
-function resolveOpenRouterModel(requestedModel: string, hasImages: boolean): string {
-  if (hasImages) return 'google/gemini-2.0-flash-001';
-
-  // If the caller explicitly specifies an OpenRouter model path, use it directly
-  if (requestedModel.includes('/') && !requestedModel.includes('gpt-oss')) {
-    return requestedModel; // e.g. "qwen/qwen3-235b-a22b", "anthropic/claude-3.5-sonnet", etc.
-  }
-
-  // Default: Qwen 3.8 (best balance of speed + quality for code gen)
-  return 'qwen/qwen3.8-27b';
-}
+const OPENROUTER_VISION_MODEL = 'google/gemini-2.0-flash-001';
 
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
@@ -70,7 +34,14 @@ export default async function handler(req: Request) {
 
   try {
     const authHeader = req.headers.get('Authorization');
-    const { model, messages, apiKey, openrouterKey, groqKey, maxTokensRequested, temperature } = await req.json();
+    const {
+      model,
+      messages,
+      apiKey,
+      openrouterKey,
+      maxTokensRequested,
+      temperature
+    } = await req.json();
 
     const hasImages = messages.some((m: any) => m.images && m.images.length > 0);
     const clientBearer = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
@@ -83,24 +54,13 @@ export default async function handler(req: Request) {
       process.env.OPENROUTER_API_KEY ||
       getBuiltInOrKey();
 
-    // Resolve Groq token for fallback
-    const groqToken =
-      (groqKey && groqKey.startsWith('gsk_')) ? groqKey :
-      (apiKey && apiKey.startsWith('gsk_')) ? apiKey :
-      (clientBearer && clientBearer.startsWith('gsk_')) ? clientBearer :
-      process.env.GROQ_API_KEY ||
-      getBuiltInGroqKey();
-
     const formatMessages = (msgs: any[]) => {
       return msgs.map((m: any) => {
         if (m.images && m.images.length > 0) {
           const contentParts: any[] = [{ type: 'text', text: m.content }];
           m.images.forEach((img: string) => {
-            const formattedUrl = img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
-            contentParts.push({
-              type: 'image_url',
-              image_url: { url: formattedUrl }
-            });
+            const url = img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
+            contentParts.push({ type: 'image_url', image_url: { url } });
           });
           return { role: m.role, content: contentParts };
         }
@@ -109,26 +69,35 @@ export default async function handler(req: Request) {
     };
 
     // =====================================================================
-    // TOKEN & MODEL CONFIGURATION
+    // BUILD MODEL PRIORITY LIST
+    // If the user passed a specific model (e.g. their own subscribed model),
+    // try that first. Then fall through the stable cascade.
     // =====================================================================
     const targetTokens = Math.min(maxTokensRequested || 14000, 16000);
-    const requestedModel = model || 'qwen/qwen3.8-27b';
     const temp = typeof temperature === 'number' ? temperature : 0.12;
 
-    // =====================================================================
-    // PRIMARY: OpenRouter (always first — no Groq model decommission risk)
-    // Uses the user's own connected model or the best default
-    // =====================================================================
-    const sendOpenRouter = async () => {
-      const orModel = resolveOpenRouterModel(requestedModel, hasImages);
+    let modelPriorityList: string[];
 
+    if (hasImages) {
+      modelPriorityList = [OPENROUTER_VISION_MODEL];
+    } else if (model && model.includes('/') && !model.includes('gpt-oss')) {
+      // User explicitly passed their own OpenRouter model — try it first
+      modelPriorityList = [model, ...OPENROUTER_MODEL_CASCADE.filter(m => m !== model)];
+    } else {
+      modelPriorityList = OPENROUTER_MODEL_CASCADE;
+    }
+
+    // =====================================================================
+    // OPENROUTER CASCADE: Try models in sequence until one succeeds
+    // =====================================================================
+    const tryOpenRouter = async (orModel: string): Promise<Response> => {
       return fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${openRouterToken}`,
           'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-          'X-Title': 'NONA AI Software Factory v7.0',
+          'X-Title': 'NONA AI Software Factory v7.1',
         },
         body: JSON.stringify({
           model: orModel,
@@ -140,44 +109,23 @@ export default async function handler(req: Request) {
       });
     };
 
-    // =====================================================================
-    // FALLBACK: Groq (only if OpenRouter fails — uses validated model list)
-    // =====================================================================
-    const sendGroq = async () => {
-      const groqModel = resolveGroqModel(requestedModel);
+    let aiResponse: Response | null = null;
+    let lastError = '';
 
-      return fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${groqToken}`,
-          'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-          'X-Title': 'NONA AI Software Factory v7.0',
-        },
-        body: JSON.stringify({
-          model: groqModel,
-          messages: formatMessages(messages),
-          stream: true,
-          temperature: temp,
-          max_tokens: Math.min(targetTokens, 8000),
-        }),
-      });
-    };
-
-    // =====================================================================
-    // DISPATCH: OpenRouter → Groq fallback (simple & reliable)
-    // =====================================================================
-    let aiResponse = await sendOpenRouter();
-
-    if (!aiResponse.ok) {
-      const errBody = await aiResponse.text().catch(() => '');
-      console.warn(`OpenRouter failed (${aiResponse.status}): ${errBody.slice(0, 200)}. Trying Groq fallback...`);
-      aiResponse = await sendGroq();
+    for (const orModel of modelPriorityList) {
+      const resp = await tryOpenRouter(orModel);
+      if (resp.ok) {
+        aiResponse = resp;
+        break;
+      }
+      // Read the error without consuming the body of a usable stream
+      const errBody = await resp.text().catch(() => resp.statusText);
+      lastError = `[${orModel}] HTTP ${resp.status}: ${errBody.slice(0, 300)}`;
+      console.warn(`OpenRouter model ${orModel} failed: ${lastError}`);
     }
 
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      throw new Error(`Error en API (${aiResponse.status}): ${errText}`);
+    if (!aiResponse) {
+      throw new Error(`Todos los modelos de OpenRouter fallaron. Último error: ${lastError}`);
     }
 
     // =====================================================================
@@ -208,7 +156,6 @@ export default async function handler(req: Request) {
               controller.close();
               return;
             }
-
             if (trimmed.startsWith('data: ')) {
               try {
                 const parsed = JSON.parse(trimmed.slice(6));
