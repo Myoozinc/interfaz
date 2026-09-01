@@ -15,6 +15,28 @@ export class MultiAgentEngine {
     this.aiProvider.setBaseUrl(url);
   }
 
+  private cleanCodeBlock(raw: string): string {
+    const match = raw.match(/```html(?:\s+filename=[^\n]+)?\n([\s\S]*)/);
+    if (match) {
+      return match[1].replace(/```\s*$/, '').trim();
+    }
+    if (raw.includes('<!DOCTYPE html>')) {
+      const idx = raw.indexOf('<!DOCTYPE html>');
+      return raw.slice(idx).replace(/```\s*$/, '').trim();
+    }
+    return raw.replace(/```\s*$/, '').trim();
+  }
+
+  private isCodeIncomplete(code: string): boolean {
+    if (!code || code.length < 100) return true;
+    const trimmed = code.trim();
+    // Incomplete if missing closing html or script
+    if (!trimmed.endsWith('</html>') && !trimmed.endsWith('</script>')) return true;
+    if (code.includes('<script') && !code.includes('</script>')) return true;
+    if (!code.includes('</html>')) return true;
+    return false;
+  }
+
   async executeAutonomousPipeline(
     userInstruction: string,
     currentCode: string,
@@ -41,22 +63,22 @@ export class MultiAgentEngine {
       agentEvents.emit('agent.completed', '⚡ Corrección quirúrgica aplicada con éxito.');
 
     } else {
-      // MODE B: 🚀 Direct High-Fidelity Synthesis (Architecture v8.0)
+      // MODE B: 🚀 Direct High-Fidelity Synthesis with Logic-First standard
       onProgress('🎨 & 🧠 NONA Master Software Engine', 'Diseñando e implementando la aplicación completa en tiempo real...');
-      agentEvents.emit('agent.thinking', '🎨 & 🧠 Generando software interactivo con Qwen 3.8...');
+      agentEvents.emit('agent.thinking', '🎨 & 🧠 Generando software con Three.js, Web Audio y lógica en vivo...');
 
       const engineerSystemPrompt = `${NONA_MASTER_SYSTEM_PROMPT_V5}
 
-Tu misión es escribir el código HTML5 + JavaScript 100% COMPLETO, PULIDO Y AUTOCONTENIDO.
+Tu misión es escribir el código HTML5 + JavaScript 100% COMPLETO, PULIDO, EXTENSO Y AUTOCONTENIDO.
 REGLAS CRÍTICAS:
 1. Sé 100% fiel a la solicitud del usuario ("${userInstruction}").
-2. Si es un videojuego (carreras, snake, 3d, etc.), crea una vista inmersiva 100% dedicada con Three.js, controles reales, HUD flotante, audio y botón Jugar activo. NO incluyas barras laterales de SaaS ni menús de perfil.
+2. Si es un videojuego (carreras, snake, 3D, música, etc.), crea una experiencia inmersiva con Three.js WebGL, controles (WASD/táctil), audio sintetizado con Web Audio API, bucle de animación \`requestAnimationFrame\`, botón Jugar funcional y HUD.
 3. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`. Cero preámbulos.`;
 
       const engineerUserPrompt = `INSTRUCCIÓN EXACTA DEL USUARIO:
 "${userInstruction}"
 
-Implementa la aplicación o videojuego 100% completo, visualmente impresionante, interactivo y funcional. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`:`;
+Implementa la aplicación o videojuego 100% completo, visualmente impresionante, interactivo y funcional. Inicia DIRECTAMENTE con \`\`\`html filename=index.html:`;
 
       let generatedCode = '';
       await this.aiProvider.streamChat(
@@ -76,17 +98,49 @@ Implementa la aplicación o videojuego 100% completo, visualmente impresionante,
         }
       );
 
-      agentEvents.emit('agent.completed', '🎨 Código de aplicación compilado con éxito.');
+      candidateCode = this.cleanCodeBlock(generatedCode);
 
-      const match = generatedCode.match(/```html(?:\s+filename=[^\n]+)?\n([\s\S]*)/);
-      if (match) {
-        candidateCode = match[1].replace(/```\s*$/, '').trim();
-      } else if (generatedCode.includes('<!DOCTYPE html>')) {
-        const idx = generatedCode.indexOf('<!DOCTYPE html>');
-        candidateCode = generatedCode.slice(idx).replace(/```\s*$/, '').trim();
-      } else {
-        candidateCode = generatedCode.replace(/```\s*$/, '').trim();
+      // ======================================================================
+      // AUTO-CONTINUATION LOOP (Estándar Lovable / Google Antigravity)
+      // Si el código se cortó antes de cerrar el script o </html>, continúa el stream automáticamente
+      // ======================================================================
+      let continuationAttempts = 0;
+      while (this.isCodeIncomplete(candidateCode) && continuationAttempts < 2) {
+        continuationAttempts++;
+        onProgress('🔄 NONA Auto-Continuation Engine', `Completando lógica y funciones restantes (Pase ${continuationAttempts}/2)...`);
+        agentEvents.emit('agent.thinking', `🔄 Auto-Continuation: Extendiendo código truncado para garantizar cierre de scripts...`);
+
+        const lastChunk = candidateCode.slice(-1200);
+        const continuationPrompt = `El código anterior se interrumpió aquí:
+\`\`\`
+${lastChunk}
+\`\`\`
+
+Continúa EXACTAMENTE desde la última línea sin repetir nada del código previo, completando todas las funciones, eventos y concluyendo con </script></body></html>:`;
+
+        let continuationOutput = '';
+        try {
+          await this.aiProvider.streamChat(
+            [
+              { role: 'system', content: `${NONA_MASTER_SYSTEM_PROMPT_V5}\nEres el CONTINUATION ENGINE de NONA. Continúa el código exactamente donde se quedó.` },
+              { role: 'user', content: continuationPrompt }
+            ],
+            (token, full) => {
+              continuationOutput = full;
+              onProgress('🔄 NONA Auto-Continuation Engine', 'Ensamblando funciones y bucle de juego...', token);
+            },
+            { signal, model: 'qwen/qwen3.8-27b', maxTokens: 3500, temperature: 0.1 }
+          );
+
+          let cleanedContinuation = continuationOutput.replace(/^```html(?:\s+filename=[^\n]+)?\n/, '').replace(/```\s*$/, '').trim();
+          candidateCode = candidateCode + '\n' + cleanedContinuation;
+        } catch (err) {
+          console.warn('Auto-continuation step failed, falling through to QA repairs', err);
+          break;
+        }
       }
+
+      agentEvents.emit('agent.completed', '🎨 Código de aplicación compilado con éxito.');
     }
 
     // ==========================================
@@ -141,7 +195,7 @@ Devuelve el código 100% completo, fiel a la instrucción del usuario y funciona
 
     const summary = isPartialEdit
       ? `⚡ **Modificación Quirúrgica Completada**:\n- **NONA Surgical Diff**: Corrigió con precisión los componentes solicitados.\n- **NONA QA Engine**: Validó la integridad del código (Densidad Funcional: ${qaReport.visualDensityScore}/100).`
-      : `🚀 **Software Construido con Estándar NONA Architecture v8.0**:\n1. **🎨 & 🧠 Master Engine (Qwen 3.8 27B)**: Implementó la aplicación solicitada (${userInstruction.slice(0, 35)}...).\n2. **🛡️ QA Engine**: Validó sintaxis, eventos e interactividad (${qaReport.visualDensityScore}/100).`;
+      : `🚀 **Software Construido con Estándar NONA Architecture v9.0**:\n1. **🎨 & 🧠 Master Engine (Qwen 3.8 27B)**: Implementó la aplicación solicitada (${userInstruction.slice(0, 35)}...).\n2. **🛡️ QA Engine**: Validó sintaxis, eventos e interactividad (${qaReport.visualDensityScore}/100).`;
 
     return { fullCode: finalCode, summary, qaReport };
   }
