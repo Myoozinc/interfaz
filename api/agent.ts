@@ -59,17 +59,29 @@ export default async function handler(req: Request) {
       });
     };
 
-    const targetTokens = maxTokensRequested || 3500;
-    const requestedModel = model || 'openai/gpt-oss-120b';
-    const temp = typeof temperature === 'number' ? temperature : 0.15;
+
+    // =====================================================================
+    // MODEL ROUTING — NONA v7.0 Production Standard
+    // Primary: Groq LPU (ultra-fast, for planning & chat)
+    // Secondary: OpenRouter Cloud (Qwen 2.5 Coder 32B — for deep code gen)
+    // Tertiary: DeepSeek R1 (reasoning fallback)
+    // =====================================================================
+
+    // Token budget: planning gets 800, code generation gets up to 16,000
+    const targetTokens = Math.min(maxTokensRequested || 14000, 16000);
+    const requestedModel = model || 'qwen/qwen-2.5-coder-32b-instruct';
+    const temp = typeof temperature === 'number' ? temperature : 0.12;
+
+    // Determine if this is a fast planning call (small token budget) or deep codegen
+    const isPlanningCall = targetTokens <= 1000;
 
     const sendGroq = async (targetModel: string) => {
-      // Map model aliases for Groq
-      let groqModelName = targetModel;
-      if (targetModel.includes('70b') || targetModel.includes('llama')) {
-        groqModelName = 'llama-3.3-70b-versatile';
-      } else if (targetModel.includes('120b')) {
+      // Groq model mapping
+      let groqModelName = 'llama-3.3-70b-versatile'; // default for planning
+      if (targetModel.includes('120b')) {
         groqModelName = 'openai/gpt-oss-120b';
+      } else if (targetModel.includes('70b') || targetModel.includes('llama') || isPlanningCall) {
+        groqModelName = 'llama-3.3-70b-versatile';
       }
 
       return fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -78,22 +90,33 @@ export default async function handler(req: Request) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${groqToken}`,
           'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-          'X-Title': 'NONA AI Software Factory',
+          'X-Title': 'NONA AI Software Factory v7.0',
         },
         body: JSON.stringify({
           model: groqModelName,
           messages: formatMessages(messages),
           stream: true,
           temperature: temp,
-          max_tokens: targetTokens,
+          max_tokens: Math.min(targetTokens, 8000), // Groq caps at 8k for most models
         }),
       });
     };
 
     const sendOpenRouter = async (targetModel: string) => {
-      const orModel = hasImages
-        ? 'google/gemini-2.0-flash-001'
-        : (targetModel.includes('120b') ? 'openai/gpt-4o-mini' : 'qwen/qwen-2.5-coder-32b-instruct');
+      // Model priority for OpenRouter:
+      // 1. Images → Gemini 2.0 Flash (multimodal)
+      // 2. Deep code gen → Qwen 2.5 Coder 32B (best free code model)
+      // 3. Reasoning tasks → DeepSeek R1
+      let orModel: string;
+      if (hasImages) {
+        orModel = 'google/gemini-2.0-flash-001';
+      } else if (targetModel.includes('qwen') || targetModel.includes('coder') || !isPlanningCall) {
+        orModel = 'qwen/qwen-2.5-coder-32b-instruct';
+      } else if (targetModel.includes('deepseek') || targetModel.includes('r1')) {
+        orModel = 'deepseek/deepseek-r1';
+      } else {
+        orModel = 'qwen/qwen-2.5-coder-32b-instruct';
+      }
 
       return fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -101,31 +124,40 @@ export default async function handler(req: Request) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${openRouterToken}`,
           'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-          'X-Title': 'NONA AI Software Factory',
+          'X-Title': 'NONA AI Software Factory v7.0',
         },
         body: JSON.stringify({
           model: orModel,
           messages: formatMessages(messages),
           stream: true,
           temperature: temp,
-          max_tokens: Math.min(targetTokens, 3500),
+          max_tokens: Math.min(targetTokens, 16000), // Qwen supports 32k context
         }),
       });
     };
 
-    let aiResponse = await sendGroq(requestedModel);
+    // =====================================================================
+    // SMART DISPATCH: Route by task type, not just model name
+    // - Planning (≤1000 tokens): Groq LPU first (fast), OpenRouter as fallback
+    // - Code gen (>1000 tokens): OpenRouter/Qwen first (large context), Groq as fallback
+    // =====================================================================
 
-    // Failover 1: Alternative Groq Model
-    if (!aiResponse.ok) {
-      const altModel = requestedModel === 'openai/gpt-oss-120b' ? 'llama-3.3-70b-versatile' : 'openai/gpt-oss-120b';
-      console.warn(`Groq ${requestedModel} failed, trying alternative Groq model ${altModel}...`);
-      aiResponse = await sendGroq(altModel);
-    }
+    let aiResponse: Response;
 
-    // Failover 2: OpenRouter Cloud
-    if (!aiResponse.ok && openRouterToken) {
-      console.warn('Groq failed, failing over to OpenRouter...');
+    if (isPlanningCall) {
+      // PLANNING: Groq LPU → OpenRouter fallback
+      aiResponse = await sendGroq(requestedModel);
+      if (!aiResponse.ok) {
+        console.warn(`Groq planning call failed, falling over to OpenRouter...`);
+        aiResponse = await sendOpenRouter(requestedModel);
+      }
+    } else {
+      // DEEP CODE GEN: OpenRouter/Qwen 32B → Groq fallback
       aiResponse = await sendOpenRouter(requestedModel);
+      if (!aiResponse.ok) {
+        console.warn(`OpenRouter code gen call failed, falling over to Groq...`);
+        aiResponse = await sendGroq(requestedModel);
+      }
     }
 
     if (!aiResponse.ok) {
