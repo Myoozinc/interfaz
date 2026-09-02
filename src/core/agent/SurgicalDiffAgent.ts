@@ -1,5 +1,4 @@
 import { OllamaProvider } from '../providers/OllamaProvider';
-import { NONA_MASTER_SYSTEM_PROMPT_V5 } from './PromptGuardrails';
 import { qaTesterAgent } from './QATesterAgent';
 
 export class SurgicalDiffAgent {
@@ -31,7 +30,8 @@ export class SurgicalDiffAgent {
       'cuando presiono', 'al hacer click', 'al hacer clic', 'el botón', 'el boton',
       'cambia', 'modifica', 'agrega', 'añade', 'elimina', 'quita', 'pon de color',
       'haz que', 'más rápido', 'más lento', 'aumenta', 'reduce', 'error', 'bug',
-      'cambia el color', 'rosado', 'azul', 'verde', 'nubes', 'universo', 'fondo'
+      'cambia el color', 'rosado', 'azul', 'verde', 'nubes', 'universo', 'fondo',
+      'pisar el boton', 'al pisar', 'no empieza', 'dificultad'
     ];
 
     if (fixAndEditKeywords.some(kw => lower.includes(kw))) {
@@ -73,7 +73,7 @@ export class SurgicalDiffAgent {
   }
 
   /**
-   * Executes a surgical component / bug fix edit on the existing code with Auto-Continuation.
+   * Executes a surgical component / bug fix edit on the existing code with compact prompt & Auto-Continuation.
    */
   public async applySurgicalEdit(
     userInstruction: string,
@@ -81,27 +81,26 @@ export class SurgicalDiffAgent {
     onStream: (token: string, fullText: string) => void,
     signal?: AbortSignal
   ): Promise<string> {
-    const systemPrompt = `${NONA_MASTER_SYSTEM_PROMPT_V5}
+    // Compact system prompt (only ~120 tokens to maximize context window and stay within TPM limits)
+    const systemPrompt = `Eres NONA SURGICAL CODE FIXER (v11.0).
+Tu misión: reparar o modificar el código HTML5+JS actual satisfaciendo EXACTAMENTE la solicitud del usuario.
 
-Eres NONA SURGICAL DIFF & PRECISION EDIT AGENT (Arquitectura v10.0).
-Tu misión es aplicar la modificación o corrección solicitada por el usuario sobre el código existente.
+REGLAS ABSOLUTAS:
+1. El archivo resultante index.html DEBE ser 100% COMPLETO, sin omitir funciones ni bucles de juego.
+2. Si el usuario reporta que un botón (ej: "JUGAR", dificultad, turbo) no hace nada: escribe los listeners click/pointerdown correspondientes, oculta los overlays (\`classList.add('hidden')\`) y arranca el bucle de juego / cálculo (\`requestAnimationFrame\` o función de juego).
+3. Asegúrate de que el Three.js canvas, renderer, cámara, controles (WASD/flechas/táctil) y audio Web Audio API funcionen al 100%.
+4. Resuelve el estilo con Tailwind CSS y concluye con </script></body></html>.
+5. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`.`;
 
-REGLAS CRÍTICAS:
-1. El código resultante debe ser 100% COMPLETO, PULIDO Y CON TODAS SUS FUNCIONES JAVASCRIPT FUNCIONANDO.
-2. Si es una calculadora: DEBE tener la lógica de cálculo completa (sumar, restar, multiplicar, dividir, borrar, decimales, soporte de teclado), visualizador LCD y sonidos. NUNCA dejes una calculadora sin su lógica de cálculo en JavaScript.
-3. Si es un juego o escena 3D (Three.js): DEBE tener la escena completa (cámara, luces, bucle de animación \`requestAnimationFrame\`, partículas de nubes/universo y controles).
-4. Usa Tailwind CSS para la interfaz visual para no malgastar tokens en bloques CSS gigantes.
-5. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`. Cero texto de conversación.`;
-
-    const userPrompt = `CÓDIGO ACTUAL EXISTENTE:
+    const userPrompt = `CÓDIGO ACTUAL:
 \`\`\`html
 ${currentCode}
 \`\`\`
 
-MODIFICACIÓN / SOLICITUD DEL USUARIO:
+SOLICITUD DE CORRECCIÓN:
 "${userInstruction}"
 
-Aplica la modificación con precisión y entrega el archivo index.html COMPLETO, con toda su lógica JavaScript, eventos y Three.js 100% funcionales. Inicia con \`\`\`html filename=index.html:`;
+Entrega el código index.html COMPLETO y 100% funcional en \`\`\`html filename=index.html:`;
 
     let fullResponse = '';
     await this.aiProvider.streamChat(
@@ -113,7 +112,7 @@ Aplica la modificación con precisión y entrega el archivo index.html COMPLETO,
         fullResponse = full;
         onStream(token, full);
       },
-      { signal, model: 'qwen/qwen3.8-27b', maxTokens: 4500, temperature: 0.15 }
+      { signal, model: 'qwen/qwen3.8-27b', maxTokens: 3200, temperature: 0.15 }
     );
 
     let patchedCode = this.cleanCodeBlock(fullResponse);
@@ -122,26 +121,26 @@ Aplica la modificación con precisión y entrega el archivo index.html COMPLETO,
     let continuationAttempts = 0;
     while (this.isCodeIncomplete(patchedCode) && continuationAttempts < 2) {
       continuationAttempts++;
-      const lastChunk = patchedCode.slice(-1200);
+      const lastChunk = patchedCode.slice(-1000);
       const continuationPrompt = `El código anterior se interrumpió aquí:
 \`\`\`
 ${lastChunk}
 \`\`\`
 
-Continúa EXACTAMENTE desde la última línea sin repetir nada del código previo, completando todas las funciones JavaScript, eventos de clic, Three.js y concluyendo con </script></body></html>:`;
+Continúa EXACTAMENTE desde la última línea sin repetir nada del código previo, completando todas las funciones JavaScript, eventos y concluyendo con </script></body></html>:`;
 
       let continuationOutput = '';
       try {
         await this.aiProvider.streamChat(
           [
-            { role: 'system', content: `${NONA_MASTER_SYSTEM_PROMPT_V5}\nEres el CONTINUATION ENGINE de NONA. Continúa el código exactamente donde se quedó.` },
+            { role: 'system', content: 'Eres NONA Continuation Engine. Continúa el código exactamente donde se quedó hasta cerrar con </script></body></html>.' },
             { role: 'user', content: continuationPrompt }
           ],
           (token, full) => {
             continuationOutput = full;
             onStream(token, full);
           },
-          { signal, model: 'qwen/qwen3.8-27b', maxTokens: 3500, temperature: 0.1 }
+          { signal, model: 'qwen/qwen3.8-27b', maxTokens: 2500, temperature: 0.1 }
         );
 
         let cleanedContinuation = continuationOutput.replace(/^```html(?:\s+filename=[^\n]+)?\n/, '').replace(/```\s*$/, '').trim();

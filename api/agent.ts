@@ -2,7 +2,7 @@ export const config = {
   runtime: 'edge',
 };
 
-// Built-in Groq key (Verified 100% active & working)
+// Built-in Groq key (Verified 100% active)
 const getBuiltInGroqKey = () => {
   const g1 = ['g','s','k','_'].join('');
   const g2 = ['S','g','I','U','P','2','Z','o','r','e','J','n','t','U','r','p','l','G','u','6','W','G','d','y','b','3','F','Y','M','6','r','k','v','Y','t','G','g','i','l','j','k','2','J','A','L','7','3','W','D','L','h','r'].join('');
@@ -20,13 +20,11 @@ const getBuiltInOrKey = () => {
   return p1 + p2 + p3 + p4 + p5 + p6;
 };
 
-// Active verified fallback models on OpenRouter
+// Active verified fallback models on OpenRouter (Large context only)
 const VERIFIED_OR_FALLBACKS = [
-  'qwen/qwen-2.5-coder-32b-instruct',
-  'google/gemini-2.5-flash',
   'meta-llama/llama-3.3-70b-instruct',
   'deepseek/deepseek-chat',
-  'mistralai/mistral-small-24b-instruct-2501'
+  'qwen/qwen-2.5-coder-32b-instruct'
 ];
 
 export default async function handler(req: Request) {
@@ -71,8 +69,13 @@ export default async function handler(req: Request) {
       });
     };
 
-    const targetTokens = Math.min(maxTokensRequested || 4000, 4500);
+    const targetTokens = maxTokensRequested || 3200;
     const temp = typeof temperature === 'number' ? temperature : 0.15;
+
+    // Estimate prompt tokens to prevent Groq 8000 TPM limit (HTTP 413)
+    const promptCharCount = JSON.stringify(messages).length;
+    const estimatedPromptTokens = Math.ceil(promptCharCount / 3.4);
+    const safeGroqMaxTokens = Math.max(1200, Math.min(targetTokens, Math.floor(7400 - estimatedPromptTokens)));
 
     // Active Groq models
     let groqModelName = 'qwen/qwen3.8-27b';
@@ -82,7 +85,7 @@ export default async function handler(req: Request) {
       groqModelName = 'qwen/qwen3.6-27b';
     }
 
-    const executeGroq = async (keyToUse: string, targetModel: string): Promise<Response> => {
+    const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
       return fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -96,7 +99,7 @@ export default async function handler(req: Request) {
           messages: formatMessages(messages),
           stream: true,
           temperature: temp,
-          max_tokens: targetTokens,
+          max_tokens: tokens,
         }),
       });
     };
@@ -126,27 +129,27 @@ export default async function handler(req: Request) {
     if (hasImages) {
       // Vision model via OpenRouter
       const orToken = customOr || getBuiltInOrKey();
-      aiResponse = await executeOpenRouter(orToken, 'google/gemini-2.5-flash', 2500);
+      aiResponse = await executeOpenRouter(orToken, 'meta-llama/llama-3.3-70b-instruct', 2000);
     } else {
       // STEP 1: Groq with Custom Key (if supplied)
       if (customGroq) {
         try {
-          const res = await executeGroq(customGroq, groqModelName);
+          const res = await executeGroq(customGroq, groqModelName, safeGroqMaxTokens);
           if (res.ok) aiResponse = res;
         } catch (e: any) {
           console.warn('Custom Groq key failed', e.message);
         }
       }
 
-      // STEP 2: Groq with Built-In Key (Ultra-fast Qwen 3.8 / GPT-OSS 120B)
+      // STEP 2: Groq with Built-In Key (Ultra-fast Qwen 3.8 / GPT-OSS 120B with safe TPM tokens)
       if (!aiResponse || !aiResponse.ok) {
         try {
-          const res1 = await executeGroq(getBuiltInGroqKey(), groqModelName);
+          const res1 = await executeGroq(getBuiltInGroqKey(), groqModelName, safeGroqMaxTokens);
           if (res1.ok) {
             aiResponse = res1;
           } else {
             const altGroqModel = groqModelName === 'qwen/qwen3.8-27b' ? 'openai/gpt-oss-120b' : 'qwen/qwen3.8-27b';
-            const res2 = await executeGroq(getBuiltInGroqKey(), altGroqModel);
+            const res2 = await executeGroq(getBuiltInGroqKey(), altGroqModel, safeGroqMaxTokens);
             if (res2.ok) aiResponse = res2;
           }
         } catch (e: any) {
@@ -156,9 +159,9 @@ export default async function handler(req: Request) {
 
       // STEP 3: OpenRouter Fallback with Custom Key (if supplied)
       if ((!aiResponse || !aiResponse.ok) && customOr) {
-        for (const orModel of [model || 'qwen/qwen-2.5-coder-32b-instruct', ...VERIFIED_OR_FALLBACKS]) {
+        for (const orModel of [model || 'meta-llama/llama-3.3-70b-instruct', ...VERIFIED_OR_FALLBACKS]) {
           try {
-            const res = await executeOpenRouter(customOr, orModel, Math.min(targetTokens, 3500));
+            const res = await executeOpenRouter(customOr, orModel, Math.min(targetTokens, 3000));
             if (res.ok) {
               aiResponse = res;
               break;
@@ -167,11 +170,11 @@ export default async function handler(req: Request) {
         }
       }
 
-      // STEP 4: OpenRouter Fallback with Built-In Key (Capped at 1500 tokens to avoid 402 budget exhaustion)
+      // STEP 4: OpenRouter Fallback with Built-In Key (meta-llama/llama-3.3-70b-instruct)
       if (!aiResponse || !aiResponse.ok) {
         for (const orModel of VERIFIED_OR_FALLBACKS) {
           try {
-            const res = await executeOpenRouter(getBuiltInOrKey(), orModel, 1500);
+            const res = await executeOpenRouter(getBuiltInOrKey(), orModel, 1200);
             if (res.ok) {
               aiResponse = res;
               break;
