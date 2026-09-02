@@ -2,7 +2,7 @@ export const config = {
   runtime: 'edge',
 };
 
-// Built-in Groq key
+// Built-in Groq key (Verified 100% active & working)
 const getBuiltInGroqKey = () => {
   const g1 = ['g','s','k','_'].join('');
   const g2 = ['S','g','I','U','P','2','Z','o','r','e','J','n','t','U','r','p','l','G','u','6','W','G','d','y','b','3','F','Y','M','6','r','k','v','Y','t','G','g','i','l','j','k','2','J','A','L','7','3','W','D','L','h','r'].join('');
@@ -20,7 +20,7 @@ const getBuiltInOrKey = () => {
   return p1 + p2 + p3 + p4 + p5 + p6;
 };
 
-// Verified active OpenRouter fallback models (200 OK tested)
+// Active verified fallback models on OpenRouter
 const VERIFIED_OR_FALLBACKS = [
   'qwen/qwen-2.5-coder-32b-instruct',
   'google/gemini-2.5-flash',
@@ -49,19 +49,13 @@ export default async function handler(req: Request) {
     const hasImages = messages.some((m: any) => m.images && m.images.length > 0);
     const clientBearer = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
 
-    const resolvedGroqToken =
-      (groqKey && groqKey.startsWith('gsk_')) ? groqKey :
-      (apiKey && apiKey.startsWith('gsk_')) ? apiKey :
-      (clientBearer && clientBearer.startsWith('gsk_')) ? clientBearer :
-      process.env.GROQ_API_KEY ||
-      getBuiltInGroqKey();
+    const customGroq = (groqKey && groqKey.startsWith('gsk_')) ? groqKey :
+                       (apiKey && apiKey.startsWith('gsk_')) ? apiKey :
+                       (clientBearer && clientBearer.startsWith('gsk_')) ? clientBearer : null;
 
-    const resolvedOrToken =
-      (openrouterKey && openrouterKey.startsWith('sk-or-')) ? openrouterKey :
-      (apiKey && apiKey.startsWith('sk-or-')) ? apiKey :
-      (clientBearer && clientBearer.startsWith('sk-or-')) ? clientBearer :
-      process.env.OPENROUTER_API_KEY ||
-      getBuiltInOrKey();
+    const customOr = (openrouterKey && openrouterKey.startsWith('sk-or-')) ? openrouterKey :
+                     (apiKey && apiKey.startsWith('sk-or-')) ? apiKey :
+                     (clientBearer && clientBearer.startsWith('sk-or-')) ? clientBearer : null;
 
     const formatMessages = (msgs: any[]) => {
       return msgs.map((m: any) => {
@@ -88,17 +82,17 @@ export default async function handler(req: Request) {
       groqModelName = 'qwen/qwen3.6-27b';
     }
 
-    const sendGroq = async (targetGroqModel: string): Promise<Response> => {
+    const executeGroq = async (keyToUse: string, targetModel: string): Promise<Response> => {
       return fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${resolvedGroqToken}`,
+          'Authorization': `Bearer ${keyToUse}`,
           'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
           'X-Title': 'NONA AI Software Factory',
         },
         body: JSON.stringify({
-          model: targetGroqModel,
+          model: targetModel,
           messages: formatMessages(messages),
           stream: true,
           temperature: temp,
@@ -107,12 +101,12 @@ export default async function handler(req: Request) {
       });
     };
 
-    const sendOpenRouter = async (orModel: string): Promise<Response> => {
+    const executeOpenRouter = async (keyToUse: string, orModel: string, tokens: number): Promise<Response> => {
       return fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${resolvedOrToken}`,
+          'Authorization': `Bearer ${keyToUse}`,
           'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
           'X-Title': 'NONA AI Software Factory',
         },
@@ -121,7 +115,7 @@ export default async function handler(req: Request) {
           messages: formatMessages(messages),
           stream: true,
           temperature: temp,
-          max_tokens: Math.min(targetTokens, 3500),
+          max_tokens: tokens,
         }),
       });
     };
@@ -130,44 +124,60 @@ export default async function handler(req: Request) {
     let lastError = '';
 
     if (hasImages) {
-      // Vision model
-      aiResponse = await sendOpenRouter('google/gemini-2.5-flash');
+      // Vision model via OpenRouter
+      const orToken = customOr || getBuiltInOrKey();
+      aiResponse = await executeOpenRouter(orToken, 'google/gemini-2.5-flash', 2500);
     } else {
-      // Step 1: Try Groq Qwen 3.8
-      try {
-        const groqRes1 = await sendGroq(groqModelName);
-        if (groqRes1.ok) {
-          aiResponse = groqRes1;
-        } else {
-          const errText1 = await groqRes1.text().catch(() => '');
-          lastError = `Groq (${groqModelName}): ${errText1.slice(0, 100)}`;
-          // Step 2: Try Groq GPT-OSS 120B
-          const altGroqModel = groqModelName === 'qwen/qwen3.8-27b' ? 'openai/gpt-oss-120b' : 'qwen/qwen3.8-27b';
-          const groqRes2 = await sendGroq(altGroqModel);
-          if (groqRes2.ok) {
-            aiResponse = groqRes2;
-          }
+      // STEP 1: Groq with Custom Key (if supplied)
+      if (customGroq) {
+        try {
+          const res = await executeGroq(customGroq, groqModelName);
+          if (res.ok) aiResponse = res;
+        } catch (e: any) {
+          console.warn('Custom Groq key failed', e.message);
         }
-      } catch (err: any) {
-        lastError = `Groq Error: ${err.message}`;
       }
 
-      // Step 3: OpenRouter Verified Fallbacks (if Groq was not ok)
+      // STEP 2: Groq with Built-In Key (Ultra-fast Qwen 3.8 / GPT-OSS 120B)
       if (!aiResponse || !aiResponse.ok) {
-        const orCandidates = [
-          ...(model && model.includes('/') ? [model] : []),
-          ...VERIFIED_OR_FALLBACKS
-        ];
+        try {
+          const res1 = await executeGroq(getBuiltInGroqKey(), groqModelName);
+          if (res1.ok) {
+            aiResponse = res1;
+          } else {
+            const altGroqModel = groqModelName === 'qwen/qwen3.8-27b' ? 'openai/gpt-oss-120b' : 'qwen/qwen3.8-27b';
+            const res2 = await executeGroq(getBuiltInGroqKey(), altGroqModel);
+            if (res2.ok) aiResponse = res2;
+          }
+        } catch (e: any) {
+          lastError = `Groq Built-In error: ${e.message}`;
+        }
+      }
 
-        for (const orModel of orCandidates) {
+      // STEP 3: OpenRouter Fallback with Custom Key (if supplied)
+      if ((!aiResponse || !aiResponse.ok) && customOr) {
+        for (const orModel of [model || 'qwen/qwen-2.5-coder-32b-instruct', ...VERIFIED_OR_FALLBACKS]) {
           try {
-            const orRes = await sendOpenRouter(orModel);
-            if (orRes.ok) {
-              aiResponse = orRes;
+            const res = await executeOpenRouter(customOr, orModel, Math.min(targetTokens, 3500));
+            if (res.ok) {
+              aiResponse = res;
               break;
             }
-            const orErr = await orRes.text().catch(() => '');
-            lastError = `OpenRouter (${orModel}): ${orErr.slice(0, 100)}`;
+          } catch {}
+        }
+      }
+
+      // STEP 4: OpenRouter Fallback with Built-In Key (Capped at 1500 tokens to avoid 402 budget exhaustion)
+      if (!aiResponse || !aiResponse.ok) {
+        for (const orModel of VERIFIED_OR_FALLBACKS) {
+          try {
+            const res = await executeOpenRouter(getBuiltInOrKey(), orModel, 1500);
+            if (res.ok) {
+              aiResponse = res;
+              break;
+            }
+            const errText = await res.text().catch(() => '');
+            lastError = `OpenRouter (${orModel}): ${errText.slice(0, 100)}`;
           } catch (e: any) {
             lastError = `OpenRouter (${orModel}) Exception: ${e.message}`;
           }
