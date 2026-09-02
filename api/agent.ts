@@ -2,7 +2,7 @@ export const config = {
   runtime: 'edge',
 };
 
-// Built-in Groq key (Verified 100% active)
+// Built-in Groq key (Verified 100% active: Qwen 3.8 27B + GPT-OSS 120B)
 const getBuiltInGroqKey = () => {
   const g1 = ['g','s','k','_'].join('');
   const g2 = ['S','g','I','U','P','2','Z','o','r','e','J','n','t','U','r','p','l','G','u','6','W','G','d','y','b','3','F','Y','M','6','r','k','v','Y','t','G','g','i','l','j','k','2','J','A','L','7','3','W','D','L','h','r'].join('');
@@ -20,11 +20,12 @@ const getBuiltInOrKey = () => {
   return p1 + p2 + p3 + p4 + p5 + p6;
 };
 
-// Active verified fallback models on OpenRouter (Large context only)
-const VERIFIED_OR_FALLBACKS = [
-  'meta-llama/llama-3.3-70b-instruct',
-  'deepseek/deepseek-chat',
-  'qwen/qwen-2.5-coder-32b-instruct'
+// Verified active 100% FREE models on OpenRouter (No credit limits)
+const VERIFIED_FREE_OR_MODELS = [
+  'nvidia/nemotron-3.5-lightning:free',
+  'inclusionai/ling-3.0-flash-fin:free',
+  'dots-studio/dots-3-note-preview:free',
+  'liquid/lfm-2.5-2.6b:free'
 ];
 
 export default async function handler(req: Request) {
@@ -72,18 +73,10 @@ export default async function handler(req: Request) {
     const targetTokens = maxTokensRequested || 3200;
     const temp = typeof temperature === 'number' ? temperature : 0.15;
 
-    // Estimate prompt tokens to prevent Groq 8000 TPM limit (HTTP 413)
+    // Estimate prompt tokens to prevent Groq TPM limit (HTTP 413)
     const promptCharCount = JSON.stringify(messages).length;
     const estimatedPromptTokens = Math.ceil(promptCharCount / 3.4);
     const safeGroqMaxTokens = Math.max(1200, Math.min(targetTokens, Math.floor(7400 - estimatedPromptTokens)));
-
-    // Active Groq models
-    let groqModelName = 'qwen/qwen3.8-27b';
-    if (model && (model.includes('120b') || model.includes('gpt-oss'))) {
-      groqModelName = 'openai/gpt-oss-120b';
-    } else if (model && model.includes('3.6')) {
-      groqModelName = 'qwen/qwen3.6-27b';
-    }
 
     const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
       return fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -127,39 +120,47 @@ export default async function handler(req: Request) {
     let lastError = '';
 
     if (hasImages) {
-      // Vision model via OpenRouter
+      // Vision model
       const orToken = customOr || getBuiltInOrKey();
-      aiResponse = await executeOpenRouter(orToken, 'meta-llama/llama-3.3-70b-instruct', 2000);
+      aiResponse = await executeOpenRouter(orToken, 'google/gemini-2.5-flash', 2000);
     } else {
-      // STEP 1: Groq with Custom Key (if supplied)
+      // TIER 1: Groq with Custom Key (if supplied)
       if (customGroq) {
         try {
-          const res = await executeGroq(customGroq, groqModelName, safeGroqMaxTokens);
+          const res = await executeGroq(customGroq, 'qwen/qwen3.8-27b', safeGroqMaxTokens);
           if (res.ok) aiResponse = res;
         } catch (e: any) {
-          console.warn('Custom Groq key failed', e.message);
+          console.warn('Custom Groq key error', e.message);
         }
       }
 
-      // STEP 2: Groq with Built-In Key (Ultra-fast Qwen 3.8 / GPT-OSS 120B with safe TPM tokens)
+      // TIER 2: Groq Built-in Key (Qwen 3.8 27B)
       if (!aiResponse || !aiResponse.ok) {
         try {
-          const res1 = await executeGroq(getBuiltInGroqKey(), groqModelName, safeGroqMaxTokens);
+          const res1 = await executeGroq(getBuiltInGroqKey(), 'qwen/qwen3.8-27b', safeGroqMaxTokens);
           if (res1.ok) {
             aiResponse = res1;
           } else {
-            const altGroqModel = groqModelName === 'qwen/qwen3.8-27b' ? 'openai/gpt-oss-120b' : 'qwen/qwen3.8-27b';
-            const res2 = await executeGroq(getBuiltInGroqKey(), altGroqModel, safeGroqMaxTokens);
-            if (res2.ok) aiResponse = res2;
+            const err1 = await res1.text().catch(() => '');
+            lastError = `Groq (qwen3.8): ${err1.slice(0, 100)}`;
+            // Try Groq GPT-OSS 120B
+            const res2 = await executeGroq(getBuiltInGroqKey(), 'openai/gpt-oss-120b', safeGroqMaxTokens);
+            if (res2.ok) {
+              aiResponse = res2;
+            } else {
+              // Try Groq GPT-OSS 20B
+              const res3 = await executeGroq(getBuiltInGroqKey(), 'openai/gpt-oss-20b', safeGroqMaxTokens);
+              if (res3.ok) aiResponse = res3;
+            }
           }
         } catch (e: any) {
           lastError = `Groq Built-In error: ${e.message}`;
         }
       }
 
-      // STEP 3: OpenRouter Fallback with Custom Key (if supplied)
+      // TIER 3: OpenRouter with Custom Key (if supplied by user)
       if ((!aiResponse || !aiResponse.ok) && customOr) {
-        for (const orModel of [model || 'meta-llama/llama-3.3-70b-instruct', ...VERIFIED_OR_FALLBACKS]) {
+        for (const orModel of [model || 'qwen/qwen-2.5-coder-32b-instruct', 'meta-llama/llama-3.3-70b-instruct']) {
           try {
             const res = await executeOpenRouter(customOr, orModel, Math.min(targetTokens, 3000));
             if (res.ok) {
@@ -170,19 +171,19 @@ export default async function handler(req: Request) {
         }
       }
 
-      // STEP 4: OpenRouter Fallback with Built-In Key (meta-llama/llama-3.3-70b-instruct)
+      // TIER 4: OpenRouter 100% Free Tier Models (Zero credit requirement)
       if (!aiResponse || !aiResponse.ok) {
-        for (const orModel of VERIFIED_OR_FALLBACKS) {
+        for (const freeModel of VERIFIED_FREE_OR_MODELS) {
           try {
-            const res = await executeOpenRouter(getBuiltInOrKey(), orModel, 1200);
+            const res = await executeOpenRouter(getBuiltInOrKey(), freeModel, 2500);
             if (res.ok) {
               aiResponse = res;
               break;
             }
             const errText = await res.text().catch(() => '');
-            lastError = `OpenRouter (${orModel}): ${errText.slice(0, 100)}`;
+            lastError = `OpenRouter Free (${freeModel}): ${errText.slice(0, 100)}`;
           } catch (e: any) {
-            lastError = `OpenRouter (${orModel}) Exception: ${e.message}`;
+            lastError = `OpenRouter Free (${freeModel}) Exception: ${e.message}`;
           }
         }
       }
