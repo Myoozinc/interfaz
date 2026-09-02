@@ -31,6 +31,29 @@ export class AgentOrchestrator {
     this.aiProvider.setDefaultModel(model);
   }
 
+  private async generateNaturalSummary(userInstruction: string, actionType: string, detailContext: string): Promise<string> {
+    try {
+      const prompt = `Eres el asistente de ingeniería de NONA AI (estilo Lovable / Google Antigravity).
+El usuario solicitó: "${userInstruction}".
+Acción realizada: ${actionType} (${detailContext}).
+
+Escribe una respuesta corta, natural, conversacional y profesional en español (2 a 3 frases máximo):
+1. Explica directamente qué se construyó o qué problema técnico se corrigió.
+2. Menciona qué está listo para interactuar en la vista previa.
+3. Sugiere una posible siguiente mejora.
+Sé conciso, empático, sin plantillas robóticas ni encabezados genéricos.`;
+
+      const res = await this.aiProvider.streamChat(
+        [{ role: 'user', content: prompt }],
+        () => {},
+        { maxTokens: 250, temperature: 0.3 }
+      );
+      return res.trim() || `Listo. He aplicado los cambios solicitados para "${userInstruction.slice(0, 40)}" y la vista previa ya está actualizada y funcional.`;
+    } catch {
+      return `He actualizado la aplicación con base en tu instrucción: "${userInstruction.slice(0, 50)}". Todos los eventos, controles y vistas previas están sincronizados y listos para probar.`;
+    }
+  }
+
   async run(
     userInstruction: string,
     project: FullStackProject,
@@ -56,22 +79,20 @@ export class AgentOrchestrator {
 
       const consultSystemPrompt = `Eres NONA SENIOR AI ARCHITECT & CONSULTANT (Google Antigravity & Lovable Standard).
 El usuario te está haciendo una pregunta o consulta técnica sobre su aplicación o sobre desarrollo de software.
-Tu misión es responder con explicaciones claras, didácticas, precisas y bien formateadas en Markdown (con bloques de código explicativos si aplica).
-
-REGLAS CRÍTICAS:
+Responde de forma clara, natural, didáctica, precisa y bien formateada en Markdown.
 1. NO generes el documento HTML completo a menos que te pidan explícitamente un snippet.
-2. Da respuestas concisas, profesionales, entusiastas y orientadas a la acción.
+2. Da respuestas concisas, profesionales y empáticas orientadas a la acción.
 3. Si la pregunta es sobre el código actual, analiza el contexto del proyecto y explica exactamente cómo está estructurado.`;
 
       const consultUserPrompt = `CÓDIGO ACTUAL DE LA APLICACIÓN:
 \`\`\`html
-${currentCode.slice(0, 4000)}
+${currentCode.slice(0, 3500)}
 \`\`\`
 
 PREGUNTA DEL USUARIO:
 "${userInstruction}"
 
-Responde de forma clara y profesional:`;
+Responde de forma clara, natural y profesional:`;
 
       let responseText = '';
       await this.aiProvider.streamChat(
@@ -83,7 +104,7 @@ Responde de forma clara y profesional:`;
           responseText = full;
           onProgress(full, false);
         },
-        { signal: options?.signal, model: 'qwen/qwen-2.5-coder-32b-instruct', temperature: 0.3 }
+        { signal: options?.signal, model: 'qwen/qwen3.8-27b', temperature: 0.3 }
       );
 
       agentEvents.emit('agent.completed', 'Consulta técnica respondida con éxito.');
@@ -98,20 +119,19 @@ Responde de forma clara y profesional:`;
 
       const planSystemPrompt = `Eres NONA LEAD PRODUCT ARCHITECT (Estándar Lovable / Google Antigravity).
 El usuario tiene una idea abierta o está buscando asesoramiento sobre cómo construir o evolucionar su proyecto.
-Tu misión es:
-1. Presentar un plan conciso y emocionante con 2 o 3 opciones claras de implementación (Opción A, Opción B).
-2. Preguntarle al usuario cuál prefiere o qué detalle desea priorizar.
-3. Al final, incluye una lista de 3 sugerencias accionables que el usuario puede pulsar directamente.`;
+1. Presenta un plan conciso y natural con 2 o 3 opciones claras de implementación (Opción A, Opción B).
+2. Pregúntale al usuario cuál prefiere o qué detalle desea priorizar.
+3. Sé conversacional, cálido y enfocado en resolver el objetivo del usuario.`;
 
       const planUserPrompt = `IDEA O CONSULTA DEL USUARIO:
 "${userInstruction}"
 
 CÓDIGO ACTUAL (si existe):
 \`\`\`html
-${currentCode.slice(0, 2500)}
+${currentCode.slice(0, 2000)}
 \`\`\`
 
-Propón la arquitectura y opciones interactivas:`;
+Propón la arquitectura y opciones interactivas de forma natural:`;
 
       let responseText = '';
       await this.aiProvider.streamChat(
@@ -123,7 +143,7 @@ Propón la arquitectura y opciones interactivas:`;
           responseText = full;
           onProgress(full, false);
         },
-        { signal: options?.signal, model: 'qwen/qwen-2.5-coder-32b-instruct', temperature: 0.3 }
+        { signal: options?.signal, model: 'qwen/qwen3.8-27b', temperature: 0.3 }
       );
 
       agentEvents.emit('agent.completed', 'Propuesta de arquitectura y co-creación generada.');
@@ -145,7 +165,7 @@ Propón la arquitectura y opciones interactivas:`;
     if (intent.type === 'FULL_BUILD') {
       let agentStepsLog = '';
 
-      const { fullCode, summary } = await multiAgentEngine.executeAutonomousPipeline(
+      const { fullCode } = await multiAgentEngine.executeAutonomousPipeline(
         userInstruction,
         currentCode,
         true, // isNew
@@ -176,8 +196,14 @@ Propón la arquitectura y opciones interactivas:`;
         arguments: {}
       }, project);
 
+      const naturalSummary = await this.generateNaturalSummary(
+        userInstruction,
+        'Creación de nueva aplicación completa',
+        'Se generó la estructura HTML5, estilos Tailwind, escena 3D / lógica de estado y controles interactivos'
+      );
+
       agentEvents.emit('agent.completed', 'Software construido y desplegado en vivo con éxito.');
-      return { responseText: summary, updatedProject: project, intent };
+      return { responseText: naturalSummary, updatedProject: project, intent };
     }
 
     // =========================================================================
@@ -205,10 +231,14 @@ Propón la arquitectura y opciones interactivas:`;
       arguments: {}
     }, project);
 
-    const editSummary = `⚡ **Modificación Quirúrgica Aplicada con Éxito**:\n- **Diagnóstico**: ${intent.reason}\n- **Estado**: Componentes y eventos actualizados en vivo sin regenerar el resto de la aplicación.`;
-    agentEvents.emit('agent.completed', 'Modificación quirúrgica finalizada.');
+    const naturalEditSummary = await this.generateNaturalSummary(
+      userInstruction,
+      'Corrección quirúrgica de componentes y eventos',
+      intent.reason || 'Se actualizaron los listeners, botones y lógica en caliente'
+    );
 
-    return { responseText: editSummary, updatedProject: project, intent };
+    agentEvents.emit('agent.completed', 'Modificación quirúrgica finalizada.');
+    return { responseText: naturalEditSummary, updatedProject: project, intent };
   }
 }
 

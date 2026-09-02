@@ -179,15 +179,47 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       </script>
     `;
 
+    const runtimePolyfills = `
+      <script src="https://cdn.tailwindcss.com"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+      <script src="https://unpkg.com/lucide@latest"></script>
+    `;
+
     let compiled = htmlFile;
     if (compiled.includes('<head>')) {
-      compiled = compiled.replace('<head>', `<head>${consoleCaptureScript}${inspectElementScript}${audioPolyfillScript}`);
+      compiled = compiled.replace('<head>', `<head>${runtimePolyfills}${consoleCaptureScript}${inspectElementScript}${audioPolyfillScript}`);
+    } else if (compiled.includes('<!DOCTYPE html>') || compiled.includes('<html')) {
+      compiled = compiled.replace(/<html[^>]*>/, `$&<head>${runtimePolyfills}${consoleCaptureScript}${inspectElementScript}${audioPolyfillScript}</head>`);
     } else {
-      compiled = `${consoleCaptureScript}${inspectElementScript}${audioPolyfillScript}${compiled}`;
+      // If code is pure React JSX or body snippet, wrap it in a complete HTML/Babel shell
+      compiled = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  ${runtimePolyfills}
+  ${consoleCaptureScript}
+  ${inspectElementScript}
+  ${audioPolyfillScript}
+</head>
+<body class="bg-slate-950 text-white min-h-screen font-sans">
+  <div id="root">${compiled.includes('<div') ? compiled : ''}</div>
+</body>
+</html>`;
     }
 
     return compiled;
   }, [htmlFile, isInspectMode]);
+
+  // Auto-clear console logs on new generation or file update
+  useEffect(() => {
+    setConsoleLogs([]);
+  }, [htmlFile]);
 
   // Handle postMessage logs and element inspection from iframe
   useEffect(() => {

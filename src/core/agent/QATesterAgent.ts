@@ -85,11 +85,21 @@ export class QATesterAgent {
       }
     }
 
-    // 4. Interactivity Check: if buttons exist, script MUST have event handlers
+    // 4. Interactivity & DOM Element Matching Check
     const hasButtons = /<button/i.test(repaired);
     const hasScriptHandlers = /addEventListener|onclick|querySelector/i.test(repaired);
     if (hasButtons && (totalScriptLength < 80 || !hasScriptHandlers)) {
       errors.push('La aplicación contiene botones interactivos pero carece de listeners o funciones JavaScript en <script>.');
+    }
+
+    // Check for getElementById references that don't exist in HTML
+    const getElementByIdMatches = repaired.matchAll(/document\.getElementById\(['"]([^'"]+)['"]\)/g);
+    for (const m of getElementByIdMatches) {
+      const elId = m[1];
+      const idRegex = new RegExp(`id=["']${elId}["']`, 'i');
+      if (!idRegex.test(repaired)) {
+        errors.push(`El script intenta acceder al elemento con id="${elId}", pero no existe en el DOM HTML.`);
+      }
     }
 
     // 5. Domain Detection & Feature Scoring
