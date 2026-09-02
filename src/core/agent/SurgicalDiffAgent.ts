@@ -1,5 +1,6 @@
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { NONA_MASTER_SYSTEM_PROMPT_V5 } from './PromptGuardrails';
+import { qaTesterAgent } from './QATesterAgent';
 
 export class SurgicalDiffAgent {
   private aiProvider: OllamaProvider;
@@ -29,7 +30,8 @@ export class SurgicalDiffAgent {
       'no pasa nada', 'no funciona', 'no inicia', 'edita eso', 'arregla', 'corrige',
       'cuando presiono', 'al hacer click', 'al hacer clic', 'el botón', 'el boton',
       'cambia', 'modifica', 'agrega', 'añade', 'elimina', 'quita', 'pon de color',
-      'haz que', 'más rápido', 'más lento', 'aumenta', 'reduce', 'error', 'bug'
+      'haz que', 'más rápido', 'más lento', 'aumenta', 'reduce', 'error', 'bug',
+      'cambia el color', 'rosado', 'azul', 'verde', 'nubes', 'universo', 'fondo'
     ];
 
     if (fixAndEditKeywords.some(kw => lower.includes(kw))) {
@@ -49,8 +51,29 @@ export class SurgicalDiffAgent {
     return false;
   }
 
+  private isCodeIncomplete(code: string): boolean {
+    if (!code || code.length < 100) return true;
+    const trimmed = code.trim();
+    if (!trimmed.endsWith('</html>') && !trimmed.endsWith('</script>')) return true;
+    if (code.includes('<script') && !code.includes('</script>')) return true;
+    if (!code.includes('</html>')) return true;
+    return false;
+  }
+
+  private cleanCodeBlock(raw: string): string {
+    const match = raw.match(/```html(?:\s+filename=[^\n]+)?\n([\s\S]*)/);
+    if (match) {
+      return match[1].replace(/```\s*$/, '').trim();
+    }
+    if (raw.includes('<!DOCTYPE html>')) {
+      const idx = raw.indexOf('<!DOCTYPE html>');
+      return raw.slice(idx).replace(/```\s*$/, '').trim();
+    }
+    return raw.replace(/```\s*$/, '').trim();
+  }
+
   /**
-   * Executes a surgical component / bug fix edit on the existing code.
+   * Executes a surgical component / bug fix edit on the existing code with Auto-Continuation.
    */
   public async applySurgicalEdit(
     userInstruction: string,
@@ -60,49 +83,78 @@ export class SurgicalDiffAgent {
   ): Promise<string> {
     const systemPrompt = `${NONA_MASTER_SYSTEM_PROMPT_V5}
 
-Eres NONA SURGICAL DIFF & BUG-FIX AGENT.
-Tu misión es analizar el código existente, diagnosticar el problema reportado por el usuario (ej: botón que no responde, función no llamada, clase hidden no removida, error en consola) y entregar el código COMPLETO, 100% REPARADO Y FUNCIONAL.
+Eres NONA SURGICAL DIFF & PRECISION EDIT AGENT (Arquitectura v10.0).
+Tu misión es aplicar la modificación o corrección solicitada por el usuario sobre el código existente.
 
-REGLAS ESTRICTAS:
-1. Localiza el botón, función o listener que falla y corrígelo con exactitud.
-2. Si el botón "Jugar" o "Start" no responde, asegúrate de que tenga:
-   \`document.getElementById('play-btn').onclick = () => { document.getElementById('start-screen').classList.add('hidden'); gameRunning = true; startGame(); };\`
-   y que NO tenga clases CSS de "pointer-events: none" bloqueando el clic.
-3. Devuelve el código COMPLETO actualizado en un único bloque:
-\`\`\`html filename=index.html
-<!DOCTYPE html>
-...
-</html>
-\`\`\`
-4. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`. Cero texto de conversación.`;
+REGLAS CRÍTICAS:
+1. El código resultante debe ser 100% COMPLETO, PULIDO Y CON TODAS SUS FUNCIONES JAVASCRIPT FUNCIONANDO.
+2. Si es una calculadora: DEBE tener la lógica de cálculo completa (sumar, restar, multiplicar, dividir, borrar, decimales, soporte de teclado), visualizador LCD y sonidos. NUNCA dejes una calculadora sin su lógica de cálculo en JavaScript.
+3. Si es un juego o escena 3D (Three.js): DEBE tener la escena completa (cámara, luces, bucle de animación \`requestAnimationFrame\`, partículas de nubes/universo y controles).
+4. Usa Tailwind CSS para la interfaz visual para no malgastar tokens en bloques CSS gigantes.
+5. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`. Cero texto de conversación.`;
 
     const userPrompt = `CÓDIGO ACTUAL EXISTENTE:
 \`\`\`html
 ${currentCode}
 \`\`\`
 
-INSTRUCCIÓN DE CORRECCIÓN / MODIFICACIÓN DEL USUARIO:
+MODIFICACIÓN / SOLICITUD DEL USUARIO:
 "${userInstruction}"
 
-Corrige el problema con precisión y devuelve el archivo index.html completo y 100% funcional:`;
+Aplica la modificación con precisión y entrega el archivo index.html COMPLETO, con toda su lógica JavaScript, eventos y Three.js 100% funcionales. Inicia con \`\`\`html filename=index.html:`;
 
-    const fullResponse = await this.aiProvider.streamChat(
+    let fullResponse = '';
+    await this.aiProvider.streamChat(
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      (token, full) => onStream(token, full),
-      { signal, model: 'openai/gpt-oss-120b', maxTokens: 3500 }
+      (token, full) => {
+        fullResponse = full;
+        onStream(token, full);
+      },
+      { signal, model: 'qwen/qwen3.8-27b', maxTokens: 4500, temperature: 0.15 }
     );
 
-    const match = fullResponse.match(/```html(?:\s+filename=[^\n]+)?\n([\s\S]*)/);
-    if (match) {
-      return match[1].replace(/```\s*$/, '').trim();
-    } else if (fullResponse.includes('<!DOCTYPE html>')) {
-      const idx = fullResponse.indexOf('<!DOCTYPE html>');
-      return fullResponse.slice(idx).replace(/```\s*$/, '').trim();
+    let patchedCode = this.cleanCodeBlock(fullResponse);
+
+    // Auto-Continuation Loop for Surgical Edits
+    let continuationAttempts = 0;
+    while (this.isCodeIncomplete(patchedCode) && continuationAttempts < 2) {
+      continuationAttempts++;
+      const lastChunk = patchedCode.slice(-1200);
+      const continuationPrompt = `El código anterior se interrumpió aquí:
+\`\`\`
+${lastChunk}
+\`\`\`
+
+Continúa EXACTAMENTE desde la última línea sin repetir nada del código previo, completando todas las funciones JavaScript, eventos de clic, Three.js y concluyendo con </script></body></html>:`;
+
+      let continuationOutput = '';
+      try {
+        await this.aiProvider.streamChat(
+          [
+            { role: 'system', content: `${NONA_MASTER_SYSTEM_PROMPT_V5}\nEres el CONTINUATION ENGINE de NONA. Continúa el código exactamente donde se quedó.` },
+            { role: 'user', content: continuationPrompt }
+          ],
+          (token, full) => {
+            continuationOutput = full;
+            onStream(token, full);
+          },
+          { signal, model: 'qwen/qwen3.8-27b', maxTokens: 3500, temperature: 0.1 }
+        );
+
+        let cleanedContinuation = continuationOutput.replace(/^```html(?:\s+filename=[^\n]+)?\n/, '').replace(/```\s*$/, '').trim();
+        patchedCode = patchedCode + '\n' + cleanedContinuation;
+      } catch (err) {
+        console.warn('Surgical auto-continuation fallback', err);
+        break;
+      }
     }
-    return fullResponse.replace(/```\s*$/, '').trim();
+
+    // Run QA syntax & tag closure
+    const qaReport = qaTesterAgent.testAndAudit(patchedCode, userInstruction);
+    return qaReport.repairedCode || patchedCode;
   }
 }
 
