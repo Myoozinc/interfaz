@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import confetti from 'canvas-confetti';
+import { 
+  FolderClosed, 
+  ChevronDown, 
+  Eye, 
+  Code2, 
+  Columns, 
+  X, 
+  MessageSquare 
+} from 'lucide-react';
 import { Header } from './components/Header';
 import { SidebarFiles } from './components/SidebarFiles';
 import { EditorPanel } from './components/EditorPanel';
@@ -16,19 +26,30 @@ import { DiagnosticsPage } from './components/DiagnosticsPage';
 import { AgentActivityStream } from './components/AgentActivityStream';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import type { FileItem, ProjectRecord, ProjectTemplate, UserCredits, UserAccount, ChatMessage } from './types';
+import type { FullStackProject } from './core/types';
 import { projectStore } from './services/projectStore';
 import { STARTER_TEMPLATES } from './services/templates';
 import { aiEngine } from './services/aiGenerator';
 import { agentOrchestrator } from './core/agent/AgentOrchestrator';
+import { creditLedger } from './core/credits/CreditLedger';
 
 export function App() {
-  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('split');
+  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('nona_sidebar_open');
     return saved !== null ? saved === 'true' : true;
   });
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+
+  // Workspace layout state (Preview active by default, files and editor collapsible)
+  const [isFilesDrawerOpen, setIsFilesDrawerOpen] = useState(false);
+  const [workspaceCenterTab, setWorkspaceCenterTab] = useState<'preview' | 'code' | 'split'>('preview');
+
+  // Agent execution state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [thinkingText, setThinkingText] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Resizable Panels State
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -338,9 +359,143 @@ export function App() {
     saveAs(blob, `${projectName.toLowerCase().replace(/\s+/g, '-')}-nona.zip`);
   };
 
-  const handleStartFromHero = (prompt: string) => {
-    setPendingPrompt(prompt);
-    setViewMode('split');
+  const handleSendMessage = async (
+    customPrompt?: string, 
+    modeOverride?: 'chat' | 'builder', 
+    customImages?: string[]
+  ) => {
+    let promptToSend = (customPrompt || pendingPrompt || '').trim();
+    if (!promptToSend && (!customImages || customImages.length === 0) && !inspectedElement) return;
+
+    if (inspectedElement) {
+      promptToSend = `[Elemento Seleccionado en Vista Previa: ${inspectedElement}]\n${promptToSend}`;
+      setInspectedElement(null);
+    }
+
+    const executionMode: 'chat' | 'builder' = modeOverride || (viewMode === 'chat' ? 'chat' : 'builder');
+
+    if (!handleDeductCredit(5)) {
+      alert('⚠️ No tienes suficientes créditos para esta generación (requiere 5 créditos).');
+      return;
+    }
+
+    const userMessageId = Date.now().toString();
+    const imgs = customImages && customImages.length > 0 ? customImages : undefined;
+    const newUserMsg: ChatMessage = {
+      id: userMessageId,
+      role: 'user',
+      content: promptToSend,
+      images: imgs,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    const assistantPlaceholderId = (Date.now() + 1).toString();
+    const assistantMsg: ChatMessage = {
+      id: assistantPlaceholderId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages(prev => [...prev, newUserMsg, assistantMsg]);
+    setIsGenerating(true);
+    setThinkingText(
+      executionMode === 'chat'
+        ? '🧠 Cadena Multi-Agente: Analizando contexto del chat e ideando plan...'
+        : '⚡ NONA Autonomous Engine: Sintetizando y verificando software...'
+    );
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    try {
+      const projectPayload: FullStackProject = {
+        id: activeProjectId || 'workspace_proj',
+        name: projectName,
+        description: 'Auto-generated with NONA AI Engine',
+        files: files.reduce((acc, f) => {
+          acc[f.name] = {
+            path: f.name,
+            content: f.content,
+            language: f.language,
+          };
+          return acc;
+        }, {} as FullStackProject['files']),
+        environmentVariables: {},
+        framework: 'html-tailwind',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const result = await agentOrchestrator.run(
+        promptToSend,
+        projectPayload,
+        (progressText: string) => {
+          setThinkingText(progressText);
+        },
+        {
+          images: imgs,
+          signal: abortController.signal,
+          history: [...messages, newUserMsg],
+          mode: executionMode,
+        }
+      );
+
+      // If code was created or modified, update workspace files
+      if (result.intent.type === 'FULL_BUILD' || result.intent.type === 'SURGICAL_EDIT') {
+        const updatedFileList: FileItem[] = Object.entries(result.updatedProject.files).map(([name, file], idx) => ({
+          id: (idx + 1).toString(),
+          name,
+          language: file.language as any,
+          content: file.content,
+          isModified: true,
+        }));
+        setFiles(updatedFileList);
+
+        if (executionMode === 'builder') {
+          setViewMode('split');
+          setWorkspaceCenterTab('preview');
+        }
+
+        confetti({
+          particleCount: 50,
+          spread: 80,
+          origin: { y: 0.7 },
+          colors: ['#6366F1', '#7C3AED', '#A855F7', '#10B981']
+        });
+      }
+
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === assistantPlaceholderId
+            ? { 
+                ...msg, 
+                content: result.responseText, 
+                intent: result.intent.type, 
+                actionChips: result.actionChips 
+              }
+            : msg
+        )
+      );
+
+      creditLedger.deductCredits(5, `NONA [${result.intent.type}]: "${promptToSend.slice(0, 30)}..."`);
+
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        creditLedger.refundCredits(5, 'Reembolso por fallo en generación');
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === assistantPlaceholderId
+              ? { ...msg, content: `⚠️ Error: ${err.message}` }
+              : msg
+          )
+        );
+      }
+    } finally {
+      setIsGenerating(false);
+      setThinkingText('');
+      abortControllerRef.current = null;
+    }
   };
 
   const handleInsertAssetToCode = (assetUrl: string, prompt: string) => {
@@ -413,53 +568,152 @@ export function App() {
           {/* Center Main View Area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {viewMode === 'chat' ? (
-              /* Mode 1: Central Hero Chat View */
+              /* Mode 1: Central Conversational Multi-Agent View */
               <HeroChatView
-                onStartGeneration={handleStartFromHero}
+                messages={messages}
+                onSendMessage={(prompt, mode) => handleSendMessage(prompt, mode)}
                 creditsBalance={credits.balance}
-                onOpenWorkspace={() => setViewMode('split')}
+                onOpenWorkspace={() => {
+                  setViewMode('split');
+                  setWorkspaceCenterTab('preview');
+                }}
+                onNewCleanProject={handleNewCleanProject}
                 inspectedElement={inspectedElement}
                 onClearInspectedElement={() => setInspectedElement(null)}
+                isGenerating={isGenerating}
+                thinkingText={thinkingText}
               />
             ) : (
-              /* Mode 2: Multi-panel Workspace with Resizable Splitters */
+              /* Mode 2: Multi-panel Workspace with Preview-First Default Layout */
               <div className="flex-1 flex flex-col overflow-hidden">
-              
-              <div className="flex-1 flex overflow-hidden relative">
                 
-                {/* Left: File Explorer with Resizable Width */}
-                {(viewMode === 'split' || viewMode === 'editor') && (
-                  <div style={{ width: `${sidebarWidth}px` }} className="shrink-0 flex flex-col h-full overflow-hidden">
-                    <SidebarFiles
-                      files={files}
-                      activeFileId={activeFileId}
-                      onSelectFile={handleSelectFile}
-                      onAddFile={handleAddFile}
-                      onDeleteFile={handleDeleteFile}
-                      onLoadTemplate={handleLoadTemplate}
-                    />
+                {/* Workspace Sub-Toolbar for Collapsible Elements */}
+                <div className="h-10 px-3 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0 select-none text-xs">
+                  
+                  {/* Left: Collapsible Files Drawer Toggle */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsFilesDrawerOpen(prev => !prev)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        isFilesDrawerOpen
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs'
+                          : 'bg-slate-100/90 text-slate-600 hover:text-slate-900 border border-slate-200/70 hover:bg-slate-200/70'
+                      }`}
+                      title={isFilesDrawerOpen ? 'Ocultar panel de archivos' : 'Mostrar explorador de archivos desplegable'}
+                    >
+                      <FolderClosed className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Archivos ({files.length})</span>
+                      <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isFilesDrawerOpen ? 'rotate-180' : ''}`} />
+                    </button>
                   </div>
-                )}
 
-                {/* Splitter Handle 1: Sidebar / Workspace */}
-                {(viewMode === 'split' || viewMode === 'editor') && (
-                  <div
-                    onMouseDown={() => {
-                      resizingTargetRef.current = 'sidebar';
-                      document.body.style.cursor = 'col-resize';
-                    }}
-                    title="Arrastra para redimensionar explorador"
-                    className="w-1 hover:w-1.5 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
-                  />
-                )}
+                  {/* Center: Segmented Controls for Center View (Preview by default, Code, or Split) */}
+                  <div className="flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/70 text-[11px] font-medium">
+                    <button
+                      onClick={() => setWorkspaceCenterTab('preview')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                        workspaceCenterTab === 'preview'
+                          ? 'bg-white text-indigo-600 font-bold shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Vista Previa (Activa)</span>
+                    </button>
 
-                {/* Center Workspace (Editor & Live Preview) */}
+                    <button
+                      onClick={() => setWorkspaceCenterTab('code')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                        workspaceCenterTab === 'code'
+                          ? 'bg-white text-indigo-600 font-bold shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Code2 className="w-3.5 h-3.5" />
+                      <span>Editor de Código</span>
+                    </button>
+
+                    <button
+                      onClick={() => setWorkspaceCenterTab('split')}
+                      className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                        workspaceCenterTab === 'split'
+                          ? 'bg-white text-indigo-600 font-bold shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Columns className="w-3.5 h-3.5" />
+                      <span>Dividir Ambos</span>
+                    </button>
+                  </div>
+
+                  {/* Right: Quick shortcut back to chat mode */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setViewMode('chat')}
+                      className="flex items-center gap-1 px-2.5 py-1 text-slate-500 hover:text-indigo-600 font-semibold rounded-xl hover:bg-indigo-50 transition-colors cursor-pointer text-[11px]"
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                      <span>Ir a Modo Chat</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="flex-1 flex overflow-hidden relative">
                   
-                  {/* Mode Split: Both Editor & Preview with Splitter */}
-                  {viewMode === 'split' && (
+                  {/* Collapsible Left: File Explorer Drawer */}
+                  {isFilesDrawerOpen && (
                     <>
-                      <div style={{ flex: splitRatio }} className="h-full overflow-hidden">
+                      <div style={{ width: `${sidebarWidth}px` }} className="shrink-0 flex flex-col h-full overflow-hidden bg-slate-50 border-r border-slate-200 z-10">
+                        <div className="flex items-center justify-between p-2 border-b border-slate-200 bg-white">
+                          <span className="text-[11px] font-bold text-slate-700">Explorador de Archivos</span>
+                          <button
+                            onClick={() => setIsFilesDrawerOpen(false)}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <SidebarFiles
+                            files={files}
+                            activeFileId={activeFileId}
+                            onSelectFile={handleSelectFile}
+                            onAddFile={handleAddFile}
+                            onDeleteFile={handleDeleteFile}
+                            onLoadTemplate={handleLoadTemplate}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Splitter Handle 1: Sidebar / Center */}
+                      <div
+                        onMouseDown={() => {
+                          resizingTargetRef.current = 'sidebar';
+                          document.body.style.cursor = 'col-resize';
+                        }}
+                        title="Arrastra para redimensionar explorador"
+                        className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
+                      />
+                    </>
+                  )}
+
+                  {/* Center Workspace: Preview by default, or Code, or Split */}
+                  <div className="flex-1 flex overflow-hidden relative">
+                    
+                    {/* 1. Preview Only (DEFAULT!) */}
+                    {workspaceCenterTab === 'preview' && (
+                      <div className="flex-1 h-full overflow-hidden">
+                        <PreviewPanel
+                          files={files}
+                          onElementSelect={(info) => setInspectedElement(info.selector ? `${info.tagName} (${info.selector})` : info.outerHTML)}
+                          onAutoFixErrors={(errors) => handleSendMessage('Corrige los siguientes errores de ejecución en consola y haz que el botón de jugar y todos los eventos funcionen al 100%:\n' + errors.map(e => '- ' + e).join('\n'), 'builder')}
+                        />
+                      </div>
+                    )}
+
+                    {/* 2. Code Editor Only */}
+                    {workspaceCenterTab === 'code' && (
+                      <div className="flex-1 h-full overflow-hidden">
                         <EditorPanel
                           files={files}
                           activeFileId={activeFileId}
@@ -467,86 +721,79 @@ export function App() {
                           onFileChange={handleFileChange}
                         />
                       </div>
+                    )}
 
-                      {/* Splitter Handle 2: Editor / Preview */}
-                      <div
-                        onMouseDown={() => {
-                          resizingTargetRef.current = 'split';
-                          document.body.style.cursor = 'col-resize';
-                        }}
-                        title="Arrastra para redimensionar editor y preview"
-                        className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
-                      />
+                    {/* 3. Both Side-by-Side (Split) */}
+                    {workspaceCenterTab === 'split' && (
+                      <>
+                        <div style={{ flex: splitRatio }} className="h-full overflow-hidden">
+                          <EditorPanel
+                            files={files}
+                            activeFileId={activeFileId}
+                            onSelectFile={handleSelectFile}
+                            onFileChange={handleFileChange}
+                          />
+                        </div>
 
-                      <div style={{ flex: 1 - splitRatio }} className="h-full overflow-hidden">
-                        <PreviewPanel
-                          files={files}
-                          onElementSelect={(info) => setInspectedElement(info.selector ? `${info.tagName} (${info.selector})` : info.outerHTML)}
-                          onAutoFixErrors={(errors) => setPendingPrompt('Corrige los siguientes errores de ejecución en consola y haz que el botón de jugar y todos los eventos funcionen al 100%:\n' + errors.map(e => '- ' + e).join('\n'))}
+                        <div
+                          onMouseDown={() => {
+                            resizingTargetRef.current = 'split';
+                            document.body.style.cursor = 'col-resize';
+                          }}
+                          title="Arrastra para redimensionar editor y preview"
+                          className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
                         />
-                      </div>
-                    </>
-                  )}
 
-                  {/* Mode Editor Only */}
-                  {viewMode === 'editor' && (
-                    <div className="flex-1 h-full overflow-hidden">
-                      <EditorPanel
-                        files={files}
-                        activeFileId={activeFileId}
-                        onSelectFile={handleSelectFile}
-                        onFileChange={handleFileChange}
-                      />
-                    </div>
-                  )}
+                        <div style={{ flex: 1 - splitRatio }} className="h-full overflow-hidden">
+                          <PreviewPanel
+                            files={files}
+                            onElementSelect={(info) => setInspectedElement(info.selector ? `${info.tagName} (${info.selector})` : info.outerHTML)}
+                            onAutoFixErrors={(errors) => handleSendMessage('Corrige los siguientes errores de ejecución en consola y haz que el botón de jugar y todos los eventos funcionen al 100%:\n' + errors.map(e => '- ' + e).join('\n'), 'builder')}
+                          />
+                        </div>
+                      </>
+                    )}
 
-                  {/* Mode Preview Only */}
-                  {viewMode === 'preview' && (
-                    <div className="flex-1 h-full overflow-hidden">
-                      <PreviewPanel
-                        files={files}
-                        onElementSelect={(info) => setInspectedElement(info.selector ? `${info.tagName} (${info.selector})` : info.outerHTML)}
-                        onAutoFixErrors={(errors) => setPendingPrompt('Corrige los siguientes errores de ejecución en consola y haz que el botón de jugar y todos los eventos funcionen al 100%:\n' + errors.map(e => '- ' + e).join('\n'))}
-                      />
-                    </div>
-                  )}
+                  </div>
 
-                </div>
-
-                {/* Splitter Handle 3: Workspace / Chat Panel */}
-                <div
-                  onMouseDown={() => {
-                    resizingTargetRef.current = 'chat';
-                    document.body.style.cursor = 'col-resize';
-                  }}
-                  title="Arrastra para redimensionar panel de chat"
-                  className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
-                />
-
-                {/* Right: AI Agent Core Chat Panel with Resizable Width */}
-                <div style={{ width: `${chatWidth}px` }} className="shrink-0 flex flex-col h-full overflow-hidden">
-                  <ChatPanel
-                    files={files}
-                    messages={messages}
-                    setMessages={setMessages}
-                    onUpdateFiles={setFiles}
-                    onDeductCredit={handleDeductCredit}
-                    pendingPrompt={pendingPrompt}
-                    onClearPendingPrompt={() => setPendingPrompt(null)}
-                    onNewProject={handleNewCleanProject}
-                    onSwitchView={(v) => setViewMode(v)}
-                    inspectedElement={inspectedElement}
-                    onClearInspectedElement={() => setInspectedElement(null)}
+                  {/* Splitter Handle 3: Workspace / Chat Panel */}
+                  <div
+                    onMouseDown={() => {
+                      resizingTargetRef.current = 'chat';
+                      document.body.style.cursor = 'col-resize';
+                    }}
+                    title="Arrastra para redimensionar panel de chat"
+                    className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
                   />
+
+                  {/* Right: AI Agent Core Chat Panel with Resizable Width */}
+                  <div style={{ width: `${chatWidth}px` }} className="shrink-0 flex flex-col h-full overflow-hidden">
+                    <ChatPanel
+                      files={files}
+                      messages={messages}
+                      setMessages={setMessages}
+                      onUpdateFiles={setFiles}
+                      onDeductCredit={handleDeductCredit}
+                      pendingPrompt={pendingPrompt}
+                      onClearPendingPrompt={() => setPendingPrompt(null)}
+                      onNewProject={handleNewCleanProject}
+                      onSwitchView={(v) => {
+                        if (v === 'preview') setWorkspaceCenterTab('preview');
+                        else if (v === 'editor') setWorkspaceCenterTab('code');
+                        else setWorkspaceCenterTab('split');
+                      }}
+                      inspectedElement={inspectedElement}
+                      onClearInspectedElement={() => setInspectedElement(null)}
+                    />
+                  </div>
+
                 </div>
+
+                {/* Bottom: Live Agent Activity Stream */}
+                <AgentActivityStream />
 
               </div>
-
-              {/* Bottom: Live Agent Activity Stream */}
-              <AgentActivityStream />
-
-            </div>
-          )}
+            )}
 
           </div>
         </div>

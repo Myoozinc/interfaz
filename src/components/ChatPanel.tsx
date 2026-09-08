@@ -16,6 +16,7 @@ import type { FullStackProject } from '../core/types';
 import { agentOrchestrator } from '../core/agent/AgentOrchestrator';
 import { creditLedger } from '../core/credits/CreditLedger';
 import { FloatingOmnibar } from './FloatingOmnibar';
+import { MarkdownViewer } from './MarkdownViewer';
 
 interface ChatPanelProps {
   files: FileItem[];
@@ -112,7 +113,7 @@ export const ChatPanel = ({
     setTimeout(() => setCopiedMsgId(null), 2000);
   };
 
-  const handleSendMessage = async (customPrompt?: string) => {
+  const handleSendMessage = async (customPrompt?: string, modeOverride?: 'chat' | 'builder') => {
     let promptToSend = (customPrompt || inputPrompt).trim();
     if (!promptToSend && attachedImages.length === 0 && !inspectedElement) return;
 
@@ -183,7 +184,8 @@ export const ChatPanel = ({
         {
           images: currentImages.length > 0 ? currentImages : undefined,
           signal: abortController.signal,
-          history: messages,
+          history: [...messages, newUserMsg],
+          mode: modeOverride,
         }
       );
 
@@ -197,6 +199,7 @@ export const ChatPanel = ({
           isModified: true,
         }));
         onUpdateFiles(updatedFileList);
+        if (onSwitchView) onSwitchView('preview');
       }
 
       setMessages(prev =>
@@ -337,9 +340,11 @@ export const ChatPanel = ({
                   </div>
                 )}
 
-                <div className="whitespace-pre-wrap font-sans">
-                  {msg.content}
-                </div>
+                {isUser ? (
+                  <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
+                ) : (
+                  <MarkdownViewer content={msg.content} />
+                )}
 
                 {/* Interactive Action Chips (Lovable / Antigravity Style) */}
                 {!isUser && msg.actionChips && msg.actionChips.length > 0 && (
@@ -347,10 +352,28 @@ export const ChatPanel = ({
                     {msg.actionChips.map((chip, cIdx) => (
                       <button
                         key={cIdx}
-                        onClick={() => handleSendMessage(chip)}
-                        className="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 text-indigo-700 text-[11px] font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 cursor-pointer shadow-2xs"
+                        onClick={() => {
+                          if (chip.includes('Construir y Ver en Preview')) {
+                            handleSendMessage(chip, 'builder');
+                          } else if (chip.includes('Ver Preview Actual')) {
+                            if (onSwitchView) onSwitchView('preview');
+                          } else {
+                            handleSendMessage(chip, 'chat');
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 cursor-pointer shadow-2xs ${
+                          chip.includes('Construir y Ver en Preview')
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            : chip.includes('Ver Preview Actual')
+                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                            : 'bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 text-indigo-700'
+                        }`}
                       >
-                        <Sparkles className="w-3 h-3 text-indigo-500" />
+                        {chip.includes('Construir y Ver en Preview') ? (
+                          <Play className="w-3 h-3 fill-current" />
+                        ) : (
+                          <Sparkles className="w-3 h-3" />
+                        )}
                         <span>{chip}</span>
                       </button>
                     ))}

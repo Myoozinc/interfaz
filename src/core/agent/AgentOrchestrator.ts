@@ -7,6 +7,7 @@ import { multiAgentEngine } from './MultiAgentEngine';
 import { surgicalDiffAgent } from './SurgicalDiffAgent';
 import { intentRouter, type IntentClassificationResult } from './IntentRouter';
 import { formatConversationHistory } from './historyUtils';
+import { multiAgentPlanPipeline } from './MultiAgentPlanPipeline';
 
 export interface AgentExecutionResult {
   responseText: string;
@@ -28,11 +29,13 @@ export class AgentOrchestrator {
     this.aiProvider.setBaseUrl(url);
     multiAgentEngine.setEndpoint(url);
     surgicalDiffAgent.setEndpoint(url);
+    multiAgentPlanPipeline.setEndpoint(url);
   }
 
   setModel(model: string) {
     this.aiProvider.setDefaultModel(model);
     surgicalDiffAgent.setModel(model);
+    multiAgentPlanPipeline.setModel(model);
   }
 
   private async generateNaturalSummary(userInstruction: string, actionType: string, detailContext: string): Promise<string> {
@@ -67,6 +70,7 @@ Sé conciso, empático, sin plantillas robóticas ni encabezados genéricos.`;
       links?: string[];
       signal?: AbortSignal;
       history?: ChatMessage[];
+      mode?: 'chat' | 'builder';
     }
   ): Promise<AgentExecutionResult> {
     const mainFile = project.files['index.html'] || Object.values(project.files)[0];
@@ -130,53 +134,32 @@ Responde de forma clara, natural y profesional:`;
     }
 
     // =========================================================================
-    // MODE 2: 🗺️ INTERACTIVE_PLAN (Co-Creation / Interactive Interview)
+    // MODE 2: 🗺️ INTERACTIVE_PLAN / CHAT MODE (Chain of 3 Specialized Agents)
     // =========================================================================
-    if (intent.type === 'INTERACTIVE_PLAN') {
-      onProgress('🗺️ NONA Interactive Architect\n*(Diseñando propuesta y opciones de desarrollo...)*', true);
+    // If the user selected 'chat' mode or asked an architectural planning request,
+    // execute the 3-agent chain (Context Gatherer -> Creative Ideator -> Plan Orchestrator)
+    if (options?.mode === 'chat' || intent.type === 'INTERACTIVE_PLAN') {
+      onProgress('🧠 Cadena Multi-Agente NONA\n*(Agente 1: Analizando historial completo del chat...)*', true);
 
-      const historyText = formatConversationHistory(options?.history, 6);
-      const historyContext = historyText ? `\nHISTORIAL DE CONVERSACIÓN:\n${historyText}\n` : '';
-
-      const planSystemPrompt = `Eres NONA LEAD PRODUCT ARCHITECT (Estándar Lovable / Google Antigravity).
-El usuario tiene una idea abierta o está buscando asesoramiento sobre cómo construir o evolucionar su proyecto.
-1. Presenta un plan conciso y natural con 2 o 3 opciones claras de implementación (Opción A, Opción B).
-2. Pregúntale al usuario cuál prefiere o qué detalle desea priorizar.
-3. Sé conversacional, cálido y enfocado en resolver el objetivo del usuario.`;
-
-      const planUserPrompt = `${historyContext}
-IDEA O CONSULTA DEL USUARIO:
-"${userInstruction}"
-
-CÓDIGO ACTUAL (si existe):
-\`\`\`html
-${currentCode.slice(0, 2000)}
-\`\`\`
-
-Propón la arquitectura y opciones interactivas de forma natural:`;
-
-      let responseText = '';
-      await this.aiProvider.streamChat(
-        [
-          { role: 'system', content: planSystemPrompt },
-          { role: 'user', content: planUserPrompt }
-        ],
+      const planResponse = await multiAgentPlanPipeline.executeConversationalPipeline(
+        userInstruction,
+        options?.history || [],
+        currentCode,
         (_token, full) => {
-          responseText = full;
           onProgress(full, false);
         },
-        { signal: options?.signal, model: 'qwen/qwen3.8-27b', temperature: 0.3 }
+        options?.signal
       );
 
-      agentEvents.emit('agent.completed', 'Propuesta de arquitectura y co-creación generada.');
+      agentEvents.emit('agent.completed', 'Propuesta de arquitectura y plan interactivo generados.');
       return {
-        responseText,
+        responseText: planResponse,
         updatedProject: project,
-        intent,
-        actionChips: intent.suggestedActionChips || [
-          '🚀 Desarrollar Opción A (Recomendada)',
-          '🎨 Probar con Estilo Cyberpunk / Neón',
-          '📱 Optimizar para Móviles y Pantalla Táctil'
+        intent: { ...intent, type: 'INTERACTIVE_PLAN' },
+        actionChips: [
+          '▶ Construir y Ver en Preview',
+          '👁️ Ver Preview Actual',
+          '💬 Refinar Enfoque en Chat'
         ]
       };
     }
