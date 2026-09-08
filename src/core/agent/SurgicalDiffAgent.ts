@@ -1,5 +1,7 @@
+import type { ChatMessage } from '../../types';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { qaTesterAgent } from './QATesterAgent';
+import { formatConversationHistory } from './historyUtils';
 
 export class SurgicalDiffAgent {
   private aiProvider: OllamaProvider;
@@ -24,31 +26,20 @@ export class SurgicalDiffAgent {
       return true;
     }
 
-    // 2. Explicit bug fixes or modification requests on the current screen
-    const fixAndEditKeywords = [
-      'no pasa nada', 'no funciona', 'no inicia', 'edita eso', 'arregla', 'corrige',
-      'cuando presiono', 'al hacer click', 'al hacer clic', 'el botón', 'el boton',
-      'cambia', 'modifica', 'agrega', 'añade', 'elimina', 'quita', 'pon de color',
-      'haz que', 'más rápido', 'más lento', 'aumenta', 'reduce', 'error', 'bug',
-      'cambia el color', 'rosado', 'azul', 'verde', 'nubes', 'universo', 'fondo',
-      'pisar el boton', 'al pisar', 'no empieza', 'dificultad'
-    ];
-
-    if (fixAndEditKeywords.some(kw => lower.includes(kw))) {
-      return true;
-    }
-
-    // 3. New project explicit verbs
+    // 2. Explicit new project verbs
     const fullCreationStarts = [
       'crea una nueva', 'crea un nuevo', 'haz un nuevo', 'haz una nueva',
-      'nuevo proyecto', 'desde cero', 'reinicia todo', 'crea otro', 'crea otra'
+      'nuevo proyecto', 'desde cero', 'reinicia todo', 'crea otro', 'crea otra',
+      'empezar de cero', 'empecemos de nuevo', 'borra todo', 'cambia de juego',
+      'olvida el juego', 'haz otra cosa', 'borra este juego'
     ];
 
-    if (fullCreationStarts.some(kw => lower.startsWith(kw))) {
+    if (fullCreationStarts.some(kw => lower.includes(kw))) {
       return false;
     }
 
-    return false;
+    // 3. Any instruction on an existing codebase is treated as an edit/evolution of the current app
+    return true;
   }
 
   private isCodeIncomplete(code: string): boolean {
@@ -73,33 +64,42 @@ export class SurgicalDiffAgent {
   }
 
   /**
-   * Executes a surgical component / bug fix edit on the existing code with compact prompt & Auto-Continuation.
+   * Executes a surgical component / bug fix edit on the existing code with full context & Auto-Continuation.
    */
   public async applySurgicalEdit(
     userInstruction: string,
     currentCode: string,
     onStream: (token: string, fullText: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    history?: ChatMessage[]
   ): Promise<string> {
-    // Compact system prompt (only ~120 tokens to maximize context window and stay within TPM limits)
-    const systemPrompt = `Eres NONA SURGICAL CODE FIXER (v11.0).
-Tu misión: reparar o modificar el código HTML5+JS actual satisfaciendo EXACTAMENTE la solicitud del usuario.
+    const historyText = formatConversationHistory(history, 8);
+    const historySection = historyText
+      ? `\nHISTORIAL DE CONVERSACIÓN RECIENTE (Contexto de lo solicitado previamente):\n${historyText}\n`
+      : '';
+
+    const systemPrompt = `Eres NONA SURGICAL CODE FIXER (v12.0 — Estándar Lovable / Google Antigravity).
+Tu misión: modificar o reparar el código HTML5+JS actual satisfaciendo con precisión la solicitud del usuario SOBRE LA APLICACIÓN QUE YA EXISTE.
 
 REGLAS ABSOLUTAS:
-1. El archivo resultante index.html DEBE ser 100% COMPLETO, sin omitir funciones ni bucles de juego.
-2. Si el usuario reporta que un botón (ej: "JUGAR", dificultad, turbo) no hace nada: escribe los listeners click/pointerdown correspondientes, oculta los overlays (\`classList.add('hidden')\`) y arranca el bucle de juego / cálculo (\`requestAnimationFrame\` o función de juego).
-3. Asegúrate de que el Three.js canvas, renderer, cámara, controles (WASD/flechas/táctil) y audio Web Audio API funcionen al 100%.
-4. Resuelve el estilo con Tailwind CSS y concluye con </script></body></html>.
-5. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`.`;
+1. PRESERVACIÓN ESTRICTA: El usuario está trabajando sobre una aplicación o videojuego existente. NUNCA crees una aplicación diferente, no cambies la temática ni elimines la mecánica previa.
+2. Si el usuario reporta que un botón o función no hace nada (ej: "JUGAR", inicio, colisiones, dificultad, audio, turbo):
+   - Localiza la función, evento o listener correspondiente.
+   - Corrige el error asegurando que los eventos (\`click\`, \`keydown\`, \`requestAnimationFrame\`) se ejecuten y los overlays se oculten.
+3. Si el usuario pide agregar una función o estilo: intégralo armónicamente en el código actual manteniendo Three.js / Web Audio / Tailwind activos.
+4. El archivo resultante index.html DEBE ser 100% COMPLETO, sin omitir funciones ni bucles de juego, y concluir con </script></body></html>.
+5. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con \`\`\`.`;
 
-    const userPrompt = `CÓDIGO ACTUAL:
+    const userPrompt = `${historySection}
+CÓDIGO ACTUAL DE LA APLICACIÓN:
 \`\`\`html
 ${currentCode}
 \`\`\`
 
-SOLICITUD DE CORRECCIÓN:
+SOLICITUD DE MODIFICACIÓN / CORRECCIÓN DEL USUARIO:
 "${userInstruction}"
 
+IMPORTANTE: Conserva el mismo juego/aplicación. Aplica la corrección o mejora sobre el código existente.
 Entrega el código index.html COMPLETO y 100% funcional en \`\`\`html filename=index.html:`;
 
     let fullResponse = '';
@@ -112,7 +112,7 @@ Entrega el código index.html COMPLETO y 100% funcional en \`\`\`html filename=i
         fullResponse = full;
         onStream(token, full);
       },
-      { signal, model: 'qwen/qwen3.8-27b', maxTokens: 3200, temperature: 0.15 }
+      { signal, model: 'qwen/qwen3.8-27b', maxTokens: 3500, temperature: 0.15 }
     );
 
     let patchedCode = this.cleanCodeBlock(fullResponse);

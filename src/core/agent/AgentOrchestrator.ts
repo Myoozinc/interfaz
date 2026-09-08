@@ -1,3 +1,4 @@
+import type { ChatMessage } from '../../types';
 import type { FullStackProject, ToolCall } from '../types';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { ToolRegistry } from './ToolRegistry';
@@ -5,6 +6,7 @@ import { agentEvents } from './AgentEvents';
 import { multiAgentEngine } from './MultiAgentEngine';
 import { surgicalDiffAgent } from './SurgicalDiffAgent';
 import { intentRouter, type IntentClassificationResult } from './IntentRouter';
+import { formatConversationHistory } from './historyUtils';
 
 export interface AgentExecutionResult {
   responseText: string;
@@ -62,13 +64,14 @@ Sé conciso, empático, sin plantillas robóticas ni encabezados genéricos.`;
       images?: string[];
       links?: string[];
       signal?: AbortSignal;
+      history?: ChatMessage[];
     }
   ): Promise<AgentExecutionResult> {
     const mainFile = project.files['index.html'] || Object.values(project.files)[0];
     const currentCode = mainFile?.content || '';
 
-    // Step 1: Intelligent Intent Classification & Routing
-    const intent = intentRouter.classifyIntent(userInstruction, currentCode);
+    // Step 1: Intelligent Intent Classification & Routing with History
+    const intent = intentRouter.classifyIntent(userInstruction, currentCode, options?.history);
     agentEvents.emit('agent.started', `NONA Autonomous Engine [${intent.type}]: "${userInstruction.slice(0, 45)}..."`);
 
     // =========================================================================
@@ -77,6 +80,9 @@ Sé conciso, empático, sin plantillas robóticas ni encabezados genéricos.`;
     if (intent.type === 'CHAT_CONSULT') {
       onProgress('💬 NONA Senior AI Consultant\n*(Analizando consulta y respondiendo...)*', true);
 
+      const historyText = formatConversationHistory(options?.history, 6);
+      const historyContext = historyText ? `\nHISTORIAL DE CONVERSACIÓN:\n${historyText}\n` : '';
+
       const consultSystemPrompt = `Eres NONA SENIOR AI ARCHITECT & CONSULTANT (Google Antigravity & Lovable Standard).
 El usuario te está haciendo una pregunta o consulta técnica sobre su aplicación o sobre desarrollo de software.
 Responde de forma clara, natural, didáctica, precisa y bien formateada en Markdown.
@@ -84,7 +90,8 @@ Responde de forma clara, natural, didáctica, precisa y bien formateada en Markd
 2. Da respuestas concisas, profesionales y empáticas orientadas a la acción.
 3. Si la pregunta es sobre el código actual, analiza el contexto del proyecto y explica exactamente cómo está estructurado.`;
 
-      const consultUserPrompt = `CÓDIGO ACTUAL DE LA APLICACIÓN:
+      const consultUserPrompt = `${historyContext}
+CÓDIGO ACTUAL DE LA APLICACIÓN:
 \`\`\`html
 ${currentCode.slice(0, 3500)}
 \`\`\`
@@ -117,13 +124,17 @@ Responde de forma clara, natural y profesional:`;
     if (intent.type === 'INTERACTIVE_PLAN') {
       onProgress('🗺️ NONA Interactive Architect\n*(Diseñando propuesta y opciones de desarrollo...)*', true);
 
+      const historyText = formatConversationHistory(options?.history, 6);
+      const historyContext = historyText ? `\nHISTORIAL DE CONVERSACIÓN:\n${historyText}\n` : '';
+
       const planSystemPrompt = `Eres NONA LEAD PRODUCT ARCHITECT (Estándar Lovable / Google Antigravity).
 El usuario tiene una idea abierta o está buscando asesoramiento sobre cómo construir o evolucionar su proyecto.
 1. Presenta un plan conciso y natural con 2 o 3 opciones claras de implementación (Opción A, Opción B).
 2. Pregúntale al usuario cuál prefiere o qué detalle desea priorizar.
 3. Sé conversacional, cálido y enfocado en resolver el objetivo del usuario.`;
 
-      const planUserPrompt = `IDEA O CONSULTA DEL USUARIO:
+      const planUserPrompt = `${historyContext}
+IDEA O CONSULTA DEL USUARIO:
 "${userInstruction}"
 
 CÓDIGO ACTUAL (si existe):
@@ -164,11 +175,12 @@ Propón la arquitectura y opciones interactivas de forma natural:`;
     // =========================================================================
     if (intent.type === 'FULL_BUILD') {
       let agentStepsLog = '';
+      const isExplicitNew = intent.isExplicitNew ?? (currentCode.trim().length < 50);
 
       const { fullCode } = await multiAgentEngine.executeAutonomousPipeline(
         userInstruction,
         currentCode,
-        true, // isNew
+        isExplicitNew,
         (stepName, detail, streamToken) => {
           if (stepName !== agentStepsLog) {
             agentStepsLog = stepName;
@@ -177,7 +189,8 @@ Propón la arquitectura y opciones interactivas de forma natural:`;
             onProgress(`**${stepName}**\n*(Escribiendo código...)*`, false);
           }
         },
-        options?.signal
+        options?.signal,
+        options?.history
       );
 
       // Save verified code to index.html
@@ -198,7 +211,7 @@ Propón la arquitectura y opciones interactivas de forma natural:`;
 
       const naturalSummary = await this.generateNaturalSummary(
         userInstruction,
-        'Creación de nueva aplicación completa',
+        isExplicitNew ? 'Creación de nueva aplicación completa' : 'Evolución y actualización completa de la aplicación',
         'Se generó la estructura HTML5, estilos Tailwind, escena 3D / lógica de estado y controles interactivos'
       );
 
@@ -215,7 +228,8 @@ Propón la arquitectura y opciones interactivas de forma natural:`;
       userInstruction,
       currentCode,
       () => onProgress('⚡ NONA Surgical Diff Engine\n*(Escribiendo parche...)*', false),
-      options?.signal
+      options?.signal,
+      options?.history
     );
 
     // Save patched code to index.html
@@ -234,7 +248,7 @@ Propón la arquitectura y opciones interactivas de forma natural:`;
     const naturalEditSummary = await this.generateNaturalSummary(
       userInstruction,
       'Corrección quirúrgica de componentes y eventos',
-      intent.reason || 'Se actualizaron los listeners, botones y lógica en caliente'
+      intent.reason || 'Se actualizaron los listeners, botones y lógica en caliente manteniendo el juego original'
     );
 
     agentEvents.emit('agent.completed', 'Modificación quirúrgica finalizada.');

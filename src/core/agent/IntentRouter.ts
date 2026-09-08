@@ -7,16 +7,18 @@ export interface IntentClassificationResult {
   confidence: number;
   reason: string;
   suggestedActionChips?: string[];
+  isExplicitNew?: boolean;
 }
 
 export class IntentRouter {
   /**
    * High-Precision Semantic & Heuristic Classifier (Google Antigravity & Lovable Standard).
-   * Classifies user prompts into:
-   * 1. SURGICAL_EDIT: Specific bug fixes, visual tweaks or localized modifications.
-   * 2. INTERACTIVE_PLAN: Vague ideas, brainstorming, asking for advice/features.
-   * 3. CHAT_CONSULT: Conceptual questions, code explanations, technology inquiries.
-   * 4. FULL_BUILD: Explicit new software / 3D game creation requests.
+   * 
+   * GOLDEN RULE:
+   * If the project already has an active codebase and the user does NOT explicitly ask
+   * to start from scratch ("nuevo proyecto", "desde cero", "borra todo"), any request
+   * is treated as an ITERATION / MODIFICATION on the existing application, preserving
+   * the game/app theme and mechanics.
    */
   public classifyIntent(
     userInstruction: string,
@@ -27,39 +29,27 @@ export class IntentRouter {
     const lower = raw.toLowerCase();
     const hasExistingApp = !!(currentCode && currentCode.trim().length > 30 && !currentCode.includes('Lienzo Listo'));
 
+    // Check for explicit new project verbs
+    const explicitNewKeywords = [
+      'crea una nueva', 'crea un nuevo', 'haz un nuevo', 'haz una nueva',
+      'nuevo proyecto', 'desde cero', 'reinicia todo', 'crea otro juego',
+      'crea otra app', 'empezar de cero', 'empecemos de nuevo', 'borra todo',
+      'cambia de juego', 'juego nuevo', 'app nueva', 'haz otra cosa',
+      'olvida el juego', 'reiniciar proyecto', 'borra este juego'
+    ];
+    const isExplicitNew = explicitNewKeywords.some(kw => lower.includes(kw));
+
     // Priority 0: Click-to-Inspect or explicitly selected element in UI
     if (lower.startsWith('[elemento seleccionado') || lower.startsWith('modifica este elemento')) {
       return {
         type: 'SURGICAL_EDIT',
         confidence: 0.99,
-        reason: 'Elemento de interfaz seleccionado mediante el Inspector Visual.'
+        reason: 'Elemento de interfaz seleccionado mediante el Inspector Visual.',
+        isExplicitNew: false
       };
     }
 
-    // Priority 1: Bug Fixes & Localized Edits on Existing App (SURGICAL_EDIT)
-    const bugFixKeywords = [
-      'no funciona', 'no pasa nada', 'no inicia', 'no responde', 'no hace nada',
-      'corrige', 'arregla', 'repara', 'edita eso', 'cuando presiono',
-      'al hacer click', 'al hacer clic', 'el boton', 'el botón',
-      'cambia el', 'cambia la', 'cambia el color', 'cambia la velocidad',
-      'hazlo más rápido', 'hazlo más lento', 'aumenta el', 'agrega un sonido',
-      'agrega una función', 'quita el', 'elimina el', 'modifica el', 'modifica la'
-    ];
-
-    const hasExplicitNewVerb = [
-      'crea una nueva', 'crea un nuevo', 'haz un nuevo', 'haz una nueva',
-      'nuevo proyecto', 'desde cero', 'reinicia todo', 'crea otro juego'
-    ].some(nv => lower.startsWith(nv));
-
-    if (hasExistingApp && !hasExplicitNewVerb && bugFixKeywords.some(bk => lower.includes(bk))) {
-      return {
-        type: 'SURGICAL_EDIT',
-        confidence: 0.96,
-        reason: 'Reporte de bug o solicitud de modificación sobre la aplicación activa.'
-      };
-    }
-
-    // Priority 2: Interactive Planning & Brainstorming (INTERACTIVE_PLAN)
+    // Priority 1: Interactive Planning & Brainstorming (INTERACTIVE_PLAN)
     const planKeywords = [
       'no se como', 'no sé cómo', 'no se por donde', 'no sé por dónde',
       'que me recomiendas', 'qué me recomiendas', 'dame ideas', 'sugerencias para',
@@ -69,11 +59,12 @@ export class IntentRouter {
       'ideas para', 'como planearias', 'cómo planearías'
     ];
 
-    if (planKeywords.some(pk => lower.includes(pk))) {
+    if (planKeywords.some(pk => lower.includes(pk)) && !isExplicitNew) {
       return {
         type: 'INTERACTIVE_PLAN',
         confidence: 0.92,
         reason: 'Solicitud de co-creación, ideas y planificación arquitectónica interactiva.',
+        isExplicitNew: false,
         suggestedActionChips: [
           '🚀 Desarrollar Opción A (Recomendada)',
           '🎨 Probar con Estilo Cyberpunk / Neón',
@@ -82,7 +73,7 @@ export class IntentRouter {
       };
     }
 
-    // Priority 3: Pure Conversational / Consultation Inquiries (CHAT_CONSULT)
+    // Priority 2: Pure Conversational / Consultation Inquiries (CHAT_CONSULT)
     const questionPatterns = [
       '¿', '?', 'que es', 'qué es', 'como funciona', 'cómo funciona',
       'que librerias', 'qué librerías', 'que tecnologias', 'qué tecnologías',
@@ -91,13 +82,27 @@ export class IntentRouter {
       'cual es', 'cuál es', 'dime como', 'dime cómo', 'como hiciste', 'cómo hiciste'
     ];
 
-    const hasCreationVerb = ['crea', 'haz', 'has', 'construye', 'desarrolla', 'genera'].some(v => lower.startsWith(v));
+    const hasCodeAction = [
+      'corrige', 'arregla', 'repara', 'cambia', 'modifica', 'agrega', 'añade',
+      'pon', 'quita', 'elimina', 'haz', 'crea', 'construye', 'programa', 'actualiza'
+    ].some(a => lower.includes(a));
 
-    if (questionPatterns.some(q => lower.includes(q)) && !hasCreationVerb) {
+    if (questionPatterns.some(q => lower.includes(q)) && !hasCodeAction) {
       return {
         type: 'CHAT_CONSULT',
         confidence: 0.95,
-        reason: 'Consulta conceptual o pregunta sobre la arquitectura sin solicitud directa de código.'
+        reason: 'Consulta conceptual o pregunta sobre la arquitectura sin solicitud directa de código.',
+        isExplicitNew: false
+      };
+    }
+
+    // Priority 3: GOLDEN RULE — If existing code is present and NOT explicit new, ITERATE!
+    if (hasExistingApp && !isExplicitNew) {
+      return {
+        type: 'SURGICAL_EDIT',
+        confidence: 0.98,
+        reason: 'Modificación, corrección de errores o evolución sobre la aplicación existente.',
+        isExplicitNew: false
       };
     }
 
@@ -105,7 +110,10 @@ export class IntentRouter {
     return {
       type: 'FULL_BUILD',
       confidence: 0.9,
-      reason: 'Instrucción para generar una nueva aplicación o videojuego 3D completo.'
+      reason: hasExistingApp && isExplicitNew
+        ? 'El usuario solicitó explícitamente iniciar una nueva aplicación desde cero.'
+        : 'Creación inicial de la aplicación o videojuego.',
+      isExplicitNew: true
     };
   }
 }

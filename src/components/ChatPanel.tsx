@@ -281,6 +281,7 @@ export const ChatPanel = ({
         {
           images: currentImages.length > 0 ? currentImages : undefined,
           signal: abortController.signal,
+          history: messages,
         }
       );
 

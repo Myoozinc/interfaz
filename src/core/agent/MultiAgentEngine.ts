@@ -1,8 +1,10 @@
+import type { ChatMessage } from '../../types';
 import { agentEvents } from './AgentEvents';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { surgicalDiffAgent } from './SurgicalDiffAgent';
 import { qaTesterAgent, type QATestResult } from './QATesterAgent';
 import { NONA_MASTER_SYSTEM_PROMPT_V5 } from './PromptGuardrails';
+import { formatConversationHistory } from './historyUtils';
 
 export class MultiAgentEngine {
   private aiProvider: OllamaProvider;
@@ -42,7 +44,8 @@ export class MultiAgentEngine {
     currentCode: string,
     isNew: boolean,
     onProgress: (stepName: string, detail: string, streamToken?: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    history?: ChatMessage[]
   ): Promise<{ fullCode: string; summary: string; qaReport: QATestResult }> {
 
     const isPartialEdit = surgicalDiffAgent.isSurgicalEdit(userInstruction, currentCode, isNew);
@@ -57,28 +60,57 @@ export class MultiAgentEngine {
         userInstruction,
         currentCode,
         (token) => onProgress('⚡ NONA Surgical Diff Engine', 'Aplicando parche y re-renderizando...', token),
-        signal
+        signal,
+        history
       );
 
       agentEvents.emit('agent.completed', '⚡ Corrección quirúrgica aplicada con éxito.');
 
     } else {
       // MODE B: 🚀 Direct High-Fidelity Synthesis with Logic-First standard
-      onProgress('🎨 & 🧠 NONA Master Software Engine', 'Diseñando e implementando la aplicación completa en tiempo real...');
-      agentEvents.emit('agent.thinking', '🎨 & 🧠 Generando software con Three.js, Web Audio y lógica en vivo...');
+      const hasExistingCode = !isNew && !!(currentCode && currentCode.trim().length > 50 && !currentCode.includes('Lienzo Listo'));
+      const historyText = formatConversationHistory(history, 8);
+      const historySection = historyText ? `\nHISTORIAL DE CONVERSACIÓN RECIENTE:\n${historyText}\n` : '';
 
-      const engineerSystemPrompt = `${NONA_MASTER_SYSTEM_PROMPT_V5}
+      let engineerSystemPrompt = `${NONA_MASTER_SYSTEM_PROMPT_V5}`;
+      let engineerUserPrompt = '';
 
+      if (hasExistingCode) {
+        onProgress('🎨 & 🧠 NONA Evolution Engine', 'Evolucionando la aplicación activa con los nuevos requerimientos...');
+        agentEvents.emit('agent.thinking', '🎨 & 🧠 Integrando nuevas funciones sobre la aplicación activa...');
+
+        engineerSystemPrompt += `\n\nREGLA CRÍTICA DE CONTINUIDAD:
+Estás actualizando y evolucionando una aplicación o juego YA EXISTENTE.
+MANTÉN LA MISMA TEMÁTICA, GRÁFICOS (Three.js/Tailwind), ASSETS Y CONTROLES PREVIOS.
+Integra las nuevas solicitudes del usuario SOBRE esta misma aplicación, NO comiences una app diferente.`;
+
+        engineerUserPrompt = `${historySection}
+CÓDIGO ACTUAL DE LA APLICACIÓN:
+\`\`\`html
+${currentCode}
+\`\`\`
+
+NUEVA SOLICITUD DE EVOLUCIÓN O MEJORA DEL USUARIO:
+"${userInstruction}"
+
+Implementa las mejoras integradas directamente sobre este código existente. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`:`;
+      } else {
+        onProgress('🎨 & 🧠 NONA Master Software Engine', 'Diseñando e implementando la aplicación completa en tiempo real...');
+        agentEvents.emit('agent.thinking', '🎨 & 🧠 Generando software con Three.js, Web Audio y lógica en vivo...');
+
+        engineerSystemPrompt += `\n
 Tu misión es escribir el código HTML5 + JavaScript 100% COMPLETO, PULIDO, EXTENSO Y AUTOCONTENIDO.
 REGLAS CRÍTICAS:
 1. Sé 100% fiel a la solicitud del usuario ("${userInstruction}").
 2. Si es un videojuego (carreras, snake, 3D, música, etc.), crea una experiencia inmersiva con Three.js WebGL, controles (WASD/táctil), audio sintetizado con Web Audio API, bucle de animación \`requestAnimationFrame\`, botón Jugar funcional y HUD.
 3. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con </html>\`\`\`. Cero preámbulos.`;
 
-      const engineerUserPrompt = `INSTRUCCIÓN EXACTA DEL USUARIO:
+        engineerUserPrompt = `${historySection}
+INSTRUCCIÓN EXACTA DEL USUARIO:
 "${userInstruction}"
 
 Implementa la aplicación o videojuego 100% completo, visualmente impresionante, interactivo y funcional. Inicia DIRECTAMENTE con \`\`\`html filename=index.html:`;
+      }
 
       let generatedCode = '';
       await this.aiProvider.streamChat(
