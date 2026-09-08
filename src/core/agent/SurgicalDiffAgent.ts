@@ -2,6 +2,7 @@ import type { ChatMessage } from '../../types';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { qaTesterAgent } from './QATesterAgent';
 import { formatConversationHistory } from './historyUtils';
+import { PatchEngine } from './PatchEngine';
 
 export class SurgicalDiffAgent {
   private aiProvider: OllamaProvider;
@@ -10,12 +11,26 @@ export class SurgicalDiffAgent {
     this.aiProvider = new OllamaProvider('/api/agent', 'qwen/qwen3.8-27b');
   }
 
+  public setEndpoint(url: string): void {
+    this.aiProvider.setBaseUrl(url);
+  }
+
+  public setModel(model: string): void {
+    this.aiProvider.setDefaultModel(model);
+  }
+
   /**
    * Determines whether the user instruction is a localized surgical edit / bug fix
    * or a full new application generation.
    */
   public isSurgicalEdit(userInstruction: string, currentCode: string, isExplicitNew: boolean): boolean {
-    if (isExplicitNew || !currentCode || currentCode.trim().length < 50 || currentCode.includes('Lienzo Listo')) {
+    if (
+      isExplicitNew ||
+      !currentCode ||
+      currentCode.trim().length < 50 ||
+      currentCode.includes('Lienzo Listo') ||
+      currentCode.includes('AURA.store')
+    ) {
       return false;
     }
 
@@ -64,7 +79,8 @@ export class SurgicalDiffAgent {
   }
 
   /**
-   * Executes a surgical component / bug fix edit on the existing code with full context & Auto-Continuation.
+   * Executes a surgical component / bug fix edit on the existing code using targeted
+   * SEARCH/REPLACE diff blocks to guarantee 100% codebase consistency and avoid full-file rewrites.
    */
   public async applySurgicalEdit(
     userInstruction: string,
@@ -78,20 +94,28 @@ export class SurgicalDiffAgent {
       ? `\nHISTORIAL DE CONVERSACIÓN RECIENTE (Contexto de lo solicitado previamente):\n${historyText}\n`
       : '';
 
-    const systemPrompt = `Eres NONA SURGICAL CODE FIXER (v12.0 — Estándar Lovable / Google Antigravity).
-Tu misión: modificar o reparar el código HTML5+JS actual satisfaciendo con precisión la solicitud del usuario SOBRE LA APLICACIÓN QUE YA EXISTE.
+    const systemPrompt = `Eres NONA SURGICAL DIFF ENGINE (v12.0 — Edición Quirúrgica de Alta Precisión / Formato Aider & Lovable).
+Tu misión es corregir o modificar PUNTUALMENTE el código HTML5+JS existente según la instrucción del usuario, SIN REESCRIBIR TODO EL ARCHIVO.
+
+ESTRUCTURA DE RESPUESTA OBLIGATORIA:
+Debes responder ÚNICAMENTE con uno o más bloques de reemplazo quirúrgico con este formato exacto:
+<<<<<<< SEARCH
+[código exacto actual a reemplazar]
+=======
+[código nuevo o corregido]
+>>>>>>> REPLACE
 
 REGLAS ABSOLUTAS:
-1. PRESERVACIÓN ESTRICTA: El usuario está trabajando sobre una aplicación o videojuego existente. NUNCA crees una aplicación diferente, no cambies la temática ni elimines la mecánica previa.
-2. Si el usuario reporta que un botón o función no hace nada (ej: "JUGAR", inicio, colisiones, dificultad, audio, turbo):
-   - Localiza la función, evento o listener correspondiente.
-   - Corrige el error asegurando que los eventos (\`click\`, \`keydown\`, \`requestAnimationFrame\`) se ejecuten y los overlays se oculten.
-3. Si el usuario reporta PANTALLA EN NEGRO o que nada se ve:
-   - Asegúrate de que el canvas tenga dimensiones visibles (\`w-full h-full\`), \`scene.background = new THREE.Color(0x0a0f1d)\`, luces activas (\`AmbientLight\` + \`DirectionalLight\`) y que \`init()\` se llame de inmediato al final del script.
-   - Corrige cualquier excepción o \`TypeError\` en el bucle \`animate()\` que detenga el renderizado.
-4. Si el usuario pide agregar una función o estilo: intégralo armónicamente en el código actual manteniendo Three.js / Web Audio / Tailwind activos.
-5. El archivo resultante index.html DEBE ser 100% COMPLETO, sin omitir funciones ni bucles de juego, y concluir con </script></body></html>.
-6. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con \`\`\`.`;
+1. NO REESCRIBAS EL ARCHIVO COMPLETO. Modifica ÚNICAMENTE las líneas o funciones necesarias para cumplir con la solicitud.
+2. CONSISTENCIA TOTAL: El 100% del resto de la aplicación (escenas 3D Three.js, geometrías, luces, audio Web Audio API, bucle de animación requestAnimationFrame, estilos Tailwind) se mantendrá EXACTAMENTE IGUAL.
+3. El bloque SEARCH debe coincidir EXACTAMENTE con el código actual (caracteres, espacios e indentación). Incluye 2 a 5 líneas de contexto antes y después para asegurar que la coincidencia sea única.
+4. Si el usuario reporta un problema puntual (ej: "el botón JUGAR no hace nada", "pantalla en negro", "aumenta la velocidad", "agrega contador de vidas"):
+   - Localiza la función o bloque exacto donde ocurre el fallo o donde debe añadirse la lógica.
+   - Aplica la corrección en el bloque REPLACE.
+5. Si necesitas agregar una función o variable nueva:
+   - En SEARCH, coloca las líneas adyacentes donde deba insertarse.
+   - En REPLACE, incluye esas líneas más el nuevo código.
+6. NO escribas código HTML global redundante ni explicaciones largas. Entrega directamente los bloques <<<<<<< SEARCH ... ======= ... >>>>>>> REPLACE.`;
 
     const userPrompt = `${historySection}
 CÓDIGO ACTUAL DE LA APLICACIÓN:
@@ -99,11 +123,10 @@ CÓDIGO ACTUAL DE LA APLICACIÓN:
 ${currentCode}
 \`\`\`
 
-SOLICITUD DE MODIFICACIÓN / CORRECCIÓN DEL USUARIO:
+SOLICITUD DE MODIFICACIÓN O CORRECCIÓN DEL USUARIO:
 "${userInstruction}"
 
-IMPORTANTE: Conserva el mismo juego/aplicación. Aplica la corrección o mejora sobre el código existente.
-Entrega el código index.html COMPLETO y 100% funcional en \`\`\`html filename=index.html:`;
+Entrega los bloques <<<<<<< SEARCH / ======= / >>>>>>> REPLACE para corregir o modificar puntualmente el código sin reescribir el resto:`;
 
     let fullResponse = '';
     await this.aiProvider.streamChat(
@@ -115,48 +138,62 @@ Entrega el código index.html COMPLETO y 100% funcional en \`\`\`html filename=i
         fullResponse = full;
         onStream(token, full);
       },
-      { signal, model: 'qwen/qwen3.8-27b', maxTokens: 3500, temperature: 0.15 }
+      { signal, model: 'qwen/qwen3.8-27b', maxTokens: 1600, temperature: 0.1 }
     );
 
-    let patchedCode = this.cleanCodeBlock(fullResponse);
+    // 1. Intentar aplicar parches quirúrgicos Search & Replace
+    const patchResult = PatchEngine.applyPatches(currentCode, fullResponse);
+    if (patchResult.success) {
+      console.log(`[SurgicalDiffAgent] Parche quirúrgico aplicado con éxito: ${patchResult.appliedCount} bloque(s).`);
+      const qaReport = qaTesterAgent.testAndAudit(patchResult.patchedCode, userInstruction);
+      return qaReport.repairedCode || patchResult.patchedCode;
+    }
 
-    // Auto-Continuation Loop for Surgical Edits
-    let continuationAttempts = 0;
-    while (this.isCodeIncomplete(patchedCode) && continuationAttempts < 2) {
-      continuationAttempts++;
-      const lastChunk = patchedCode.slice(-1000);
-      const continuationPrompt = `El código anterior se interrumpió aquí:
+    console.warn('[SurgicalDiffAgent] No se detectaron bloques de parche válidos. Evaluando fallback completo...');
+
+    // 2. Fallback: Si el modelo devolvió un documento HTML completo
+    let fallbackCode = this.cleanCodeBlock(fullResponse);
+    if (fallbackCode.includes('<!DOCTYPE html>') || (fallbackCode.includes('<html') && fallbackCode.includes('<body'))) {
+      let continuationAttempts = 0;
+      while (this.isCodeIncomplete(fallbackCode) && continuationAttempts < 2) {
+        continuationAttempts++;
+        const lastChunk = fallbackCode.slice(-1000);
+        const continuationPrompt = `El código anterior se interrumpió aquí:
 \`\`\`
 ${lastChunk}
 \`\`\`
 
 Continúa EXACTAMENTE desde la última línea sin repetir nada del código previo, completando todas las funciones JavaScript, eventos y concluyendo con </script></body></html>:`;
 
-      let continuationOutput = '';
-      try {
-        await this.aiProvider.streamChat(
-          [
-            { role: 'system', content: 'Eres NONA Continuation Engine. Continúa el código exactamente donde se quedó hasta cerrar con </script></body></html>.' },
-            { role: 'user', content: continuationPrompt }
-          ],
-          (token, full) => {
-            continuationOutput = full;
-            onStream(token, full);
-          },
-          { signal, model: 'qwen/qwen3.8-27b', maxTokens: 2500, temperature: 0.1 }
-        );
+        let continuationOutput = '';
+        try {
+          await this.aiProvider.streamChat(
+            [
+              { role: 'system', content: 'Eres NONA Continuation Engine. Continúa el código exactamente donde se quedó hasta cerrar con </script></body></html>.' },
+              { role: 'user', content: continuationPrompt }
+            ],
+            (token, full) => {
+              continuationOutput = full;
+              onStream(token, full);
+            },
+            { signal, model: 'qwen/qwen3.8-27b', maxTokens: 2500, temperature: 0.1 }
+          );
 
-        let cleanedContinuation = continuationOutput.replace(/^```html(?:\s+filename=[^\n]+)?\n/, '').replace(/```\s*$/, '').trim();
-        patchedCode = patchedCode + '\n' + cleanedContinuation;
-      } catch (err) {
-        console.warn('Surgical auto-continuation fallback', err);
-        break;
+          const cleanedContinuation = continuationOutput.replace(/^```html(?:\s+filename=[^\n]+)?\n/, '').replace(/```\s*$/, '').trim();
+          fallbackCode = fallbackCode + '\n' + cleanedContinuation;
+        } catch (err) {
+          console.warn('Surgical auto-continuation fallback error:', err);
+          break;
+        }
       }
+
+      const qaReport = qaTesterAgent.testAndAudit(fallbackCode, userInstruction);
+      return qaReport.repairedCode || fallbackCode;
     }
 
-    // Run QA syntax & tag closure
-    const qaReport = qaTesterAgent.testAndAudit(patchedCode, userInstruction);
-    return qaReport.repairedCode || patchedCode;
+    // 3. Salvaguarda crítica: Si falló el parche y tampoco hay HTML válido, conservar el código actual para no romper la app
+    console.warn('[SurgicalDiffAgent] Salvaguarda activada: Conservando código actual para evitar pantalla en negro o pérdida de estado.');
+    return currentCode;
   }
 }
 

@@ -15,6 +15,7 @@ export class MultiAgentEngine {
 
   setEndpoint(url: string) {
     this.aiProvider.setBaseUrl(url);
+    surgicalDiffAgent.setEndpoint(url);
   }
 
   private cleanCodeBlock(raw: string): string {
@@ -218,7 +219,7 @@ Devuelve el código 100% completo, fiel a la instrucción del usuario y funciona
         }
         qaReport = qaTesterAgent.testAndAudit(finalCode, userInstruction);
         finalCode = qaReport.repairedCode || finalCode;
-      } catch (e) {
+      } catch {
         console.warn('QA Self-healing fallback to rule-based repairs');
       }
     }

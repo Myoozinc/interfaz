@@ -27,10 +27,12 @@ export class AgentOrchestrator {
   setEndpoint(url: string) {
     this.aiProvider.setBaseUrl(url);
     multiAgentEngine.setEndpoint(url);
+    surgicalDiffAgent.setEndpoint(url);
   }
 
   setModel(model: string) {
     this.aiProvider.setDefaultModel(model);
+    surgicalDiffAgent.setModel(model);
   }
 
   private async generateNaturalSummary(userInstruction: string, actionType: string, detailContext: string): Promise<string> {
