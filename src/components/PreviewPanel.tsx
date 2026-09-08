@@ -9,7 +9,8 @@ import {
   Terminal,
   Eye,
   ShieldCheck,
-  Wrench
+  Wrench,
+  AlertTriangle
 } from 'lucide-react';
 import type { FileItem } from '../types';
 
@@ -179,22 +180,68 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       </script>
     `;
 
+    const lifecyclePolyfillScript = `
+      <script>
+        (function() {
+          // Guaranteed lifecycle execution in srcdoc iframes
+          const _origAddEventListener = window.addEventListener;
+          window.addEventListener = function(type, listener, options) {
+            _origAddEventListener.call(window, type, listener, options);
+            if (type === 'load' && (document.readyState === 'complete')) {
+              setTimeout(function() {
+                try {
+                  if (typeof listener === 'function') listener(new Event('load'));
+                  else if (listener && typeof listener.handleEvent === 'function') listener.handleEvent(new Event('load'));
+                } catch(e) { console.error(e); }
+              }, 10);
+            }
+            if (type === 'DOMContentLoaded' && (document.readyState === 'complete' || document.readyState === 'interactive')) {
+              setTimeout(function() {
+                try {
+                  if (typeof listener === 'function') listener(new Event('DOMContentLoaded'));
+                  else if (listener && typeof listener.handleEvent === 'function') listener.handleEvent(new Event('DOMContentLoaded'));
+                } catch(e) { console.error(e); }
+              }, 10);
+            }
+          };
+
+          let _customOnload = null;
+          try {
+            Object.defineProperty(window, 'onload', {
+              get: function() { return _customOnload; },
+              set: function(fn) {
+                _customOnload = fn;
+                if (typeof fn === 'function' && document.readyState === 'complete') {
+                  setTimeout(function() {
+                    try { fn(new Event('load')); } catch(e) { console.error(e); }
+                  }, 10);
+                }
+              }
+            });
+          } catch(e) {}
+        })();
+      </script>
+    `;
+
     const runtimePolyfills = `
       <script src="https://cdn.tailwindcss.com"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
       <script src="https://unpkg.com/lucide@latest"></script>
     `;
 
+    const allInjectedScripts = `${lifecyclePolyfillScript}${runtimePolyfills}${consoleCaptureScript}${inspectElementScript}${audioPolyfillScript}`;
+
     let compiled = htmlFile;
     if (compiled.includes('<head>')) {
-      compiled = compiled.replace('<head>', `<head>${runtimePolyfills}${consoleCaptureScript}${inspectElementScript}${audioPolyfillScript}`);
+      compiled = compiled.replace('<head>', `<head>${allInjectedScripts}`);
     } else if (compiled.includes('<!DOCTYPE html>') || compiled.includes('<html')) {
-      compiled = compiled.replace(/<html[^>]*>/, `$&<head>${runtimePolyfills}${consoleCaptureScript}${inspectElementScript}${audioPolyfillScript}</head>`);
+      compiled = compiled.replace(/<html[^>]*>/, `$&<head>${allInjectedScripts}</head>`);
     } else {
       // If code is pure React JSX or body snippet, wrap it in a complete HTML/Babel shell
       compiled = `<!DOCTYPE html>
@@ -202,10 +249,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  ${runtimePolyfills}
-  ${consoleCaptureScript}
-  ${inspectElementScript}
-  ${audioPolyfillScript}
+  ${allInjectedScripts}
 </head>
 <body class="bg-slate-950 text-white min-h-screen font-sans">
   <div id="root">${compiled.includes('<div') ? compiled : ''}</div>
@@ -382,7 +426,26 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       </div>
 
       {/* Main Preview Container */}
-      <div className="flex-1 p-3 flex items-center justify-center overflow-auto bg-slate-100">
+      <div className="flex-1 p-3 flex items-center justify-center overflow-auto bg-slate-100 relative">
+        {activeTab === 'preview' && errorLogs.length > 0 && (
+          <div className="absolute top-5 left-5 right-5 bg-rose-950/95 border border-rose-500/70 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between z-40 animate-fade-in text-xs">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
+              <div className="overflow-hidden">
+                <p className="font-bold text-rose-200">Error de ejecución en la vista previa:</p>
+                <p className="text-rose-300 font-mono truncate max-w-md">{errorLogs[errorLogs.length - 1].message}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleTriggerAutoFix}
+              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 font-bold text-white rounded-xl transition-all shadow-md shrink-0 flex items-center gap-1.5 cursor-pointer ml-3"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              Auto-Corregir con NONA
+            </button>
+          </div>
+        )}
+
         {activeTab === 'preview' ? (
           viewport === 'mobile' ? (
             /* iPhone 15 Pro Shell Frame */

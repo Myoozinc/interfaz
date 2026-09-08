@@ -27,17 +27,43 @@ export class IntentRouter {
   ): IntentClassificationResult {
     const raw = userInstruction.trim();
     const lower = raw.toLowerCase();
-    const hasExistingApp = !!(currentCode && currentCode.trim().length > 30 && !currentCode.includes('Lienzo Listo'));
 
-    // Check for explicit new project verbs
-    const explicitNewKeywords = [
-      'crea una nueva', 'crea un nuevo', 'haz un nuevo', 'haz una nueva',
-      'nuevo proyecto', 'desde cero', 'reinicia todo', 'crea otro juego',
+    // Check if current code is the default placeholder or starter template
+    const isStarterOrPlaceholder = !currentCode ||
+      currentCode.includes('AURA.store') ||
+      currentCode.includes('Lienzo Listo') ||
+      currentCode.trim().length < 100;
+
+    const hasExistingCustomApp = !!(currentCode && currentCode.trim().length > 100 && !isStarterOrPlaceholder);
+
+    // New project explicit keywords / verbs
+    const newVerbs = [
+      'crea un juego', 'crea una app', 'haz un juego', 'haz una app',
+      'crea un nuevo', 'crea una nueva', 'haz un nuevo', 'haz una nueva',
+      'nuevo proyecto', 'desde cero', 'de cero', 'reinicia todo', 'crea otro juego',
       'crea otra app', 'empezar de cero', 'empecemos de nuevo', 'borra todo',
       'cambia de juego', 'juego nuevo', 'app nueva', 'haz otra cosa',
-      'olvida el juego', 'reiniciar proyecto', 'borra este juego'
+      'olvida el juego', 'reiniciar proyecto', 'borra este juego',
+      'quiero un juego', 'quiero hacer un juego', 'quiero una app',
+      'desarrolla un juego', 'desarrolla una app', 'construye un juego'
     ];
-    const isExplicitNew = explicitNewKeywords.some(kw => lower.includes(kw));
+
+    const isExplicitNew = isStarterOrPlaceholder ||
+      newVerbs.some(v => lower.includes(v)) ||
+      lower.includes('otro juego') ||
+      lower.includes('otra app') ||
+      lower.includes('desde cero') ||
+      lower.includes('de cero');
+
+    // Modification / Fix keywords that override new verbs if user is asking to repair
+    const repairKeywords = [
+      'corrige', 'arregla', 'repara', 'pantalla en negro', 'pantalla negra',
+      'no funciona', 'no inicia', 'no responde', 'no hace nada', 'falla',
+      'el error', 'un error', 'bug', 'soluciona', 'cuando presiono', 'al hacer click',
+      'el botón', 'el boton', 'el auto', 'el coche', 'la nave', 'el jugador',
+      'da una pantalla', 'se queda en negro', 'se ve negro'
+    ];
+    const isExplicitRepair = repairKeywords.some(rk => lower.includes(rk));
 
     // Priority 0: Click-to-Inspect or explicitly selected element in UI
     if (lower.startsWith('[elemento seleccionado') || lower.startsWith('modifica este elemento')) {
@@ -59,7 +85,7 @@ export class IntentRouter {
       'ideas para', 'como planearias', 'cómo planearías'
     ];
 
-    if (planKeywords.some(pk => lower.includes(pk)) && !isExplicitNew) {
+    if (planKeywords.some(pk => lower.includes(pk)) && !isExplicitRepair) {
       return {
         type: 'INTERACTIVE_PLAN',
         confidence: 0.92,
@@ -84,7 +110,7 @@ export class IntentRouter {
 
     const hasCodeAction = [
       'corrige', 'arregla', 'repara', 'cambia', 'modifica', 'agrega', 'añade',
-      'pon', 'quita', 'elimina', 'haz', 'crea', 'construye', 'programa', 'actualiza'
+      'pon', 'quita', 'elimina', 'haz', 'crea', 'construye', 'programa', 'actualiza', 'pantalla'
     ].some(a => lower.includes(a));
 
     if (questionPatterns.some(q => lower.includes(q)) && !hasCodeAction) {
@@ -96,8 +122,8 @@ export class IntentRouter {
       };
     }
 
-    // Priority 3: GOLDEN RULE — If existing code is present and NOT explicit new, ITERATE!
-    if (hasExistingApp && !isExplicitNew) {
+    // Priority 3: GOLDEN RULE — If user has an existing custom app AND is repairing/modifying, ITERATE!
+    if (hasExistingCustomApp && (!isExplicitNew || isExplicitRepair)) {
       return {
         type: 'SURGICAL_EDIT',
         confidence: 0.98,
@@ -110,8 +136,8 @@ export class IntentRouter {
     return {
       type: 'FULL_BUILD',
       confidence: 0.9,
-      reason: hasExistingApp && isExplicitNew
-        ? 'El usuario solicitó explícitamente iniciar una nueva aplicación desde cero.'
+      reason: hasExistingCustomApp && isExplicitNew
+        ? 'El usuario solicitó explícitamente iniciar una nueva aplicación o videojuego diferente.'
         : 'Creación inicial de la aplicación o videojuego.',
       isExplicitNew: true
     };

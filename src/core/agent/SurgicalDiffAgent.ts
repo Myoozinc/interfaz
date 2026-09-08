@@ -86,9 +86,12 @@ REGLAS ABSOLUTAS:
 2. Si el usuario reporta que un botón o función no hace nada (ej: "JUGAR", inicio, colisiones, dificultad, audio, turbo):
    - Localiza la función, evento o listener correspondiente.
    - Corrige el error asegurando que los eventos (\`click\`, \`keydown\`, \`requestAnimationFrame\`) se ejecuten y los overlays se oculten.
-3. Si el usuario pide agregar una función o estilo: intégralo armónicamente en el código actual manteniendo Three.js / Web Audio / Tailwind activos.
-4. El archivo resultante index.html DEBE ser 100% COMPLETO, sin omitir funciones ni bucles de juego, y concluir con </script></body></html>.
-5. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con \`\`\`.`;
+3. Si el usuario reporta PANTALLA EN NEGRO o que nada se ve:
+   - Asegúrate de que el canvas tenga dimensiones visibles (\`w-full h-full\`), \`scene.background = new THREE.Color(0x0a0f1d)\`, luces activas (\`AmbientLight\` + \`DirectionalLight\`) y que \`init()\` se llame de inmediato al final del script.
+   - Corrige cualquier excepción o \`TypeError\` en el bucle \`animate()\` que detenga el renderizado.
+4. Si el usuario pide agregar una función o estilo: intégralo armónicamente en el código actual manteniendo Three.js / Web Audio / Tailwind activos.
+5. El archivo resultante index.html DEBE ser 100% COMPLETO, sin omitir funciones ni bucles de juego, y concluir con </script></body></html>.
+6. Inicia DIRECTAMENTE con \`\`\`html filename=index.html y concluye con \`\`\`.`;
 
     const userPrompt = `${historySection}
 CÓDIGO ACTUAL DE LA APLICACIÓN:

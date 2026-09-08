@@ -19,15 +19,19 @@ When the user asks for a game (Carreras 3D, Snake 3D, Nave Espacial, Arcade, etc
   \`\`\`html
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   \`\`\`
-- **AAA 3D GRAPHICS & SCENE**:
+- **AAA 3D GRAPHICS & SCENE (PREVENCIÓN DE PANTALLA EN NEGRO)**:
   - Full-screen WebGLRenderer (\`antialias: true\`, \`shadowMap.enabled = true\`).
-  - AmbientLight (0.5 intensity) + DirectionalLight with shadows (\`castShadow = true\`) + PointLights for neon/engine glow.
+  - **FONDO VISIBLE OBLIGATORIO**: Establece siempre un fondo cósmico o cielo degradado visible: \`scene.background = new THREE.Color(0x0a0f1d);\`. NUNCA dejes pantalla en negro opaco sin luces.
+  - **ILUMINACIÓN FUERTE**: Es obligatorio agregar \`AmbientLight(0xffffff, 0.9)\` + \`DirectionalLight(0xffffff, 1.2)\` para que los materiales no se vean negros.
+  - **CÁMARA CON ENFOQUE**: Posiciona la cámara donde apunte a los objetos principales (\`camera.position.set(0, 5, 12); camera.lookAt(0, 1, 0);\`).
+  - **INICIALIZACIÓN INMEDIATA**: Ejecuta la función \`init()\` y \`renderer.render(scene, camera)\` directamente en el script al final de \`<body>\`. NO envuelvas la inicialización principal únicamente en \`window.addEventListener('load')\`.
   - Rich 3D meshes: Detailed car/ship/snake with multi-part geometry (body, wheels/wings, glowing cockpit with emissive materials), textured road/grid, floating obstacles, and animated starfield/nebula particle systems.
 - **START SCREEN & CONTROLS**:
   - Start overlay with game title, controls legend (WASD/Arrows + Touch buttons), and big **▶ JUGAR** button.
-  - Clicking **▶ JUGAR** MUST immediately hide overlay, reset game state, and start the \`requestAnimationFrame\` loop!
+  - Clicking **▶ JUGAR** MUST immediately hide overlay (\`classList.add('hidden')\`), reset game state, and start the \`requestAnimationFrame\` loop!
   - Audio: Procedural sound effects using Web Audio API (\`AudioContext\`) for engine rumble, turbo boost, collect coin, and crash.
   - HUD: Floating speedometer, lap counter, score, turbo bar, and game over modal with restart button.
 
