@@ -1,26 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Send, 
   Sparkles, 
   RefreshCw, 
-  Mic, 
-  MicOff, 
-  Paperclip, 
   Zap, 
   Copy, 
   Check, 
   Edit3, 
   PlusCircle, 
   Code2, 
-  Play, 
-  Crosshair, 
-  X
+  Play
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { ChatMessage, FileItem } from '../types';
 import type { FullStackProject } from '../core/types';
 import { agentOrchestrator } from '../core/agent/AgentOrchestrator';
 import { creditLedger } from '../core/credits/CreditLedger';
+import { FloatingOmnibar } from './FloatingOmnibar';
 
 interface ChatPanelProps {
   files: FileItem[];
@@ -55,47 +50,15 @@ export const ChatPanel = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [thinkingText, setThinkingText] = useState('');
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
-  const [isRecording, setIsRecording] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, thinkingText]);
-
-  // Voice to text setup
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'es-ES';
-
-      recognition.onresult = (event: any) => {
-        let currentTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          currentTranscript += event.results[i][0].transcript;
-        }
-        setInputPrompt(prev => (prev ? prev + ' ' + currentTranscript : currentTranscript));
-      };
-
-      recognition.onerror = () => {
-        setIsRecording(false);
-      };
-
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
-
-      recognitionRef.current = recognition;
-    }
-  }, []);
 
   // Handle external pending prompts
   useEffect(() => {
@@ -104,67 +67,6 @@ export const ChatPanel = ({
       if (onClearPendingPrompt) onClearPendingPrompt();
     }
   }, [pendingPrompt, isGenerating]);
-
-  const toggleRecording = () => {
-    if (!recognitionRef.current) {
-      alert('El reconocimiento de voz no está soportado en este navegador.');
-      return;
-    }
-    if (isRecording) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
-    } else {
-      recognitionRef.current.start();
-      setIsRecording(true);
-    }
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (reader.result) {
-            setAttachedImages(prev => [...prev, reader.result as string]);
-          }
-        };
-        reader.readAsDataURL(file);
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (reader.result) {
-            setInputPrompt(prev => 
-              `${prev}\n\n--- Archivo Adjunto: ${file.name} ---\n${reader.result as string}`
-            );
-          }
-        };
-        reader.readAsText(file);
-      }
-    });
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        const blob = items[i].getAsFile();
-        if (blob) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            if (event.target?.result) {
-              setAttachedImages(prev => [...prev, event.target!.result as string]);
-            }
-          };
-          reader.readAsDataURL(blob);
-        }
-      }
-    }
-  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -336,13 +238,6 @@ export const ChatPanel = ({
       setIsGenerating(false);
       setThinkingText('');
       abortControllerRef.current = null;
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
     }
   };
 
@@ -526,44 +421,6 @@ export const ChatPanel = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Inspected Element Floating Chip */}
-      {inspectedElement && (
-        <div className="p-2.5 bg-indigo-50 border-t border-indigo-100 flex items-center justify-between text-indigo-900 text-xs shrink-0 animate-fade-in">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <Crosshair className="w-4 h-4 text-indigo-600 shrink-0" />
-            <span className="font-bold truncate">{inspectedElement}</span>
-          </div>
-          <button
-            onClick={onClearInspectedElement}
-            className="p-1 text-indigo-600 hover:bg-indigo-100 rounded-lg cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* Attached Images Preview Bar */}
-      {attachedImages.length > 0 && (
-        <div className="p-2 bg-indigo-50/50 border-t border-indigo-100 flex items-center gap-2 overflow-x-auto shrink-0">
-          {attachedImages.map((img, idx) => (
-            <div key={idx} className="relative group shrink-0">
-              <img
-                src={img}
-                alt="Vista previa"
-                className="w-12 h-12 object-cover rounded-xl border border-indigo-200 shadow-xs"
-              />
-              <button
-                type="button"
-                onClick={() => setAttachedImages(prev => prev.filter((_, i) => i !== idx))}
-                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-90 hover:opacity-100 shadow-xs cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Quick Starter Chips */}
       {messages.length <= 1 && (
         <div className="px-3 pb-2 pt-1 flex items-center gap-1.5 overflow-x-auto shrink-0">
@@ -571,7 +428,7 @@ export const ChatPanel = ({
             <button
               key={idx}
               onClick={() => handleSendMessage(qs.prompt)}
-              className="text-[11px] font-bold px-3 py-1.5 bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl border border-slate-200 transition-all shrink-0 cursor-pointer shadow-2xs hover:scale-105"
+              className="text-[11px] font-medium px-3 py-1.5 bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl border border-slate-200 transition-all shrink-0 cursor-pointer shadow-2xs hover:scale-102"
             >
               {qs.label}
             </button>
@@ -579,75 +436,28 @@ export const ChatPanel = ({
         </div>
       )}
 
-      {/* Input Form */}
-      <div className="p-3 border-t border-slate-200 bg-white shrink-0">
-        <div className="relative border border-slate-200 rounded-2xl focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 bg-slate-50/50 transition-all">
-          <textarea
-            value={inputPrompt}
-            onChange={(e) => setInputPrompt(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={
-              isRecording
-                ? '🎙️ Escuchando tu voz...'
-                : inspectedElement
-                ? '¿Qué deseas modificar en este elemento seleccionado?'
-                : 'Escribe tu instrucción, pregunta técnica o arrastra capturas...'
-            }
-            rows={2}
-            className="w-full p-3 pr-20 text-xs bg-transparent border-none resize-none focus:outline-none placeholder-slate-400 text-slate-800"
-          />
-
-          {/* Action Buttons Inside Input Box */}
-          <div className="absolute right-2 bottom-2 flex items-center gap-1">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-              accept="image/*,.txt,.md,.json,.html,.css,.js,.ts"
-              multiple
-              className="hidden"
-            />
-
-            <button
-              type="button"
-              onClick={toggleRecording}
-              className={`p-1.5 rounded-xl transition-all cursor-pointer ${
-                isRecording 
-                  ? 'bg-red-500 text-white animate-pulse' 
-                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/60'
-              }`}
-              title={isRecording ? 'Detener grabación de voz' : 'Dictar instrucción por voz'}
-            >
-              {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
-              title="Adjuntar imagen o archivo de código"
-            >
-              <Paperclip className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSendMessage()}
-              disabled={isGenerating || (!inputPrompt.trim() && attachedImages.length === 0 && !inspectedElement)}
-              className="p-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl transition-all shadow-xs cursor-pointer disabled:cursor-not-allowed"
-              title="Enviar mensaje"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Footer Credit & Model Indicator */}
+      {/* Modern Floating Omnibar Input */}
+      <div className="p-3 border-t border-slate-200/80 bg-white shrink-0">
+        <FloatingOmnibar
+          onSendMessage={(text) => handleSendMessage(text)}
+          isGenerating={isGenerating}
+          inspectedElement={inspectedElement}
+          onClearInspectedElement={onClearInspectedElement}
+          attachedImages={attachedImages}
+          onAddImage={(img) => setAttachedImages(prev => [...prev, img])}
+          onRemoveImage={(idx) => setAttachedImages(prev => prev.filter((_, i) => i !== idx))}
+          placeholder={
+            inspectedElement
+              ? '¿Qué deseas modificar en este elemento seleccionado?'
+              : 'Escribe tu instrucción o pregunta técnica...'
+          }
+        />
+        
+        {/* Footer Credit Indicator */}
         <div className="mt-1.5 px-1 flex items-center justify-between text-[10px] text-slate-400 font-medium">
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            <span>Inteligencia Multi-Modal & Co-Creación Activa</span>
+            <span>Inferencia Ultrarrápida Groq LPU</span>
           </div>
           <span className="text-indigo-600 font-bold">⚡ 5 Créditos / Run</span>
         </div>

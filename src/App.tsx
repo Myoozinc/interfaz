@@ -14,6 +14,7 @@ import { MediaLibraryModal } from './components/MediaLibraryModal';
 import { AuthModal } from './components/AuthModal';
 import { DiagnosticsPage } from './components/DiagnosticsPage';
 import { AgentActivityStream } from './components/AgentActivityStream';
+import { DesktopSidebar } from './components/DesktopSidebar';
 import type { FileItem, ProjectRecord, ProjectTemplate, UserCredits, UserAccount, ChatMessage } from './types';
 import { projectStore } from './services/projectStore';
 import { STARTER_TEMPLATES } from './services/templates';
@@ -22,6 +23,10 @@ import { agentOrchestrator } from './core/agent/AgentOrchestrator';
 
 export function App() {
   const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('split');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('nona_sidebar_open');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 
@@ -98,6 +103,25 @@ export function App() {
     aiEngine.setOllamaUrl(url);
     agentOrchestrator.setEndpoint(url);
   };
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => {
+      const next = !prev;
+      localStorage.setItem('nona_sidebar_open', String(next));
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [toggleSidebar]);
 
   // Sync active project state to IndexedDB on changes
   useEffect(() => {
@@ -353,6 +377,8 @@ export function App() {
         onExportZip={handleExportZip}
         viewMode={viewMode}
         setViewMode={setViewMode}
+        isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={toggleSidebar}
       />
 
       {/* Main Content View */}
@@ -361,16 +387,43 @@ export function App() {
       ) : (
         <div className="flex-1 flex overflow-hidden">
           
-          {viewMode === 'chat' ? (
-            /* Mode 1: Central Hero Chat View */
-            <HeroChatView
-              onStartGeneration={handleStartFromHero}
-              creditsBalance={credits.balance}
-              onOpenWorkspace={() => setViewMode('split')}
-            />
-          ) : (
-            /* Mode 2: Multi-panel Workspace with Resizable Splitters */
-            <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Desktop Left Collapsible Sidebar */}
+          <DesktopSidebar
+            isOpen={isSidebarOpen}
+            onClose={() => {
+              setIsSidebarOpen(false);
+              localStorage.setItem('nona_sidebar_open', 'false');
+            }}
+            projects={projects}
+            activeProjectId={activeProjectId}
+            onSelectProject={handleSelectProject}
+            onNewProject={handleNewCleanProject}
+            onDeleteProject={handleDeleteProject}
+            onDuplicateProject={handleDuplicateProject}
+            credits={credits}
+            currentUser={currentUser}
+            onOpenCreditsModal={() => setIsCreditsModalOpen(true)}
+            onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+            onOpenProjectsModal={() => setIsProjectsModalOpen(true)}
+            onOpenMediaModal={() => setIsMediaModalOpen(true)}
+            onOpenDiagnostics={() => setShowDiagnostics(true)}
+            onExportZip={handleExportZip}
+          />
+
+          {/* Center Main View Area */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {viewMode === 'chat' ? (
+              /* Mode 1: Central Hero Chat View */
+              <HeroChatView
+                onStartGeneration={handleStartFromHero}
+                creditsBalance={credits.balance}
+                onOpenWorkspace={() => setViewMode('split')}
+                inspectedElement={inspectedElement}
+                onClearInspectedElement={() => setInspectedElement(null)}
+              />
+            ) : (
+              /* Mode 2: Multi-panel Workspace with Resizable Splitters */
+              <div className="flex-1 flex flex-col overflow-hidden">
               
               <div className="flex-1 flex overflow-hidden relative">
                 
@@ -495,6 +548,7 @@ export function App() {
             </div>
           )}
 
+          </div>
         </div>
       )}
 
