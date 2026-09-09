@@ -207,22 +207,27 @@ Responde de forma clara, natural y profesional:`;
             arguments: { path: filePath, content }
           }, project);
         }
-      } else {
+        await this.toolRegistry.executeTool({
+          id: 'tc_build_' + Date.now(),
+          name: 'build_project',
+          arguments: {}
+        }, project);
+        agentEvents.emit('agent.completed', `Software construido por ${collabResult.expertAgent.name} (${fileEntries.length} archivos) y verificado en sandbox.`);
+      } else if (collabResult.fullCode && collabResult.fullCode.length >= 300) {
         await this.toolRegistry.executeTool({
           id: 'tc_' + Date.now(),
           name: 'project_write_file',
           arguments: { path: 'index.html', content: collabResult.fullCode }
         }, project);
+        await this.toolRegistry.executeTool({
+          id: 'tc_build_' + Date.now(),
+          name: 'build_project',
+          arguments: {}
+        }, project);
+        agentEvents.emit('agent.completed', `Software construido por ${collabResult.expertAgent.name} (1 archivo) y verificado en sandbox.`);
+      } else {
+        agentEvents.emit('agent.error', 'No se modificaron los archivos del proyecto debido a un fallo en la generación.');
       }
-
-      // Validate project build across all files
-      await this.toolRegistry.executeTool({
-        id: 'tc_build_' + Date.now(),
-        name: 'build_project',
-        arguments: {}
-      }, project);
-
-      agentEvents.emit('agent.completed', `Software construido por ${collabResult.expertAgent.name} (${fileEntries.length} archivos) y verificado en sandbox.`);
       
       return { 
         responseText: collabResult.conversationalSummary, 

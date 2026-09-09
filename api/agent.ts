@@ -128,43 +128,32 @@ export default async function handler(req: Request) {
         throw new Error('Para procesar imágenes se requiere OPENROUTER_API_KEY o GROQ_API_KEY configurada.');
       }
     } else {
-      // TIER 1: Groq Engine (Llama 3.3 70B Versatile -> Llama 3.1 8B Instant -> DeepSeek R1 Distill)
-      if (groqKeysToTry.length > 0) {
-        const groqModels = [
-          'llama-3.3-70b-versatile',
-          'llama-3.1-8b-instant',
-          'deepseek-r1-distill-llama-70b',
-          'mixtral-8x7b-32768'
-        ];
-        for (const key of groqKeysToTry) {
-          for (const targetM of groqModels) {
-            try {
-              const res = await executeGroq(key, targetM, safeGroqMaxTokens);
-              if (res.ok) {
-                aiResponse = res;
-                break;
-              } else {
-                const errTxt = await res.text().catch(() => '');
-                lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
-              }
-            } catch (e: any) {
-              lastError = `Groq (${targetM}) error: ${e.message}`;
-            }
-          }
-          if (aiResponse && aiResponse.ok) break;
-        }
-      }
+      const isExplicitGroq = model && (
+        model.includes('llama') ||
+        model.includes('mixtral') ||
+        model.includes('gemma') ||
+        model.startsWith('groq/')
+      );
 
-      // TIER 2: OpenRouter (Custom key or server env key)
-      if ((!aiResponse || !aiResponse.ok) && orKeyToUse) {
-        const targetModels = [
-          model || 'qwen/qwen-2.5-coder-32b-instruct',
+      const isOpenRouterPreferred = (model && (
+        model.includes('/') &&
+        !model.startsWith('groq/') &&
+        !isExplicitGroq
+      )) || (targetTokens >= 5000);
+
+      if (isOpenRouterPreferred && orKeyToUse) {
+        // TIER 1 (High-Capacity / OpenRouter preferred): DeepSeek-V3, Claude, Qwen Coder
+        const targetModels = Array.from(new Set([
+          model || 'deepseek/deepseek-chat',
+          'deepseek/deepseek-chat',
+          'qwen/qwen-2.5-coder-32b-instruct',
           'meta-llama/llama-3.3-70b-instruct',
           ...VERIFIED_FREE_OR_MODELS
-        ];
+        ].filter(Boolean)));
+
         for (const orModel of targetModels) {
           try {
-            const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 3000));
+            const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 12000));
             if (res.ok) {
               aiResponse = res;
               break;
@@ -174,6 +163,84 @@ export default async function handler(req: Request) {
             }
           } catch (e: any) {
             lastError = `OpenRouter (${orModel}) Exception: ${e.message}`;
+          }
+        }
+
+        // Fallback to Groq if OpenRouter models fail
+        if ((!aiResponse || !aiResponse.ok) && groqKeysToTry.length > 0) {
+          const groqModels = [
+            'llama-3.3-70b-versatile',
+            'llama-3.1-8b-instant',
+            'deepseek-r1-distill-llama-70b',
+            'mixtral-8x7b-32768'
+          ];
+          for (const key of groqKeysToTry) {
+            for (const targetM of groqModels) {
+              try {
+                const res = await executeGroq(key, targetM, safeGroqMaxTokens);
+                if (res.ok) {
+                  aiResponse = res;
+                  break;
+                } else {
+                  const errTxt = await res.text().catch(() => '');
+                  lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
+                }
+              } catch (e: any) {
+                lastError = `Groq (${targetM}) error: ${e.message}`;
+              }
+            }
+            if (aiResponse && aiResponse.ok) break;
+          }
+        }
+      } else {
+        // TIER 1 (Fast Low-Latency / Groq preferred): Llama 3.3 70B, Llama 3.1 8B Instant
+        if (groqKeysToTry.length > 0) {
+          const groqModels = [
+            'llama-3.3-70b-versatile',
+            'llama-3.1-8b-instant',
+            'deepseek-r1-distill-llama-70b',
+            'mixtral-8x7b-32768'
+          ];
+          for (const key of groqKeysToTry) {
+            for (const targetM of groqModels) {
+              try {
+                const res = await executeGroq(key, targetM, safeGroqMaxTokens);
+                if (res.ok) {
+                  aiResponse = res;
+                  break;
+                } else {
+                  const errTxt = await res.text().catch(() => '');
+                  lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
+                }
+              } catch (e: any) {
+                lastError = `Groq (${targetM}) error: ${e.message}`;
+              }
+            }
+            if (aiResponse && aiResponse.ok) break;
+          }
+        }
+
+        // TIER 2: Fallback to OpenRouter
+        if ((!aiResponse || !aiResponse.ok) && orKeyToUse) {
+          const targetModels = [
+            model || 'deepseek/deepseek-chat',
+            'qwen/qwen-2.5-coder-32b-instruct',
+            'meta-llama/llama-3.3-70b-instruct',
+            ...VERIFIED_FREE_OR_MODELS
+          ];
+          for (const orModel of targetModels) {
+            try {
+              const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 8192));
+              if (res.ok) {
+                aiResponse = res;
+                break;
+              } else {
+                const errText = await res.text().catch(() => '');
+                lastError = `OpenRouter (${orModel}): ${errText.slice(0, 100)}`;
+              }
+            } catch (e: any) {
+              lastError = `OpenRouter (${orModel}) Exception: ${e.message}`;
+            }
           }
         }
       }
