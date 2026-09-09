@@ -6,6 +6,18 @@ export interface FileItem {
   isModified?: boolean;
 }
 
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  type: 'image' | 'audio' | 'video' | 'document' | 'url';
+  url: string;
+  size?: number;
+  mimeType?: string;
+  extractedText?: string;
+  title?: string;
+  description?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -13,6 +25,7 @@ export interface ChatMessage {
   timestamp: string;
   images?: string[];
   links?: string[];
+  attachments?: ChatAttachment[];
   codeSnippets?: {
     filename?: string;
     language: string;
@@ -23,6 +36,9 @@ export interface ChatMessage {
   modelUsed?: string;
   intent?: string;
   actionChips?: string[];
+  activeAgentDomain?: string;
+  collaboratingAgents?: string[];
+  thinkingStages?: { name: string; status: 'pending' | 'running' | 'done'; detail?: string }[];
 }
 
 export interface ProjectRecord {

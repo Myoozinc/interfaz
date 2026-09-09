@@ -1,6 +1,8 @@
-import type { ChatMessage } from '../../types';
+import type { ChatMessage, ChatAttachment } from '../../types';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { agentEvents } from './AgentEvents';
+import { domainMetaAgentFactory, type DomainExpertAgent } from './DomainMetaAgentFactory';
+import { webSearchService } from '../services/WebSearchService';
 
 export interface PlanPipelineResult {
   analysis: string;
@@ -139,28 +141,35 @@ Propón 3 mejoras o ideas innovadoras específicas para incorporar a este requer
     contextBrief: string,
     creativeIdeas: string,
     currentCode: string,
+    expertAgent: DomainExpertAgent,
+    webContext: string,
     onStream: (token: string, fullText: string) => void,
     signal?: AbortSignal
   ): Promise<string> {
-    agentEvents.emit('agent.thinking', '📋 Agente 3 (Orquestador de Plan): Redactando propuesta interactiva y hoja de ruta...');
+    agentEvents.emit('agent.thinking', `📋 [${expertAgent.name}]: Redactando propuesta interactiva y hoja de ruta...`);
 
-    const systemPrompt = `Eres AGENTE 3: LEAD ARCHITECT & CONVERSATIONAL ORCHESTRATOR de NONA (Estándar Lovable / Google Antigravity).
+    const systemPrompt = `Eres ${expertAgent.name}, LEAD ARCHITECT de NONA en ${expertAgent.domain} (Estándar Lovable / Google Antigravity).
 Tu misión es hablarle directamente al usuario en español con un tono profesional, empático, didáctico y enfocado en la acción.
 Debes presentar la respuesta en este formato Markdown impecable:
+
+### 👑 Agente Experto Asignado: ${expertAgent.name}
+*(Especialidad: ${expertAgent.domain})*
 
 ### 🧠 Análisis & Comprensión del Contexto
 (1 o 2 frases explicando cómo entendiste su requerimiento dentro del historial de lo que ya se ha venido haciendo en el proyecto).
 
 ### 💡 Ideas & Mejoras que Incorporaremos
-(2 o 3 viñetas claras con las propuestas creativas de diseño, sonido Web Audio o mecánicas 3D aportadas por el Agente 2).
+(2 o 3 viñetas claras con las propuestas de ${expertAgent.domain}, sonido, partículas o UX).
 
 ### 📋 Plan de Construcción Quirúrgica
-(Paso a paso de las modificaciones o funciones exactas que se van a implementar en el código, garantizando que el resto del proyecto quede 100% consistente y funcional).
+(Paso a paso de las modificaciones o funciones exactas que se van a implementar en el código, garantizando consistencia total y cero pantallas en negro).
 
 > **¿Listo para construir?** Puedes hacer clic en **"▶ Construir y Ver en Preview"** abajo para que genere el código de inmediato, o decirme si deseas ajustar algún detalle aquí en el chat antes de compilar.`;
 
     const userPrompt = `CONTEXTO HISTÓRICO (Agente 1):
 ${contextBrief}
+
+${webContext}
 
 IDEAS Y MEJORAS CREATIVAS (Agente 2):
 ${creativeIdeas}
@@ -190,15 +199,36 @@ Redacta la respuesta conversacional y el plan estructurado para el usuario:`;
   }
 
   /**
-   * FULL PIPELINE EXECUTION (Chain of 3 Agents)
+   * FULL PIPELINE EXECUTION (Chain of Domain-Specialized Agents)
    */
   public async executeConversationalPipeline(
     userInstruction: string,
     history: ChatMessage[],
     currentCode: string,
     onStream: (token: string, fullText: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    attachments: ChatAttachment[] = []
   ): Promise<string> {
+    // Step 0: Meta-Agent Domain Detection & Instantiation
+    const expertAgent = domainMetaAgentFactory.analyzeAndInstantiateExpert(
+      userInstruction,
+      history,
+      attachments,
+      currentCode
+    );
+    agentEvents.emit('agent.thinking', `🧠 [Meta-Agente]: Activando especialista "${expertAgent.name}"...`);
+
+    // Step 0.5: Web Grounding & Reference URL analysis
+    let webContext = '';
+    const refUrl = attachments.find(a => a.type === 'url' || (a.url && a.url.startsWith('http')));
+    if (refUrl) {
+      agentEvents.emit('agent.thinking', `🌐 [Conexión Web]: Rastreando ${refUrl.url}...`);
+      const scraped = await webSearchService.scrapeReferenceUrl(refUrl.url);
+      if (scraped) {
+        webContext = webSearchService.formatScrapedPageForPrompt(scraped);
+      }
+    }
+
     // Step 1: Agent 1 analyzes full chat transcript
     const contextBrief = await this.gatherFullContext(userInstruction, history, currentCode, signal);
 
@@ -211,6 +241,8 @@ Redacta la respuesta conversacional y el plan estructurado para el usuario:`;
       contextBrief,
       creativeIdeas,
       currentCode,
+      expertAgent,
+      webContext,
       onStream,
       signal
     );

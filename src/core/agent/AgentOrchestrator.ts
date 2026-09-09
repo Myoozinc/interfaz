@@ -1,4 +1,4 @@
-import type { ChatMessage } from '../../types';
+import type { ChatMessage, ChatAttachment } from '../../types';
 import type { FullStackProject, ToolCall } from '../types';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { ToolRegistry } from './ToolRegistry';
@@ -8,12 +8,15 @@ import { surgicalDiffAgent } from './SurgicalDiffAgent';
 import { intentRouter, type IntentClassificationResult } from './IntentRouter';
 import { formatConversationHistory } from './historyUtils';
 import { multiAgentPlanPipeline } from './MultiAgentPlanPipeline';
+import { agentCollaborationCouncil } from './AgentCollaborationCouncil';
 
 export interface AgentExecutionResult {
   responseText: string;
   updatedProject: FullStackProject;
   intent: IntentClassificationResult;
   actionChips?: string[];
+  activeAgentDomain?: string;
+  collaboratingAgents?: string[];
 }
 
 export class AgentOrchestrator {
@@ -30,12 +33,14 @@ export class AgentOrchestrator {
     multiAgentEngine.setEndpoint(url);
     surgicalDiffAgent.setEndpoint(url);
     multiAgentPlanPipeline.setEndpoint(url);
+    agentCollaborationCouncil.setEndpoint(url);
   }
 
   setModel(model: string) {
     this.aiProvider.setDefaultModel(model);
     surgicalDiffAgent.setModel(model);
     multiAgentPlanPipeline.setModel(model);
+    agentCollaborationCouncil.setModel(model);
   }
 
   private async generateNaturalSummary(userInstruction: string, actionType: string, detailContext: string): Promise<string> {
@@ -68,6 +73,7 @@ Sé conciso, empático, sin plantillas robóticas ni encabezados genéricos.`;
     options?: {
       images?: string[];
       links?: string[];
+      attachments?: ChatAttachment[];
       signal?: AbortSignal;
       history?: ChatMessage[];
       mode?: 'chat' | 'builder';
@@ -148,7 +154,8 @@ Responde de forma clara, natural y profesional:`;
         (_token, full) => {
           onProgress(full, false);
         },
-        options?.signal
+        options?.signal,
+        options?.attachments || []
       );
 
       agentEvents.emit('agent.completed', 'Propuesta de arquitectura y plan interactivo generados.');
@@ -165,52 +172,50 @@ Responde de forma clara, natural y profesional:`;
     }
 
     // =========================================================================
-    // MODE 3: 🚀 FULL_BUILD (Full Software / 3D Game Synthesis)
+    // MODE 3: 🚀 FULL_BUILD (Multi-Agent Code Collaboration & Domain Specialist)
     // =========================================================================
     if (intent.type === 'FULL_BUILD') {
-      let agentStepsLog = '';
-      const isExplicitNew = intent.isExplicitNew ?? (currentCode.trim().length < 50);
-
-      const { fullCode } = await multiAgentEngine.executeAutonomousPipeline(
+      const collabResult = await agentCollaborationCouncil.executeCollaborativeSynthesis(
         userInstruction,
-        currentCode,
-        isExplicitNew,
-        (stepName, detail, streamToken) => {
-          if (stepName !== agentStepsLog) {
-            agentStepsLog = stepName;
-            onProgress(`**${stepName}**\n${detail}`, true);
-          } else if (streamToken) {
-            onProgress(`**${stepName}**\n*(Escribiendo código...)*`, false);
-          }
-        },
-        options?.signal,
-        options?.history
+        project,
+        onProgress,
+        {
+          history: options?.history,
+          attachments: options?.attachments,
+          signal: options?.signal,
+        }
       );
 
-      // Save verified code to index.html
+      // Save verified code directly into index.html
       const toolCall: ToolCall = {
         id: 'tc_' + Date.now(),
         name: 'project_write_file',
-        arguments: { path: 'index.html', content: fullCode }
+        arguments: { path: 'index.html', content: collabResult.fullCode }
       };
 
       await this.toolRegistry.executeTool(toolCall, project);
 
-      // Validate & Build
+      // Validate project build
       await this.toolRegistry.executeTool({
         id: 'tc_build_' + Date.now(),
         name: 'build_project',
         arguments: {}
       }, project);
 
-      const naturalSummary = await this.generateNaturalSummary(
-        userInstruction,
-        isExplicitNew ? 'Creación de nueva aplicación completa' : 'Evolución y actualización completa de la aplicación',
-        'Se generó la estructura HTML5, estilos Tailwind, escena 3D / lógica de estado y controles interactivos'
-      );
-
-      agentEvents.emit('agent.completed', 'Software construido y desplegado en vivo con éxito.');
-      return { responseText: naturalSummary, updatedProject: project, intent };
+      agentEvents.emit('agent.completed', `Software construido por ${collabResult.expertAgent.name} y verificado en sandbox.`);
+      
+      return { 
+        responseText: collabResult.conversationalSummary, 
+        updatedProject: project, 
+        intent,
+        activeAgentDomain: `${collabResult.expertAgent.name} (${collabResult.expertAgent.domain})`,
+        collaboratingAgents: collabResult.collaboratingAgents,
+        actionChips: [
+          '👁️ Probar en Preview en Vivo',
+          '💻 Ver Código en Editor',
+          '💬 Refinar en Chat'
+        ]
+      };
     }
 
     // =========================================================================

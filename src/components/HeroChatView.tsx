@@ -4,29 +4,36 @@ import {
   Gamepad2, 
   BarChart3, 
   Music, 
-  Smartphone,
-  Columns,
-  Play,
-  Check,
-  RefreshCw,
-  PlusCircle,
-  Brain,
-  Lightbulb,
-  FileCheck2
+  Smartphone, 
+  Columns, 
+  Play, 
+  Check, 
+  RefreshCw, 
+  PlusCircle, 
+  Brain, 
+  Globe,
+  Video,
+  FileText,
+  ExternalLink,
+  ShieldCheck,
+  Cpu
 } from 'lucide-react';
 import { FloatingOmnibar } from './FloatingOmnibar';
 import { MarkdownViewer } from './MarkdownViewer';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, ChatAttachment } from '../types';
 
 interface HeroChatViewProps {
   messages: ChatMessage[];
-  onSendMessage: (prompt: string, mode?: 'chat' | 'builder', model?: string) => void;
+  onSendMessage: (prompt: string, mode?: 'chat' | 'builder', model?: string, attachments?: ChatAttachment[]) => void;
   creditsBalance: number;
   onOpenWorkspace: () => void;
   onNewCleanProject?: () => void;
   attachedImages?: string[];
   onAddImage?: (base64: string) => void;
   onRemoveImage?: (index: number) => void;
+  attachments?: ChatAttachment[];
+  onAddAttachment?: (att: ChatAttachment) => void;
+  onRemoveAttachment?: (id: string) => void;
   inspectedElement?: string | null;
   onClearInspectedElement?: () => void;
   isGenerating?: boolean;
@@ -42,6 +49,9 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   attachedImages = [],
   onAddImage,
   onRemoveImage,
+  attachments = [],
+  onAddAttachment,
+  onRemoveAttachment,
   inspectedElement,
   onClearInspectedElement,
   isGenerating = false,
@@ -81,9 +91,9 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   ];
 
   const handleChipClick = (chip: string) => {
-    if (chip.includes('Construir y Ver en Preview')) {
+    if (chip.includes('Construir y Ver en Preview') || chip.includes('Probar en Preview en Vivo')) {
       onSendMessage(chip, 'builder');
-    } else if (chip.includes('Ver Preview Actual')) {
+    } else if (chip.includes('Ver Preview Actual') || chip.includes('Ver Código en Editor')) {
       onOpenWorkspace();
     } else {
       onSendMessage(chip, 'chat');
@@ -105,7 +115,7 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
           <div className="space-y-2.5">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200/80 text-[11px] font-semibold text-slate-700 shadow-2xs">
               <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              <span>NONA AI Software Factory • Multi-Agente</span>
+              <span>NONA Software Factory • Meta-Agentes & Búsqueda Web</span>
             </div>
 
             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
@@ -113,20 +123,23 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
             </h1>
 
             <p className="text-slate-500 text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
-              Conversa conmigo sobre tu idea. Planificaré la arquitectura, propondré ideas creativas y construiremos tu aplicación con un solo clic.
+              Adjunta audio, video, enlaces web de referencia o escribe tu idea. Un Meta-Agente asignará un especialista en tu dominio y coordinará la creación del software.
             </p>
           </div>
 
           {/* Centerpiece Floating Omnibar Prompt Box */}
           <FloatingOmnibar
-            onSendMessage={(prompt, mode, model) => onSendMessage(prompt, mode || 'chat', model)}
+            onSendMessage={(prompt, mode, model, atts) => onSendMessage(prompt, mode || 'chat', model, atts)}
             isGenerating={isGenerating}
             inspectedElement={inspectedElement}
             onClearInspectedElement={onClearInspectedElement}
             attachedImages={attachedImages}
             onAddImage={onAddImage}
             onRemoveImage={onRemoveImage}
-            placeholder="Describe tu idea, juego o aplicación (ej: juego 3D con naves y sonido)..."
+            attachments={attachments}
+            onAddAttachment={onAddAttachment}
+            onRemoveAttachment={onRemoveAttachment}
+            placeholder="Describe tu idea o pega una URL de referencia (soporta audio, video, imágenes)..."
           />
 
           {/* Quick Action Suggestion Chips */}
@@ -165,7 +178,7 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
     );
   }
 
-  // State 2: Active Conversational Chat View (Claude / Antigravity style)
+  // State 2: Active Conversational Chat View
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden font-sans select-none">
       
@@ -174,21 +187,25 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-100/80 text-indigo-700 text-xs font-bold shadow-2xs">
             <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span>NONA AI Architect & Planner</span>
+            <span>NONA Multi-Agent Architecture</span>
           </div>
 
-          {/* Multi-Agent Chain Badge */}
+          {/* Multi-Agent Collaboration Badge */}
           <div className="hidden sm:flex items-center gap-2 text-[10px] font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-xl border border-slate-200/60">
             <span className="flex items-center gap-1 text-slate-700">
-              <Brain className="w-3 h-3 text-indigo-500" /> 1. Contexto
+              <Brain className="w-3 h-3 text-indigo-500" /> Meta-Agente
             </span>
             <span>→</span>
             <span className="flex items-center gap-1 text-slate-700">
-              <Lightbulb className="w-3 h-3 text-amber-500" /> 2. Ideación
+              <Globe className="w-3 h-3 text-cyan-600" /> Web Grounding
             </span>
             <span>→</span>
             <span className="flex items-center gap-1 text-slate-700">
-              <FileCheck2 className="w-3 h-3 text-emerald-500" /> 3. Plan
+              <Cpu className="w-3 h-3 text-amber-500" /> Especialista
+            </span>
+            <span>→</span>
+            <span className="flex items-center gap-1 text-slate-700">
+              <ShieldCheck className="w-3 h-3 text-emerald-500" /> QA Guard
             </span>
           </div>
         </div>
@@ -225,17 +242,22 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
               key={msg.id}
               className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} group`}
             >
-              {/* Header Label */}
-              <div className="flex items-center gap-2 mb-1.5 px-1 text-[11px] text-slate-400 font-medium">
+              {/* Header Label with Domain & Collaborator badges */}
+              <div className="flex items-center gap-2 mb-1.5 px-1 text-[11px] text-slate-400 font-medium flex-wrap">
                 {!isUser && (
                   <div className="flex items-center gap-1 text-indigo-600 font-bold">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>NONA Senior Architect</span>
+                    <span>NONA AI Architect</span>
                   </div>
+                )}
+                {msg.activeAgentDomain && !isUser && (
+                  <span className="px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 font-bold text-[10px] border border-violet-100">
+                    👑 {msg.activeAgentDomain}
+                  </span>
                 )}
                 {msg.intent && !isUser && (
                   <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold text-[10px] border border-indigo-100">
-                    {msg.intent === 'INTERACTIVE_PLAN' ? '🗺️ Plan y Estrategia' :
+                    {msg.intent === 'INTERACTIVE_PLAN' ? '🗺️ Plan & Estrategia' :
                      msg.intent === 'CHAT_CONSULT' ? '💬 Consulta Técnica' :
                      msg.intent === 'FULL_BUILD' ? '🚀 Aplicación Construida' :
                      '⚡ Edición Quirúrgica'}
@@ -252,8 +274,52 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                     : 'bg-white border border-slate-200/90 text-slate-800 rounded-bl-xs'
                 }`}
               >
-                {/* Attached Images */}
-                {isUser && msg.images && msg.images.length > 0 && (
+                {/* Universal Attachments in User Bubble */}
+                {isUser && msg.attachments && msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {msg.attachments.map((att) => (
+                      <div key={att.id} className="rounded-xl overflow-hidden border border-white/20 bg-white/10 p-2 text-xs">
+                        {att.type === 'image' && (
+                          <img src={att.url} alt={att.name} className="w-32 h-32 object-cover rounded-lg" />
+                        )}
+                        {att.type === 'audio' && (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                              <Music className="w-3.5 h-3.5 text-emerald-300" />
+                              <span className="truncate max-w-[180px]">{att.name}</span>
+                            </div>
+                            <audio controls src={att.url} className="h-7 w-56 rounded" />
+                          </div>
+                        )}
+                        {att.type === 'video' && (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                              <Video className="w-3.5 h-3.5 text-rose-300" />
+                              <span className="truncate max-w-[180px]">{att.name}</span>
+                            </div>
+                            <video controls src={att.url} className="max-w-xs max-h-36 rounded-lg" />
+                          </div>
+                        )}
+                        {att.type === 'url' && (
+                          <a href={att.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:underline text-[11px] text-indigo-200">
+                            <Globe className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                            <span className="truncate max-w-[200px] font-bold">{att.title || att.name}</span>
+                            <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
+                          </a>
+                        )}
+                        {att.type === 'document' && (
+                          <div className="flex items-center gap-1.5 text-[11px]">
+                            <FileText className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                            <span className="truncate max-w-[180px] font-semibold">{att.name}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Legacy Attached Images */}
+                {isUser && (!msg.attachments || msg.attachments.length === 0) && msg.images && msg.images.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-3">
                     {msg.images.map((img, idx) => (
                       <img
@@ -266,19 +332,27 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                   </div>
                 )}
 
-                {/* Content Rendering */}
+                {/* Content Rendering (Clean, no raw code dumps) */}
                 {isUser ? (
                   <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
                 ) : (
                   <MarkdownViewer content={msg.content} />
                 )}
 
-                {/* Interactive Action Chips (Plan execution, refinement, preview) */}
+                {/* Multi-Agent Collaboration Footnote */}
+                {!isUser && msg.collaboratingAgents && msg.collaboratingAgents.length > 0 && (
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                    <span className="text-slate-500 font-semibold">Consejo Multi-IA:</span>
+                    <span>{msg.collaboratingAgents.join(' • ')}</span>
+                  </div>
+                )}
+
+                {/* Interactive Action Chips */}
                 {!isUser && msg.actionChips && msg.actionChips.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
                     {msg.actionChips.map((chip, cIdx) => {
-                      const isBuildChip = chip.includes('Construir y Ver en Preview');
-                      const isPreviewChip = chip.includes('Ver Preview Actual');
+                      const isBuildChip = chip.includes('Construir') || chip.includes('Probar en Preview en Vivo');
+                      const isPreviewChip = chip.includes('Ver Preview');
                       return (
                         <button
                           key={cIdx}
@@ -324,17 +398,26 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
           );
         })}
 
-        {/* Live Multi-Agent Thinking Stream Pulse */}
+        {/* Live Multi-Agent Thinking & Collaboration Box */}
         {isGenerating && (
-          <div className="max-w-2xl bg-indigo-50/80 border border-indigo-200/80 rounded-2xl p-4 text-xs sm:text-sm text-indigo-950 flex items-center gap-3 shadow-2xs animate-pulse">
-            <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
-            <div className="space-y-0.5">
-              <div className="font-bold text-indigo-900 flex items-center gap-1.5">
+          <div className="max-w-2xl bg-gradient-to-r from-indigo-50/90 via-violet-50/80 to-slate-50/90 border border-indigo-200/80 rounded-2xl p-4 text-xs sm:text-sm text-indigo-950 flex items-start gap-3 shadow-xs animate-pulse">
+            <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin shrink-0 mt-0.5" />
+            <div className="space-y-1.5 flex-1">
+              <div className="font-bold text-indigo-900 flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Cadena Multi-Agente NONA en Ejecución</span>
+                <span>Ejecutando Consejo Multi-Agente NONA (Pensando & Colaborando)</span>
               </div>
-              <div className="text-xs text-indigo-700 font-medium">
-                {thinkingText || 'Analizando contexto del chat, ideando mejoras y elaborando plan...'}
+              <div className="text-xs text-indigo-800 font-medium leading-relaxed">
+                {thinkingText || 'Analizando dominio técnico, consultando documentación web y coordinando especialistas...'}
+              </div>
+              <div className="flex items-center gap-2 pt-1 text-[10px] text-slate-500 font-semibold">
+                <span className="flex items-center gap-1 text-indigo-700">● Meta-Agente</span>
+                <span>•</span>
+                <span className="flex items-center gap-1 text-cyan-700">● Web Grounding</span>
+                <span>•</span>
+                <span className="flex items-center gap-1 text-amber-700">● Especialista</span>
+                <span>•</span>
+                <span className="flex items-center gap-1 text-emerald-700">● QA Verifier</span>
               </div>
             </div>
           </div>
@@ -347,18 +430,21 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
       <div className="p-4 sm:p-6 bg-gradient-to-t from-white via-white/95 to-transparent shrink-0">
         <div className="max-w-3xl mx-auto w-full space-y-2">
           <FloatingOmnibar
-            onSendMessage={(prompt, mode, model) => onSendMessage(prompt, mode || 'chat', model)}
+            onSendMessage={(prompt, mode, model, atts) => onSendMessage(prompt, mode || 'chat', model, atts)}
             isGenerating={isGenerating}
             inspectedElement={inspectedElement}
             onClearInspectedElement={onClearInspectedElement}
             attachedImages={attachedImages}
             onAddImage={onAddImage}
             onRemoveImage={onRemoveImage}
-            placeholder="Responde al plan, pide cambios o indica qué más agregar..."
+            attachments={attachments}
+            onAddAttachment={onAddAttachment}
+            onRemoveAttachment={onRemoveAttachment}
+            placeholder="Responde, pide mejoras o adjunta audio, video o páginas web de referencia..."
           />
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium px-2">
-            <span>Inferencia Ultrarrápida Groq LPU (Qwen 3.8 27B)</span>
-            <span>Modo Conversacional & Planificación Activo</span>
+            <span>Inferencia Ultrarrápida Groq LPU + Google Gemini Flash</span>
+            <span>Consejo Multi-IA & Conectividad Web Activos</span>
           </div>
         </div>
       </div>

@@ -25,7 +25,7 @@ import { AuthModal } from './components/AuthModal';
 import { DiagnosticsPage } from './components/DiagnosticsPage';
 import { AgentActivityStream } from './components/AgentActivityStream';
 import { DesktopSidebar } from './components/DesktopSidebar';
-import type { FileItem, ProjectRecord, ProjectTemplate, UserCredits, UserAccount, ChatMessage } from './types';
+import type { FileItem, ProjectRecord, ProjectTemplate, UserCredits, UserAccount, ChatMessage, ChatAttachment } from './types';
 import type { FullStackProject } from './core/types';
 import { projectStore } from './services/projectStore';
 import { STARTER_TEMPLATES } from './services/templates';
@@ -41,6 +41,7 @@ export function App() {
   });
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
 
   // Workspace layout state (Preview active by default, files and editor collapsible)
   const [isFilesDrawerOpen, setIsFilesDrawerOpen] = useState(false);
@@ -362,10 +363,12 @@ export function App() {
   const handleSendMessage = async (
     customPrompt?: string, 
     modeOverride?: 'chat' | 'builder', 
-    customImages?: string[]
+    customImages?: string[],
+    customAttachments?: ChatAttachment[]
   ) => {
     let promptToSend = (customPrompt || pendingPrompt || '').trim();
-    if (!promptToSend && (!customImages || customImages.length === 0) && !inspectedElement) return;
+    const activeAttachments = customAttachments || attachments;
+    if (!promptToSend && (!customImages || customImages.length === 0) && activeAttachments.length === 0 && !inspectedElement) return;
 
     if (inspectedElement) {
       promptToSend = `[Elemento Seleccionado en Vista Previa: ${inspectedElement}]\n${promptToSend}`;
@@ -381,11 +384,13 @@ export function App() {
 
     const userMessageId = Date.now().toString();
     const imgs = customImages && customImages.length > 0 ? customImages : undefined;
+    const atts = activeAttachments.length > 0 ? [...activeAttachments] : undefined;
     const newUserMsg: ChatMessage = {
       id: userMessageId,
       role: 'user',
       content: promptToSend,
       images: imgs,
+      attachments: atts,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -398,6 +403,7 @@ export function App() {
     };
 
     setMessages(prev => [...prev, newUserMsg, assistantMsg]);
+    setAttachments([]);
     setIsGenerating(true);
     setThinkingText(
       executionMode === 'chat'
@@ -435,6 +441,7 @@ export function App() {
         },
         {
           images: imgs,
+          attachments: atts,
           signal: abortController.signal,
           history: [...messages, newUserMsg],
           mode: executionMode,
@@ -472,7 +479,9 @@ export function App() {
                 ...msg, 
                 content: result.responseText, 
                 intent: result.intent.type, 
-                actionChips: result.actionChips 
+                actionChips: result.actionChips,
+                activeAgentDomain: result.activeAgentDomain,
+                collaboratingAgents: result.collaboratingAgents,
               }
             : msg
         )
@@ -571,13 +580,16 @@ export function App() {
               /* Mode 1: Central Conversational Multi-Agent View */
               <HeroChatView
                 messages={messages}
-                onSendMessage={(prompt, mode) => handleSendMessage(prompt, mode)}
+                onSendMessage={(prompt, mode, _model, atts) => handleSendMessage(prompt, mode, undefined, atts)}
                 creditsBalance={credits.balance}
                 onOpenWorkspace={() => {
                   setViewMode('split');
                   setWorkspaceCenterTab('preview');
                 }}
                 onNewCleanProject={handleNewCleanProject}
+                attachments={attachments}
+                onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
+                onRemoveAttachment={(id) => setAttachments(prev => prev.filter(a => a.id !== id))}
                 inspectedElement={inspectedElement}
                 onClearInspectedElement={() => setInspectedElement(null)}
                 isGenerating={isGenerating}

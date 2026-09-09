@@ -8,10 +8,15 @@ import {
   Edit3, 
   PlusCircle, 
   Code2, 
-  Play
+  Play,
+  Music,
+  Video,
+  FileText,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import type { ChatMessage, FileItem } from '../types';
+import type { ChatMessage, FileItem, ChatAttachment } from '../types';
 import type { FullStackProject } from '../core/types';
 import { agentOrchestrator } from '../core/agent/AgentOrchestrator';
 import { creditLedger } from '../core/credits/CreditLedger';
@@ -113,9 +118,16 @@ export const ChatPanel = ({
     setTimeout(() => setCopiedMsgId(null), 2000);
   };
 
-  const handleSendMessage = async (customPrompt?: string, modeOverride?: 'chat' | 'builder') => {
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+
+  const handleSendMessage = async (
+    customPrompt?: string, 
+    modeOverride?: 'chat' | 'builder',
+    customAttachments?: ChatAttachment[]
+  ) => {
     let promptToSend = (customPrompt || inputPrompt).trim();
-    if (!promptToSend && attachedImages.length === 0 && !inspectedElement) return;
+    const activeAtts = customAttachments || attachments;
+    if (!promptToSend && attachedImages.length === 0 && activeAtts.length === 0 && !inspectedElement) return;
 
     if (inspectedElement) {
       promptToSend = `[Elemento Seleccionado en Vista Previa: ${inspectedElement}]\n${promptToSend}`;
@@ -131,11 +143,13 @@ export const ChatPanel = ({
 
     const userMessageId = Date.now().toString();
     const currentImages = [...attachedImages];
+    const currentAtts = [...activeAtts];
     const newUserMsg: ChatMessage = {
       id: userMessageId,
       role: 'user',
       content: promptToSend,
       images: currentImages.length > 0 ? currentImages : undefined,
+      attachments: currentAtts.length > 0 ? currentAtts : undefined,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -150,6 +164,7 @@ export const ChatPanel = ({
     setMessages(prev => [...prev, newUserMsg, assistantMsg]);
     setInputPrompt('');
     setAttachedImages([]);
+    setAttachments([]);
     setIsGenerating(true);
     setThinkingText('⚡ Analizando intención y contexto con NONA Engine...');
 
@@ -183,6 +198,7 @@ export const ChatPanel = ({
         },
         {
           images: currentImages.length > 0 ? currentImages : undefined,
+          attachments: currentAtts.length > 0 ? currentAtts : undefined,
           signal: abortController.signal,
           history: [...messages, newUserMsg],
           mode: modeOverride,
@@ -209,7 +225,9 @@ export const ChatPanel = ({
                 ...msg, 
                 content: result.responseText, 
                 intent: result.intent.type, 
-                actionChips: result.actionChips 
+                actionChips: result.actionChips,
+                activeAgentDomain: result.activeAgentDomain,
+                collaboratingAgents: result.collaboratingAgents,
               }
             : msg
         )
@@ -307,6 +325,11 @@ export const ChatPanel = ({
                     <span>NONA AI Engine</span>
                   </div>
                 )}
+                {msg.activeAgentDomain && !isUser && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">
+                    👑 {msg.activeAgentDomain}
+                  </span>
+                )}
                 {msg.intent && !isUser && (
                   <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-indigo-100 text-indigo-800">
                     {msg.intent === 'CHAT_CONSULT' ? '💬 Consulta Técnica' :
@@ -326,8 +349,52 @@ export const ChatPanel = ({
                     : 'bg-slate-50 border border-slate-200/80 text-slate-800 rounded-bl-xs'
                 }`}
               >
+                {/* User Universal Attachments in chat bubble */}
+                {isUser && msg.attachments && msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {msg.attachments.map((att) => (
+                      <div key={att.id} className="rounded-xl overflow-hidden border border-white/20 bg-white/10 p-1.5 text-xs">
+                        {att.type === 'image' && (
+                          <img src={att.url} alt={att.name} className="w-24 h-24 object-cover rounded-lg" />
+                        )}
+                        {att.type === 'audio' && (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                              <Music className="w-3 h-3 text-emerald-300" />
+                              <span className="truncate max-w-[140px]">{att.name}</span>
+                            </div>
+                            <audio controls src={att.url} className="h-6 w-44 rounded" />
+                          </div>
+                        )}
+                        {att.type === 'video' && (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                              <Video className="w-3 h-3 text-rose-300" />
+                              <span className="truncate max-w-[140px]">{att.name}</span>
+                            </div>
+                            <video controls src={att.url} className="max-w-xs max-h-24 rounded-lg" />
+                          </div>
+                        )}
+                        {att.type === 'url' && (
+                          <a href={att.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:underline text-[10px] text-indigo-200">
+                            <Globe className="w-3 h-3 text-cyan-300 shrink-0" />
+                            <span className="truncate max-w-[150px] font-bold">{att.title || att.name}</span>
+                            <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-70" />
+                          </a>
+                        )}
+                        {att.type === 'document' && (
+                          <div className="flex items-center gap-1.5 text-[10px]">
+                            <FileText className="w-3 h-3 text-amber-300 shrink-0" />
+                            <span className="truncate max-w-[140px] font-semibold">{att.name}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* User Image Attachment in chat bubble */}
-                {isUser && msg.images && msg.images.length > 0 && (
+                {isUser && (!msg.attachments || msg.attachments.length === 0) && msg.images && msg.images.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
                     {msg.images.map((img, idx) => (
                       <img
@@ -344,6 +411,13 @@ export const ChatPanel = ({
                   <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
                 ) : (
                   <MarkdownViewer content={msg.content} />
+                )}
+
+                {!isUser && msg.collaboratingAgents && msg.collaboratingAgents.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center gap-1 text-[10px] text-slate-400 font-medium">
+                    <span className="text-slate-500 font-semibold">Consejo Multi-IA:</span>
+                    <span className="truncate">{msg.collaboratingAgents.join(' • ')}</span>
+                  </div>
                 )}
 
                 {/* Interactive Action Chips (Lovable / Antigravity Style) */}
@@ -462,17 +536,20 @@ export const ChatPanel = ({
       {/* Modern Floating Omnibar Input */}
       <div className="p-3 border-t border-slate-200/80 bg-white shrink-0">
         <FloatingOmnibar
-          onSendMessage={(text) => handleSendMessage(text)}
+          onSendMessage={(text, mode, _model, atts) => handleSendMessage(text, mode, atts)}
           isGenerating={isGenerating}
           inspectedElement={inspectedElement}
           onClearInspectedElement={onClearInspectedElement}
           attachedImages={attachedImages}
           onAddImage={(img) => setAttachedImages(prev => [...prev, img])}
           onRemoveImage={(idx) => setAttachedImages(prev => prev.filter((_, i) => i !== idx))}
+          attachments={attachments}
+          onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
+          onRemoveAttachment={(id) => setAttachments(prev => prev.filter(a => a.id !== id))}
           placeholder={
             inspectedElement
               ? '¿Qué deseas modificar en este elemento seleccionado?'
-              : 'Escribe tu instrucción o pregunta técnica...'
+              : 'Escribe tu instrucción, pega URLs o adjunta archivos...'
           }
         />
         
