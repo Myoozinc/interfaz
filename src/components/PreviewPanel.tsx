@@ -333,7 +333,23 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
 
     const allInjectedScripts = `${importMapScript}${lifecyclePolyfillScript}${runtimePolyfills}${consoleCaptureScript}${runtimeErrorCaptureScript}${inspectElementScript}${audioPolyfillScript}${injectedStyles}`;
 
-    let compiled = htmlFile;
+    let compiled = htmlFile
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/^[\s\S]*?<\/think>/gi, '')
+      .replace(/<\/think>/gi, '')
+      .replace(/(?:^|\n)(?:Here's a thinking process|Thinking Process|Thinking):[\s\S]*?(?=(?:```|<!DOCTYPE|<html|<nonaArtifact|<<<<<<< SEARCH|$))/i, '')
+      .trim();
+
+    // Guard unclosed script tags that trigger "Unexpected end of input"
+    if (compiled.includes('<script') && !compiled.includes('</script>')) {
+      compiled += '\n</script>';
+    }
+    if (!compiled.includes('</body>') && compiled.includes('<body')) {
+      compiled += '\n</body>';
+    }
+    if (!compiled.includes('</html>') && compiled.includes('<html')) {
+      compiled += '\n</html>';
+    }
 
     // Rewrite relative script src to virtual blob URLs
     Object.entries(scriptBlobMap).forEach(([specifier, blobUrl]) => {

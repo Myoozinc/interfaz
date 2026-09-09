@@ -45,8 +45,12 @@ export class AgentOrchestrator {
 
   private async generateNaturalSummary(userInstruction: string, actionType: string, detailContext: string): Promise<string> {
     try {
+      const cleanInstruction = userInstruction.includes('Corrige los siguientes errores de ejecución')
+        ? 'Corrección de errores de ejecución y eventos interactivos en la aplicación'
+        : userInstruction.slice(0, 140);
+
       const prompt = `Eres el asistente de ingeniería de NONA AI (estilo Lovable / Google Antigravity).
-El usuario solicitó: "${userInstruction}".
+El usuario solicitó: "${cleanInstruction}".
 Acción realizada: ${actionType} (${detailContext}).
 
 Escribe una respuesta corta, natural, conversacional y profesional en español (2 a 3 frases máximo):
@@ -55,14 +59,29 @@ Escribe una respuesta corta, natural, conversacional y profesional en español (
 3. Sugiere una posible siguiente mejora.
 Sé conciso, empático, sin plantillas robóticas ni encabezados genéricos.`;
 
-      const res = await this.aiProvider.streamChat(
+      let res = await this.aiProvider.streamChat(
         [{ role: 'user', content: prompt }],
         () => {},
-        { maxTokens: 250, temperature: 0.3 }
+        { model: 'llama-3.3-70b-versatile', maxTokens: 250, temperature: 0.3 }
       );
-      return res.trim() || `Listo. He aplicado los cambios solicitados para "${userInstruction.slice(0, 40)}" y la vista previa ya está actualizada y funcional.`;
+
+      res = res
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/^[\s\S]*?<\/think>/gi, '')
+        .trim();
+
+      if (
+        res.includes('Output Requirements') ||
+        res.includes('Action Taken:') ||
+        res.includes('Short, natural') ||
+        res.length < 15
+      ) {
+        return `Listo. He corregido los errores técnicos y los eventos de la aplicación. Todo está sincronizado y listo para interactuar en el Live Preview.`;
+      }
+
+      return res || `Listo. He aplicado los cambios solicitados y la vista previa ya está actualizada y funcional.`;
     } catch {
-      return `He actualizado la aplicación con base en tu instrucción: "${userInstruction.slice(0, 50)}". Todos los eventos, controles y vistas previas están sincronizados y listos para probar.`;
+      return `He actualizado la aplicación con base en tu instrucción. Todos los eventos, controles y vistas previas están sincronizados y listos para probar.`;
     }
   }
 

@@ -16,7 +16,12 @@ export class QATesterAgent {
   public testAndAudit(htmlCode: string, userInstruction?: string): QATestResult {
     const errors: string[] = [];
     const warnings: string[] = [];
-    let repaired = htmlCode;
+    let repaired = htmlCode
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/^[\s\S]*?<\/think>/gi, '')
+      .replace(/<\/think>/gi, '')
+      .replace(/(?:^|\n)(?:Here's a thinking process|Thinking Process|Thinking):[\s\S]*?(?=(?:```|<!DOCTYPE|<html|<nonaArtifact|<<<<<<< SEARCH|$))/i, '')
+      .trim();
 
     if (!htmlCode || htmlCode.trim().length === 0) {
       return {

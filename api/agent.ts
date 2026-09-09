@@ -128,23 +128,38 @@ export default async function handler(req: Request) {
         throw new Error('Para procesar imágenes se requiere OPENROUTER_API_KEY o GROQ_API_KEY configurada.');
       }
     } else {
-      const isExplicitGroq = model && (
-        model.includes('llama') ||
-        model.includes('mixtral') ||
-        model.includes('gemma') ||
-        model.startsWith('groq/')
+      let resolvedModel = model;
+      if (
+        !resolvedModel ||
+        resolvedModel === 'qwen/qwen3.8-27b' ||
+        resolvedModel === 'qwen3.8-27b' ||
+        resolvedModel === 'qwen3.8'
+      ) {
+        resolvedModel = targetTokens >= 5000 ? 'deepseek/deepseek-chat' : 'llama-3.3-70b-versatile';
+      }
+
+      const isExplicitGroq = resolvedModel && (
+        resolvedModel.includes('llama') ||
+        resolvedModel.includes('mixtral') ||
+        resolvedModel.includes('gemma') ||
+        resolvedModel.startsWith('groq/')
       );
 
-      const isOpenRouterPreferred = (model && (
-        model.includes('/') &&
-        !model.startsWith('groq/') &&
+      const isOpenRouterPreferred = (resolvedModel && (
+        resolvedModel.includes('/') &&
+        !resolvedModel.startsWith('groq/') &&
         !isExplicitGroq
       )) || (targetTokens >= 5000);
+
+      const standardGroqModels = [
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant'
+      ];
 
       if (isOpenRouterPreferred && orKeyToUse) {
         // TIER 1 (High-Capacity / OpenRouter preferred): DeepSeek-V3, Claude, Qwen Coder
         const targetModels = Array.from(new Set([
-          model || 'deepseek/deepseek-chat',
+          resolvedModel,
           'deepseek/deepseek-chat',
           'qwen/qwen-2.5-coder-32b-instruct',
           'meta-llama/llama-3.3-70b-instruct',
@@ -166,16 +181,10 @@ export default async function handler(req: Request) {
           }
         }
 
-        // Fallback to Groq if OpenRouter models fail
+        // Fallback to Groq LPU if OpenRouter models fail
         if ((!aiResponse || !aiResponse.ok) && groqKeysToTry.length > 0) {
-          const groqModels = [
-            'llama-3.3-70b-versatile',
-            'llama-3.1-8b-instant',
-            'deepseek-r1-distill-llama-70b',
-            'mixtral-8x7b-32768'
-          ];
           for (const key of groqKeysToTry) {
-            for (const targetM of groqModels) {
+            for (const targetM of standardGroqModels) {
               try {
                 const res = await executeGroq(key, targetM, safeGroqMaxTokens);
                 if (res.ok) {
@@ -195,14 +204,8 @@ export default async function handler(req: Request) {
       } else {
         // TIER 1 (Fast Low-Latency / Groq preferred): Llama 3.3 70B, Llama 3.1 8B Instant
         if (groqKeysToTry.length > 0) {
-          const groqModels = [
-            'llama-3.3-70b-versatile',
-            'llama-3.1-8b-instant',
-            'deepseek-r1-distill-llama-70b',
-            'mixtral-8x7b-32768'
-          ];
           for (const key of groqKeysToTry) {
-            for (const targetM of groqModels) {
+            for (const targetM of standardGroqModels) {
               try {
                 const res = await executeGroq(key, targetM, safeGroqMaxTokens);
                 if (res.ok) {
@@ -223,7 +226,8 @@ export default async function handler(req: Request) {
         // TIER 2: Fallback to OpenRouter
         if ((!aiResponse || !aiResponse.ok) && orKeyToUse) {
           const targetModels = [
-            model || 'deepseek/deepseek-chat',
+            resolvedModel || 'deepseek/deepseek-chat',
+            'deepseek/deepseek-chat',
             'qwen/qwen-2.5-coder-32b-instruct',
             'meta-llama/llama-3.3-70b-instruct',
             ...VERIFIED_FREE_OR_MODELS

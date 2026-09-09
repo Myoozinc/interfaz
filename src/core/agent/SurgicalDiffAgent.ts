@@ -3,12 +3,14 @@ import { OllamaProvider } from '../providers/OllamaProvider';
 import { qaTesterAgent } from './QATesterAgent';
 import { formatConversationHistory } from './historyUtils';
 import { PatchEngine } from './PatchEngine';
+import { optimalModelRouter } from './OptimalModelRouter';
+import { ActionStreamParser } from '../parser/ActionStreamParser';
 
 export class SurgicalDiffAgent {
   private aiProvider: OllamaProvider;
 
   constructor() {
-    this.aiProvider = new OllamaProvider('/api/agent', 'qwen/qwen3.8-27b');
+    this.aiProvider = new OllamaProvider('/api/agent', 'llama-3.3-70b-versatile');
   }
 
   public setEndpoint(url: string): void {
@@ -57,15 +59,6 @@ export class SurgicalDiffAgent {
     return true;
   }
 
-  private isCodeIncomplete(code: string): boolean {
-    if (!code || code.length < 100) return true;
-    const trimmed = code.trim();
-    if (!trimmed.endsWith('</html>') && !trimmed.endsWith('</script>')) return true;
-    if (code.includes('<script') && !code.includes('</script>')) return true;
-    if (!code.includes('</html>')) return true;
-    return false;
-  }
-
   private cleanCodeBlock(raw: string): string {
     const match = raw.match(/```html(?:\s+filename=[^\n]+)?\n([\s\S]*)/);
     if (match) {
@@ -94,6 +87,14 @@ export class SurgicalDiffAgent {
       ? `\nHISTORIAL DE CONVERSACIÓN RECIENTE (Contexto de lo solicitado previamente):\n${historyText}\n`
       : '';
 
+    const routingDecision = optimalModelRouter.selectOptimalModel(
+      userInstruction,
+      [],
+      false,
+      undefined,
+      { isEdit: true, history }
+    );
+
     const systemPrompt = `Eres NONA SURGICAL DIFF ENGINE (v12.0 — Edición Quirúrgica de Alta Precisión / Formato Aider & Lovable).
 Tu misión es corregir o modificar PUNTUALMENTE el código HTML5+JS existente según la instrucción del usuario, SIN REESCRIBIR TODO EL ARCHIVO.
 
@@ -115,7 +116,7 @@ REGLAS ABSOLUTAS:
 5. Si necesitas agregar una función o variable nueva:
    - En SEARCH, coloca las líneas adyacentes donde deba insertarse.
    - En REPLACE, incluye esas líneas más el nuevo código.
-6. NO escribas código HTML global redundante ni explicaciones largas. Entrega directamente los bloques <<<<<<< SEARCH ... ======= ... >>>>>>> REPLACE.`;
+6. NUNCA incluyas explicaciones en inglés, comentarios de razonamiento tipo "Here's a thinking process" ni texto fuera de los bloques SEARCH/REPLACE.`;
 
     const userPrompt = `${historySection}
 CÓDIGO ACTUAL DE LA APLICACIÓN:
@@ -139,65 +140,55 @@ Entrega los bloques <<<<<<< SEARCH / ======= / >>>>>>> REPLACE para corregir o m
           fullResponse = full;
           onStream(token, full);
         },
-        { signal, model: 'qwen/qwen3.8-27b', maxTokens: 1800, temperature: 0.1 }
+        {
+          signal,
+          model: routingDecision.model,
+          maxTokens: Math.min(routingDecision.maxTokens, 4000),
+          temperature: 0.1
+        }
       );
     } catch (err: any) {
-      console.warn('[SurgicalDiffAgent] Falló stream del modelo cloud:', err.message);
+      console.warn('[SurgicalDiffAgent] Falló stream del modelo:', err.message);
     }
 
     if (fullResponse && fullResponse.trim().length > 0) {
+      // Sanitize any reasoning tokens or thinking chatter
+      const cleanResponse = fullResponse
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/^[\s\S]*?<\/think>/gi, '')
+        .replace(/<\/think>/gi, '')
+        .replace(/(?:^|\n)(?:Here's a thinking process|Thinking Process|Thinking):[\s\S]*?(?=(?:```|<!DOCTYPE|<html|<nonaArtifact|<<<<<<< SEARCH|$))/i, '')
+        .trim();
+
       // 1. Intentar aplicar parches quirúrgicos Search & Replace
-      const patchResult = PatchEngine.applyPatches(currentCode, fullResponse);
+      const patchResult = PatchEngine.applyPatches(currentCode, cleanResponse);
       if (patchResult.success) {
         console.log(`[SurgicalDiffAgent] Parche quirúrgico aplicado con éxito: ${patchResult.appliedCount} bloque(s).`);
         const qaReport = qaTesterAgent.testAndAudit(patchResult.patchedCode, userInstruction);
-        return qaReport.repairedCode || patchResult.patchedCode;
+        if (qaReport.valid && qaReport.errors.length === 0) {
+          return qaReport.repairedCode || patchResult.patchedCode;
+        }
       }
 
-      console.warn('[SurgicalDiffAgent] No se detectaron bloques de parche válidos. Evaluando fallback completo...');
+      // 2. Si el modelo devolvió código completo en lugar de bloques diff
+      const parsed = ActionStreamParser.parse(cleanResponse);
+      let candidateFullCode = parsed.files['index.html'] || this.cleanCodeBlock(cleanResponse);
 
-      // 2. Fallback: Si el modelo devolvió un documento HTML completo
-      let fallbackCode = this.cleanCodeBlock(fullResponse);
-      if (fallbackCode.includes('<!DOCTYPE html>') || (fallbackCode.includes('<html') && fallbackCode.includes('<body'))) {
-        let continuationAttempts = 0;
-        while (this.isCodeIncomplete(fallbackCode) && continuationAttempts < 2) {
-          continuationAttempts++;
-          const lastChunk = fallbackCode.slice(-1000);
-          const continuationPrompt = `El código anterior se interrumpió aquí:
-\`\`\`
-${lastChunk}
-\`\`\`
-
-Continúa EXACTAMENTE desde la última línea sin repetir nada del código previo, completando todas las funciones JavaScript, eventos y concluyendo con </script></body></html>:`;
-
-          let continuationOutput = '';
-          try {
-            await this.aiProvider.streamChat(
-              [
-                { role: 'system', content: 'Eres NONA Continuation Engine. Continúa el código exactamente donde se quedó hasta cerrar con </script></body></html>.' },
-                { role: 'user', content: continuationPrompt }
-              ],
-              (token, full) => {
-                continuationOutput = full;
-                onStream(token, full);
-              },
-              { signal, model: 'qwen/qwen3.8-27b', maxTokens: 2500, temperature: 0.1 }
-            );
-
-            const cleanedContinuation = continuationOutput.replace(/^```html(?:\s+filename=[^\n]+)?\n/, '').replace(/```\s*$/, '').trim();
-            fallbackCode = fallbackCode + '\n' + cleanedContinuation;
-          } catch (err) {
-            console.warn('Surgical auto-continuation fallback error:', err);
-            break;
-          }
+      if (
+        candidateFullCode &&
+        candidateFullCode.length > 300 &&
+        candidateFullCode.includes('<!DOCTYPE html>') &&
+        candidateFullCode.includes('</html>')
+      ) {
+        const qaReport = qaTesterAgent.testAndAudit(candidateFullCode, userInstruction);
+        if (qaReport.valid && qaReport.errors.length === 0) {
+          console.log('[SurgicalDiffAgent] Reemplazo de código completo verificado y validado por QA.');
+          return qaReport.repairedCode || candidateFullCode;
         }
-
-        const qaReport = qaTesterAgent.testAndAudit(fallbackCode, userInstruction);
-        return qaReport.repairedCode || fallbackCode;
       }
     }
 
-    // 3. Fallback inteligente de emergencia si la nube falló o no devolvió parches válidos
+    // 3. Heurística de emergencia si falló el parche para eventos de controles
     const lowerInst = (userInstruction || '').toLowerCase();
     if (
       lowerInst.includes('mueve') ||
@@ -218,10 +209,12 @@ Continúa EXACTAMENTE desde la última línea sin repetir nada del código previ
         healed = healed.replace('</script>', movementScript + '\n</script>');
       }
       const qaReport = qaTesterAgent.testAndAudit(healed, userInstruction);
-      return qaReport.repairedCode || healed;
+      if (qaReport.valid && qaReport.errors.length === 0) {
+        return qaReport.repairedCode || healed;
+      }
     }
 
-    // 4. Salvaguarda crítica: Conservar código actual para evitar pantalla en negro o pérdida de estado
+    // 4. Salvaguarda crítica: Conservar código actual para evitar pantalla en negro o inyección de sintaxis rota
     console.warn('[SurgicalDiffAgent] Salvaguarda activada: Conservando código actual para evitar pantalla en negro.');
     return currentCode;
   }
