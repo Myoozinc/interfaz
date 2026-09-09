@@ -33,6 +33,7 @@ import { STARTER_TEMPLATES } from './services/templates';
 import { aiEngine } from './services/aiGenerator';
 import { agentOrchestrator } from './core/agent/AgentOrchestrator';
 import { creditLedger } from './core/credits/CreditLedger';
+import { ensureCompleteViteProject } from './core/sandbox/ProjectStructureDefaults';
 
 export function App() {
   const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('chat');
@@ -361,9 +362,15 @@ export function App() {
 
   // Export ZIP
   const handleExportZip = async () => {
-    const zip = new JSZip();
+    const fileRecord: Record<string, string> = {};
     files.forEach(f => {
-      zip.file(f.name, f.content);
+      fileRecord[f.name] = f.content;
+    });
+    const completeFiles = ensureCompleteViteProject(fileRecord);
+    const zip = new JSZip();
+    Object.entries(completeFiles).forEach(([path, content]) => {
+      const cleanPath = path.replace(/^\/+/, '');
+      zip.file(cleanPath, content);
     });
     const blob = await zip.generateAsync({ type: 'blob' });
     saveAs(blob, `${projectName.toLowerCase().replace(/\s+/g, '-')}-nona.zip`);

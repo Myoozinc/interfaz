@@ -7,6 +7,8 @@ import { optimalModelRouter } from './OptimalModelRouter';
 import { webSearchService } from '../services/WebSearchService';
 import { formatConversationHistory } from './historyUtils';
 import { ActionStreamParser } from '../parser/ActionStreamParser';
+import { ProjectJSONParser } from '../parser/ProjectJSONParser';
+import { qaTesterAgent } from './QATesterAgent';
 
 export interface CollaborationResult {
   fullCode: string;
@@ -133,8 +135,10 @@ export class AgentCollaborationCouncil {
       undefined,
       {
         history,
-        isEdit: !isNewBuildRequest && Object.keys(project.files).length > 0,
-        projectFileCount: Object.keys(project.files).length
+        isEdit: !isNewBuildRequest && Object.keys(project.files).length > 2,
+        hasExistingProject: Object.keys(project.files).length > 2,
+        projectFileCount: Object.keys(project.files).length,
+        existingFileNames: Object.keys(project.files)
       }
     );
     onProgress(`${routingDecision.rationale}`, true);
@@ -162,45 +166,67 @@ export class AgentCollaborationCouncil {
       projectContext = 'Creación desde cero. Construir nueva aplicación completa siguiendo las especificaciones del usuario sin arrastrar dependencias del proyecto previo.';
     }
 
-    const specialistSystemPrompt = `Eres ${expertAgent.name}, arquitecto principal experto en ${expertAgent.domain} para NONA AI Software Factory (Estándar Bolt.new / Claude Artifacts).
+    const specialistSystemPrompt = `Eres ${expertAgent.name}, arquitecto de software senior para NONA (Estándar Lovable / bolt.new / v0).
+Tu objetivo es generar una aplicación COMPLETA, PROFESIONAL, MULTI-ARCHIVO Y 100% FUNCIONAL.
+
 ${expertAgent.systemPromptAdditions}
 
 REGLAS DE ORO DEL DOMINIO:
 ${expertAgent.guardrails.map(g => '- ' + g).join('\n')}
 
-LIBRERÍAS RECOMENDADAS:
-${expertAgent.recommendedLibraries.map(lib => `<script src="${lib}"></script>`).join('\n')}
+LIBRERÍAS DISPONIBLES:
+${expertAgent.recommendedLibraries.map(lib => `- ${lib}`).join('\n')}
+- @supabase/supabase-js (Para BaaS, base de datos y autenticación)
+- lucide-react (Iconos vectoriales limpios)
+- clsx & tailwind-merge (Utilidades de estilos dinámicos)
 
-DIRECTIVA TÉCNICA DE ARTEFACTOS MULTI-ARCHIVO:
-Puedes estructurar la aplicación en archivos modulares usando la sintaxis de artefactos:
-<nonaArtifact id="app" title="${expertAgent.domain}">
-  <nonaAction type="file" filePath="index.html">
-    ...código del punto de entrada HTML con librerías, canvas/DOM mount point...
-  </nonaAction>
-  <nonaAction type="file" filePath="src/main.js">
-    ...lógica del juego o aplicación, bucles de animación, física, audio y controles...
-  </nonaAction>
-</nonaArtifact>
+ARQUITECTURA DE CARPETAS CONVENCIONAL (OBLIGATORIA):
+Organiza el código de forma limpia y predecible:
+- "src/components/": Componentes UI reutilizables (nombres en PascalCase, ej: Navbar.tsx, Hero.tsx, UserCard.tsx).
+- "src/pages/": Vistas o pantallas completas si el proyecto tiene múltiples pantallas/rutas (ej: Home.tsx, Dashboard.tsx, Settings.tsx).
+- "src/lib/": Utilidades compartidas (ej: src/lib/utils.ts) y clientes de APIs externas / BaaS.
+- "src/types/": Definiciones de tipos e interfaces TypeScript (ej: src/types/index.ts).
+- "src/App.tsx": Componente raíz que orquesta vistas, navegación y estado global.
+- "src/index.css" e "index.html": Estilos base y contenedor HTML.
 
-También puedes usar bloques Markdown con el atributo filename="ruta":
-\`\`\`html filename="index.html"
-...
-\`\`\`
-\`\`\`js filename="src/main.js"
-...
-\`\`\`
+INTEGRACIÓN BACKEND-AS-A-SERVICE (SUPABASE):
+Si el usuario solicita persistencia, base de datos, guardar usuarios, autenticación o comentarios:
+- NO improvises un servidor Express/Node propio dentro de NONA.
+- Integra Supabase creando "src/lib/supabase.ts" importando { createClient } de '@supabase/supabase-js'.
+- Utiliza variables de entorno seguras con fallback mock:
+  const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://mock-project.supabase.co';
+  const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'mock-anon-key-nona';
+- Proporciona en comentarios SQL al inicio de "src/lib/supabase.ts" la sentencia DDL para crear las tablas necesarias (ej: CREATE TABLE ...).
 
-O si el proyecto es más conciso en un único index.html auto-contenido, genera directamente un bloque \`\`\`html.
+CONSISTENCIA DE DISEÑO Y TAILWIND:
+- Utiliza una paleta moderna y cohesiva: fondos oscuros premium (bg-slate-950, bg-slate-900, bordes border-slate-800/80), tipografía nítida con contraste adecuado (text-slate-100, text-slate-400), y acentos vibrantes bien definidos (indigo-500/600, violet-500 o emerald-500).
+- Emplea iconos de 'lucide-react' para enriquecer botones y menús.
 
-REGLAS TÉCNICAS OBLIGATORIAS:
-1. El código debe ser 100% interactivo, responder inmediatamente a eventos (clics, teclado o toques), y tener gráficos vibrantes sin pantalla en negro.
-2. Si utilizas un archivo JS externo como "src/main.js", impórtalo en index.html con <script type="module" src="./src/main.js"></script> o <script src="./src/main.js"></script>.
-3. NUNCA dejes código truncado, funciones vacías o comentarios "// TODO".`;
+CONTRATO OBLIGATORIO DE SALIDA (JSON ESTRUCTURADO):
+Debes responder ÚNICAMENTE con un objeto JSON válido (puedes encerrarlo en un bloque \`\`\`json ... \`\`\`) con la siguiente estructura exacta:
+{
+  "files": [
+    { "path": "src/App.tsx", "content": "..." },
+    { "path": "src/components/MiComponente.tsx", "content": "..." },
+    { "path": "src/lib/utils.ts", "content": "..." },
+    { "path": "src/index.css", "content": "..." },
+    { "path": "index.html", "content": "..." }
+  ],
+  "explanation": "Resumen conciso y claro en español de qué se construyó y qué características interactivas están listas para probar."
+}
+
+REGLAS TÉCNICAS ESTRICTAS:
+1. El campo "files" debe ser un array que contenga TODOS los archivos necesarios para ejecutar la aplicación de inmediato.
+2. Cada archivo debe tener su ruta ("path") y su código fuente ("content") COMPLETO. Prohibido código truncado, funciones vacías o comentarios "// TODO".
+3. Incluye un punto de entrada ejecutable (ej. "index.html" y archivos "src/..."), con Tailwind CSS, librerías requeridas y scripts interactivos.
+4. El JSON debe ser 100% válido y parseable: escapa correctamente comillas dobles y caracteres de escape dentro de "content".
+5. NO agregues texto conversacional antes ni después del bloque JSON. Todo tu resumen explicativo para el usuario debe ir dentro del campo "explanation".`;
 
     const maxRetries = 2;
     let attempt = 0;
     let files: Record<string, string> = {};
     let fullCode = '';
+    let conversationalSummary = '';
     let lastFailureReason = '';
     let generationSucceeded = false;
 
@@ -210,7 +236,7 @@ REGLAS TÉCNICAS OBLIGATORIAS:
         onProgress(`🔄 [Reintento ${attempt}/${maxRetries}]: ${lastFailureReason}. Solicitando corrección técnica a ${expertAgent.name}...`, true);
         agentEvents.emit('agent.thinking', `🔄 Reintento de generación #${attempt}: ${lastFailureReason}`);
       } else {
-        onProgress(`🛠️ [${expertAgent.name}]: Redactando arquitectura y código modular en colaboración...`, true);
+        onProgress(`🛠️ [${expertAgent.name}]: Generando arquitectura de archivos y código fuente estructurado...`, true);
       }
 
       let attemptUserPrompt = `${historySection}
@@ -223,10 +249,10 @@ INSTRUCCIÓN DEL USUARIO:
 
       if (isRetry) {
         attemptUserPrompt += `\n\n[CORRECCIÓN TÉCNICA OBLIGATORIA - INTENTO ${attempt + 1}/${maxRetries + 1}]:
-El intento anterior no pasó la validación técnica por: ${lastFailureReason}.
-Por favor genera la aplicación COMPLETA, interactiva y funcional ahora mismo. Asegúrate de incluir el archivo "index.html" con estructura válida <!DOCTYPE html>, dependencias y scripts requeridos, sin omitir partes ni dejar comentarios "// TODO".`;
+El intento anterior no cumplió con el contrato estructurado: ${lastFailureReason}.
+Por favor devuelve EXCLUSIVAMENTE el objeto JSON válido con la clave "files" (array de { "path": string, "content": string }) y "explanation" (string). Asegúrate de incluir código 100% interactivo y funcional, sin omitir ningún archivo.`;
       } else {
-        attemptUserPrompt += `\n\nSintetiza la aplicación completa ahora utilizando artefactos <nonaArtifact> o bloques con filename:`;
+        attemptUserPrompt += `\n\nGenera la aplicación completa ahora respondiendo estrictamente en el formato JSON especificado:`;
       }
 
       let generatedCodeRaw = '';
@@ -246,153 +272,104 @@ Por favor genera la aplicación COMPLETA, interactiva y funcional ahora mismo. A
         }
       );
 
-      // Sanitize any reasoning tokens from generated code
+      // Sanitize reasoning tokens
       generatedCodeRaw = generatedCodeRaw
         .replace(/<think>[\s\S]*?<\/think>/gi, '')
         .replace(/^[\s\S]*?<\/think>/gi, '')
         .trim();
 
-      // Extract multi-file actions via ActionStreamParser
-      const parsed = ActionStreamParser.parse(generatedCodeRaw);
-      files = parsed.files;
-      fullCode = files['index.html'] || '';
+      // 1. Primary verification: Parse strictly using ProjectJSONParser
+      let candidateFiles: Record<string, string> = {};
+      let candidateSummary = '';
 
-      // If modular JS exists without index.html, construct the HTML wrapper
-      if (!fullCode || fullCode.length < 300 || !fullCode.includes('<!DOCTYPE html>')) {
-        const fileKeys = Object.keys(files);
-        const jsFile = fileKeys.find(k => k.endsWith('.js') || k.endsWith('.ts'));
-        const cssFile = fileKeys.find(k => k.endsWith('.css'));
-        if (jsFile && files[jsFile] && files[jsFile].length > 150) {
-          fullCode = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>${expertAgent.domain}</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  ${cssFile ? `<link rel="stylesheet" href="./${cssFile}">` : ''}
-</head>
-<body class="bg-slate-950 text-white min-h-screen">
-  <div id="canvas-container" class="absolute inset-0"></div>
-  <div id="app"></div>
-  <script type="module" src="./${jsFile}"></script>
-</body>
-</html>`;
-          files['index.html'] = fullCode;
+      const parseResult = ProjectJSONParser.parseFullBuild(generatedCodeRaw);
+      if (parseResult.success) {
+        for (const fileEntry of parseResult.contract.files) {
+          const normPath = ProjectJSONParser.normalizePath(fileEntry.path);
+          candidateFiles[normPath] = fileEntry.content;
         }
-      }
-
-      // Technical validation of the generated output
-      if (!fullCode || fullCode.trim().length === 0) {
-        lastFailureReason = 'No se detectó el archivo index.html ni código ejecutable en la respuesta.';
-      } else if (fullCode.length < 300) {
-        lastFailureReason = `El código generado es incompleto o truncado (${fullCode.length} caracteres).`;
-      } else if (!fullCode.includes('<!DOCTYPE html>')) {
-        if (fullCode.includes('<html') || fullCode.includes('<body') || fullCode.includes('<div') || fullCode.includes('<canvas')) {
-          fullCode = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n</head>\n<body>\n${fullCode}\n</body>\n</html>`;
-          files['index.html'] = fullCode;
-          generationSucceeded = true;
-          break;
-        } else {
-          lastFailureReason = 'Falta la declaración <!DOCTYPE html> y la estructura base del documento.';
-        }
+        candidateSummary = parseResult.contract.explanation;
       } else {
-        generationSucceeded = true;
-        break;
+        // 2. Secondary resilient check: ActionStreamParser for XML / markdown blocks
+        const fallbackParsed = ActionStreamParser.parse(generatedCodeRaw);
+        if (Object.keys(fallbackParsed.files).length > 0) {
+          candidateFiles = fallbackParsed.files;
+          candidateSummary = fallbackParsed.conversationalSummary || `He generado la aplicación con ${Object.keys(candidateFiles).length} archivo(s) modulares.`;
+        } else {
+          lastFailureReason = parseResult.error;
+          attempt++;
+          continue;
+        }
       }
 
-      attempt++;
+      // 3. Deep static & semantic project validation (QA Tester Agent)
+      const qaValidation = qaTesterAgent.validateTypeScriptProject(candidateFiles);
+      if (!qaValidation.valid) {
+        lastFailureReason = qaValidation.errors.join('. ');
+        attempt++;
+        continue;
+      }
+
+      // Verification passed completely
+      files = candidateFiles;
+      fullCode = files['index.html'] || files['src/App.tsx'] || Object.values(files)[0] || '';
+      conversationalSummary = candidateSummary;
+      generationSucceeded = true;
+      break;
     }
 
     // If generation failed after all retries, return an honest error (NEVER substitute unrequested templates!)
     if (!generationSucceeded) {
-      onProgress(`⚠️ No se pudo generar la aplicación completa tras ${attempt} intentos.`, false);
+      onProgress(`⚠️ No fue posible generar la aplicación tras ${attempt} intentos.`, false);
       agentEvents.emit('agent.error', `Falló la síntesis de código tras ${attempt} intentos: ${lastFailureReason}`);
 
-      const failureNotice = `⚠️ **No fue posible generar la aplicación completa solicitada** después de ${attempt} intentos técnicos con ${routingDecision.model}.
+      const failureNotice = `⚠️ **No fue posible generar la aplicación solicitada** tras ${attempt} intentos técnicos con ${routingDecision.model}.
 
 **Causa detectada:** ${lastFailureReason}
 
-¿Podrías reformular tu solicitud o especificar con mayor detalle la estructura o componentes visuales que necesitas?`;
+Por favor, intenta reformular tu solicitud o especificar con más detalle la estructura o componentes deseados.`;
 
       return {
         fullCode: '',
         files: {},
         conversationalSummary: failureNotice,
         expertAgent,
-        collaboratingAgents: ['Domain Meta-Agent', expertAgent.name, 'QA Guard'],
+        collaboratingAgents: [expertAgent.name, 'QA Guard'],
         thinkingStages: [
-          { name: 'Meta-Agent Domain Discovery', status: 'done', detail: expertAgent.name },
-          { name: 'Optimal Server Routing', status: 'done', detail: routingDecision.model },
-          { name: 'Multi-File Action Synthesis', status: 'pending', detail: `Error: ${lastFailureReason}` },
-          { name: 'QA Guardrail Verification', status: 'pending', detail: 'Cancelado por fallo en síntesis' },
+          { name: 'Planificación de arquitectura y archivos', status: 'done', detail: expertAgent.name },
+          { name: 'Generación de código multi-archivo', status: 'pending', detail: `Fallo: ${lastFailureReason}` },
+          { name: 'Validación de contrato y esquema', status: 'pending', detail: 'Cancelado por fallo' },
         ]
       };
     }
 
-    // Ensure basic guardrails on HTML
-    if (!fullCode.includes('<!DOCTYPE html>')) {
-      fullCode = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n</head>\n<body>\n${fullCode}\n</body>\n</html>`;
-      files['index.html'] = fullCode;
+    // Ensure basic index.html wrapper if only modular JS/TS exists
+    if (!files['index.html']) {
+      const mainScript = Object.keys(files).find(k => k.endsWith('.js') || k.endsWith('.ts') || k.endsWith('.tsx'));
+      const mainCss = Object.keys(files).find(k => k.endsWith('.css'));
+      files['index.html'] = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${expertAgent.domain}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  ${mainCss ? `<link rel="stylesheet" href="./${mainCss}">` : ''}
+</head>
+<body class="bg-slate-950 text-white min-h-screen">
+  <div id="root"></div>
+  <div id="app"></div>
+  ${mainScript ? `<script type="module" src="./${mainScript}"></script>` : ''}
+</body>
+</html>`;
+      fullCode = files['index.html'];
     }
 
-    // STAGE 5: Peer QA & Guardrail Agent Verification
-    onProgress(`🛡️ [Agente QA]: Verificando ${Object.keys(files).length} archivo(s), sintaxis y eventos interactivos...`, true);
-    agentEvents.emit('agent.thinking', `🛡️ [Agente QA]: Comprobando eventos del DOM, modularidad y prevención de errores en ${Object.keys(files).join(', ')}.`);
+    onProgress(`🛡️ [Validación]: Verificando ${Object.keys(files).length} archivo(s) generados...`, true);
+    agentEvents.emit('agent.thinking', `🛡️ [Validación]: Comprobando estructura modular de ${Object.keys(files).join(', ')}.`);
 
-    // STAGE 6: Generate Human Conversational Summary (NO CODE DUMP IN CHAT!)
-    onProgress('💬 [Lead Architect]: Redactando síntesis conversacional sin volcado de código en el chat...', true);
-
-    const summarySystemPrompt = `Eres LEAD ARCHITECT de NONA (Estándar Lovable / Google Antigravity).
-Acabas de coordinar a ${expertAgent.name} y al Agente de QA para construir la aplicación requerida por el usuario.
-El código ya fue inyectado silenciosamente en los archivos del proyecto (${Object.keys(files).join(', ')}) y se ejecutará de inmediato en el Live Preview.
-
-REGLA ABSOLUTA:
-NUNCA vuelques el código HTML/JS en tu respuesta del chat. Ni un solo bloque grande de código.
-Habla en español con tono profesional, empático y entusiasta:
-1. Explica qué se construyó y qué librerías especializadas (${expertAgent.domain}) se emplearon.
-2. Menciona la estructura modular de archivos creada (${Object.keys(files).join(', ')}).
-3. Destaca 2 o 3 características clave interactivas que puede probar ahora mismo (controles, audio, animaciones).
-4. Invítale a probar la aplicación en la Vista Previa (Live Preview) con el botón de abajo.`;
-
-    const summaryUserPrompt = `REQUERIMIENTO DEL USUARIO:
-"${effectiveInstruction}"
-
-DOMINIO TRABAJADO:
-${expertAgent.name} (${expertAgent.domain})
-
-ARCHIVOS GENERADOS:
-${Object.keys(files).join(', ')}
-
-Redacta la explicación conversacional para el chat:`;
-
-    let conversationalSummary = '';
-    await this.aiProvider.streamChat(
-      [
-        { role: 'system', content: summarySystemPrompt },
-        { role: 'user', content: summaryUserPrompt }
-      ],
-      (_token, full) => {
-        conversationalSummary = full;
-      },
-      {
-        signal: options?.signal,
-        model: routingDecision.model.includes('/') ? routingDecision.model : 'qwen/qwen3.8-27b',
-        maxTokens: 600,
-        temperature: 0.3
-      }
-    );
-
-    conversationalSummary = conversationalSummary
-      .replace(/<think>[\s\S]*?<\/think>/gi, '')
-      .replace(/^[\s\S]*?<\/think>/gi, '')
-      .replace(/<\/think>/gi, '')
-      .trim();
-
-    if (!conversationalSummary) {
-      conversationalSummary = `He construido la aplicación de **${expertAgent.domain}** (${Object.keys(files).join(', ')}) siguiendo tus requerimientos. Todos los módulos y eventos fueron verificados por el Agente de QA y el software ya está activo en tu **Live Preview**.`;
+    if (!conversationalSummary || conversationalSummary.length < 20) {
+      conversationalSummary = `He construido la aplicación de **${expertAgent.domain}** (${Object.keys(files).join(', ')}) siguiendo tus requerimientos. El código está sincronizado y listo para interactuar en la Vista Previa.`;
     }
 
     return {
@@ -400,17 +377,11 @@ Redacta la explicación conversacional para el chat:`;
       files,
       conversationalSummary: conversationalSummary.trim(),
       expertAgent,
-      collaboratingAgents: [
-        'Domain Meta-Agent',
-        expertAgent.name,
-        'QA & Guardrail Agent',
-        'UX & Sound Polish Agent'
-      ],
+      collaboratingAgents: [expertAgent.name, 'QA Guard'],
       thinkingStages: [
-        { name: 'Meta-Agent Domain Discovery', status: 'done', detail: expertAgent.name },
-        { name: 'Optimal Server Routing', status: 'done', detail: routingDecision.model },
-        { name: 'Multi-File Action Synthesis', status: 'done', detail: `${Object.keys(files).length} archivo(s)` },
-        { name: 'QA Guardrail Verification', status: 'done', detail: '100% Verificado' },
+        { name: 'Planificación de arquitectura y archivos', status: 'done', detail: expertAgent.name },
+        { name: 'Generación de código multi-archivo', status: 'done', detail: `${Object.keys(files).length} archivo(s)` },
+        { name: 'Validación de contrato y esquema', status: 'done', detail: '100% Conforme' },
       ]
     };
   }

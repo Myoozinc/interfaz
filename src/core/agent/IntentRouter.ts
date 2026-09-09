@@ -32,9 +32,9 @@ export class IntentRouter {
     const isStarterOrPlaceholder = !currentCode ||
       currentCode.includes('AURA.store') ||
       currentCode.includes('Lienzo Listo') ||
-      currentCode.trim().length < 100;
+      currentCode.trim().length < 30;
 
-    const hasExistingCustomApp = !!(currentCode && currentCode.trim().length > 100 && !isStarterOrPlaceholder);
+    const hasExistingCustomApp = !!(currentCode && currentCode.trim().length >= 30 && !isStarterOrPlaceholder);
 
     // Priority -1: Direct Action Chips to Build or Preview
     if (
@@ -53,33 +53,24 @@ export class IntentRouter {
       };
     }
 
-    // New project explicit keywords / verbs (supporting standard Spanish and common phonetic variations like has/haz)
-    const newVerbs = [
-      'crea un juego', 'crea una app', 'haz un juego', 'haz una app',
-      'has un juego', 'has una app', 'has una nueva', 'has un nuevo',
-      'crea un nuevo', 'crea una nueva', 'haz un nuevo', 'haz una nueva',
-      'crear un juego', 'crear una app', 'hacer un juego', 'hacer una app',
-      'nuevo proyecto', 'desde cero', 'de cero', 'reinicia todo', 'crea otro juego',
-      'crea otra app', 'empezar de cero', 'empecemos de nuevo', 'borra todo',
-      'cambia de juego', 'juego nuevo', 'app nueva', 'haz otra cosa', 'has otra cosa',
-      'olvida el juego', 'reiniciar proyecto', 'borra este juego',
-      'quiero un juego', 'quiero hacer un juego', 'quiero una app',
-      'desarrolla un juego', 'desarrolla una app', 'construye un juego', 'construye una app',
-      'juego de carreras', 'mario kart', 'estilo mario kart', 'no quiero estilo neon',
-      'cambia el estilo', 'cambia a estilo', 'hazlo estilo', 'juego arcade',
-      'juego de aviones', 'guerra de aviones', 'simulador de vuelo', 'combate aereo', 'combate aéreo',
-      'juego de vuelo', 'juego de cazas', 'combate de aviones', 'dogfight'
+    // Explicit project reset / new project phrases
+    const newProjectPhrases = [
+      'nuevo proyecto', 'nueva app', 'nueva aplicacion', 'nueva aplicación',
+      'desde cero', 'de cero', 'empezar de cero', 'empecemos de nuevo',
+      'borra todo', 'borrar todo', 'reiniciar proyecto', 'reinicia todo', 'crear desde cero',
+      'otro proyecto', 'otra app diferente', 'borra este proyecto', 'haz otra app', 'has otra app'
+    ];
+
+    // Generic creation verbs when there is no custom app yet
+    const creationVerbs = [
+      'crea', 'haz', 'has', 'crear', 'hacer', 'desarrolla', 'desarrollar', 
+      'construye', 'construir', 'genera', 'generar', 'quiero una app', 'quiero un juego',
+      'quiero hacer', 'programa una', 'diseña una', 'disena una'
     ];
 
     const isExplicitNew = isStarterOrPlaceholder ||
-      newVerbs.some(v => lower.includes(v)) ||
-      lower.includes('otro juego') ||
-      lower.includes('otra app') ||
-      lower.includes('desde cero') ||
-      lower.includes('de cero') ||
-      lower.includes('mario kart') ||
-      lower.includes('avion') ||
-      lower.includes('aviones');
+      newProjectPhrases.some(p => lower.includes(p)) ||
+      (!hasExistingCustomApp && creationVerbs.some(v => lower.startsWith(v) || lower.includes(` ${v} `)));
 
     // Modification / Fix keywords that specifically indicate repairing existing code
     const repairKeywords = [
@@ -118,7 +109,7 @@ export class IntentRouter {
         isExplicitNew: false,
         suggestedActionChips: [
           '▶ Construir y Ver en Preview',
-          '🎨 Probar con Estilo Mario Kart 3D',
+          '🎨 Personalizar Diseño y Estructura',
           '📱 Optimizar para Móviles y Pantalla Táctil'
         ]
       };

@@ -5,6 +5,12 @@ import { formatConversationHistory } from './historyUtils';
 import { PatchEngine } from './PatchEngine';
 import { optimalModelRouter } from './OptimalModelRouter';
 import { ActionStreamParser } from '../parser/ActionStreamParser';
+import { ProjectJSONParser, type ProjectChangeEntry } from '../parser/ProjectJSONParser';
+
+export interface IncrementalEditResult {
+  changes: ProjectChangeEntry[];
+  explanation: string;
+}
 
 export class SurgicalDiffAgent {
   private aiProvider: OllamaProvider;
@@ -92,7 +98,7 @@ export class SurgicalDiffAgent {
       [],
       false,
       undefined,
-      { isEdit: true, history }
+      { isEdit: true, history, hasExistingProject: true, projectFileCount: 1 }
     );
 
     const systemPrompt = `Eres NONA SURGICAL DIFF ENGINE (v12.0 — Edición Quirúrgica de Alta Precisión / Formato Aider & Lovable).
@@ -217,6 +223,187 @@ Entrega los bloques <<<<<<< SEARCH / ======= / >>>>>>> REPLACE para corregir o m
     // 4. Salvaguarda crítica: Conservar código actual para evitar pantalla en negro o inyección de sintaxis rota
     console.warn('[SurgicalDiffAgent] Salvaguarda activada: Conservando código actual para evitar pantalla en negro.');
     return currentCode;
+  }
+
+  /**
+   * Applies incremental multi-file edits strictly according to the IncrementalEditContract JSON format.
+   */
+  public async applyIncrementalProjectEdit(
+    userInstruction: string,
+    projectFiles: Record<string, { path: string; content: string; language?: string }>,
+    onStream: (token: string, fullText: string) => void,
+    signal?: AbortSignal,
+    history?: ChatMessage[]
+  ): Promise<IncrementalEditResult> {
+    const historyText = formatConversationHistory(history, 6);
+    const historySection = historyText
+      ? `\nHISTORIAL DE CONVERSACIÓN RECIENTE:\n${historyText}\n`
+      : '';
+
+    const routingDecision = optimalModelRouter.selectOptimalModel(
+      userInstruction,
+      [],
+      false,
+      undefined,
+      {
+        isEdit: true,
+        history,
+        hasExistingProject: true,
+        projectFileCount: Object.keys(projectFiles).length,
+        existingFileNames: Object.keys(projectFiles)
+      }
+    );
+
+    // Build concise project context
+    const fileEntries = Object.entries(projectFiles);
+    const filesContext = fileEntries.map(([path, f]) => {
+      let body = f.content;
+      if (body.length > 8000) {
+        body = body.slice(0, 4000) + '\n\n/* ... [contenido intermedio omitido] ... */\n\n' + body.slice(-2000);
+      }
+      return `### ARCHIVO: ${path}\n\`\`\`${f.language || 'text'}\n${body}\n\`\`\``;
+    }).join('\n\n');
+
+    const systemPrompt = `Eres NONA INCREMENTAL EDIT ENGINE (Estándar Lovable / bolt.new / v0).
+Tu misión es aplicar modificaciones, agregar nuevos componentes o corregir errores sobre los archivos existentes del proyecto.
+
+CONVENCIONES DE CARPETAS Y ARQUITECTURA:
+- Componentes nuevos o actualizados deben residir en "src/components/" (PascalCase).
+- Vistas completas de páginas o pestañas en "src/pages/".
+- Utilidades o clientes en "src/lib/" (ej: "src/lib/supabase.ts", "src/lib/utils.ts").
+- Tipos e interfaces en "src/types/".
+- Si el usuario pide base de datos, persistencia o login, genera o actualiza "src/lib/supabase.ts" con @supabase/supabase-js en lugar de crear un servidor backend casero.
+- Mantén consistencia absoluta con la paleta de Tailwind existente y la iconografía Lucide.
+
+CONTRATO OBLIGATORIO DE SALIDA (JSON ESTRUCTURADO):
+Debes responder ÚNICAMENTE con un objeto JSON válido (puedes encerrarlo en un bloque \`\`\`json ... \`\`\`) con la siguiente estructura exacta:
+{
+  "changes": [
+    {
+      "path": "src/components/LoginForm.tsx",
+      "action": "update",
+      "content": "...código completo y actualizado del archivo..."
+    },
+    {
+      "path": "src/components/Toast.tsx",
+      "action": "create",
+      "content": "...código del nuevo archivo creado..."
+    }
+  ],
+  "explanation": "Resumen conciso en español de los cambios realizados."
+}
+
+REGLAS ESTRICTAS:
+1. Incluye en "changes" ÚNICAMENTE los archivos que se modifican ("update"), se crean ("create") o se eliminan ("delete").
+2. No reenvíes archivos que no sufren modificaciones.
+3. Para "update" o "create", el campo "content" debe contener el código COMPLETO y ejecutable del archivo, sin omitir funciones ni colocar "// TODO".
+4. Para "delete", el campo "content" puede omitirse.
+5. El JSON debe ser 100% válido y parseable: escapa correctamente comillas dobles en "content".
+6. Todo tu resumen explicativo va dentro de "explanation".`;
+
+    const maxRetries = 2;
+    let attempt = 0;
+    let lastFailureReason = '';
+
+    while (attempt <= maxRetries) {
+      let userPrompt = `${historySection}
+ARCHIVOS ACTUALES DEL PROYECTO:
+${filesContext}
+
+INSTRUCCIÓN DEL USUARIO:
+"${userInstruction}"`;
+
+      if (attempt > 0) {
+        userPrompt += `\n\n[CORRECCIÓN TÉCNICA OBLIGATORIA - INTENTO ${attempt + 1}/${maxRetries + 1}]:
+El intento anterior no cumplió el contrato de edición incremental: ${lastFailureReason}.
+Por favor devuelve EXCLUSIVAMENTE el objeto JSON válido con la clave "changes" (array de objetos { "path": string, "action": "update"|"create"|"delete", "content": string }) y "explanation" (string).`;
+      } else {
+        userPrompt += `\n\nAplica la modificación y responde estrictamente con el objeto JSON de "changes":`;
+      }
+
+      let fullResponse = '';
+      try {
+        await this.aiProvider.streamChat(
+          [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          (token, full) => {
+            fullResponse = full;
+            onStream(token, full);
+          },
+          {
+            signal,
+            model: routingDecision.model,
+            maxTokens: Math.min(routingDecision.maxTokens, 4000),
+            temperature: 0.1
+          }
+        );
+      } catch (err: any) {
+        lastFailureReason = err.message || 'Error de conexión con el proveedor';
+        attempt++;
+        continue;
+      }
+
+      const cleanResponse = fullResponse
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/^[\s\S]*?<\/think>/gi, '')
+        .trim();
+
+      // 1. Primary parser: ProjectJSONParser.parseIncrementalEdit
+      const parseResult = ProjectJSONParser.parseIncrementalEdit(cleanResponse);
+      if (parseResult.success) {
+        // Simular aplicación de cambios para validar coherencia del proyecto
+        const candidateFiles: Record<string, string> = {};
+        for (const [p, f] of Object.entries(projectFiles)) {
+          candidateFiles[p] = f.content;
+        }
+        for (const ch of parseResult.contract.changes) {
+          if (ch.action === 'delete') {
+            delete candidateFiles[ch.path];
+          } else if (ch.content !== undefined) {
+            candidateFiles[ch.path] = ch.content;
+          }
+        }
+
+        const qaValidation = qaTesterAgent.validateTypeScriptProject(candidateFiles);
+        if (!qaValidation.valid) {
+          lastFailureReason = qaValidation.errors.join('; ');
+          attempt++;
+          continue;
+        }
+
+        return {
+          changes: parseResult.contract.changes,
+          explanation: parseResult.contract.explanation
+        };
+      }
+
+      // 2. Resilient check: Did the model return search/replace blocks or full build JSON?
+      if (cleanResponse.includes('<<<<<<< SEARCH') && cleanResponse.includes('=======')) {
+        const primaryTarget = fileEntries.find(([p]) => userInstruction.toLowerCase().includes(p.toLowerCase()))?.[0] || 'index.html';
+        const targetContent = projectFiles[primaryTarget]?.content || '';
+        const patched = PatchEngine.applyPatches(targetContent, cleanResponse);
+        if (patched.success) {
+          return {
+            changes: [{
+              path: primaryTarget,
+              action: 'update',
+              content: patched.patchedCode
+            }],
+            explanation: `Parche aplicado con precisión en ${primaryTarget}.`
+          };
+        }
+      }
+
+      lastFailureReason = parseResult.error;
+      attempt++;
+    }
+
+    return {
+      changes: [],
+      explanation: `⚠️ No fue posible aplicar la modificación incremental tras ${attempt} intentos técnicos: ${lastFailureReason}. Se mantuvieron los archivos existentes sin cambios.`
+    };
   }
 }
 

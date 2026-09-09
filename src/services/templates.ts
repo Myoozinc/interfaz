@@ -6,6 +6,95 @@ export { MARIO_KART_GAME_HTML, AIR_COMBAT_GAME_HTML };
 
 export const STARTER_TEMPLATES: ProjectTemplate[] = [
   // =========================================================================
+  // 0. ⚡ MODERN REACT + VITE STUDIO (Estándar Lovable / bolt.new / v0)
+  // =========================================================================
+  {
+    id: 'nona-react-vite-studio',
+    name: '⚡ Modern React + Vite Studio',
+    description: 'Estructura multi-archivo estándar de Vite con React, TypeScript y Tailwind CSS lista para crear componentes modulares.',
+    icon: 'Code2',
+    category: 'React & Vite',
+    tags: ['React 18', 'TypeScript', 'Tailwind CSS', 'Vite', 'Multi-Archivo'],
+    badge: 'Recomendado',
+    files: [
+      {
+        id: '1',
+        name: 'src/App.tsx',
+        language: 'typescript',
+        content: `import React, { useState } from 'react';
+import { Sparkles, Play } from 'lucide-react';
+
+export default function App() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6">
+      <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center space-y-6 shadow-2xl backdrop-blur-sm">
+        <div className="w-16 h-16 mx-auto bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
+          <Sparkles className="w-8 h-8 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">NONA React Studio</h1>
+          <p className="text-slate-400 text-sm mt-2">Proyecto multi-archivo React + Vite + TypeScript.</p>
+        </div>
+        <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
+          <span className="text-sm font-medium text-slate-300">Contador Interactivo:</span>
+          <button onClick={() => setCount(c => c + 1)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow-md transition-all active:scale-95 cursor-pointer">
+            <Play className="w-4 h-4 fill-white" />
+            {count} clics
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}`
+      },
+      {
+        id: '2',
+        name: 'src/index.css',
+        language: 'css',
+        content: `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+}`
+      },
+      {
+        id: '3',
+        name: 'index.html',
+        language: 'html',
+        content: `<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NONA App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-950 text-white min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>`
+      },
+      {
+        id: '4',
+        name: 'package.json',
+        language: 'json',
+        content: `{\n  "name": "nona-app",\n  "private": true,\n  "version": "0.1.0",\n  "type": "module",\n  "scripts": {\n    "dev": "vite",\n    "build": "tsc && vite build"\n  },\n  "dependencies": {\n    "react": "^18.3.1",\n    "react-dom": "^18.3.1",\n    "lucide-react": "^0.469.0"\n  },\n  "devDependencies": {\n    "@vitejs/plugin-react": "^4.3.4",\n    "tailwindcss": "^3.4.17",\n    "typescript": "^5.6.3",\n    "vite": "^6.0.7"\n  }\n}`
+      },
+      {
+        id: '5',
+        name: 'vite.config.ts',
+        language: 'typescript',
+        content: `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()]\n});`
+      }
+    ]
+  },
+  // =========================================================================
   // 1. 🏎️ CYBERPUNK 3D RACING OVERDRIVE (Three.js 3D Game)
   // =========================================================================
   {

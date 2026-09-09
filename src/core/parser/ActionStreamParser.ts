@@ -47,6 +47,8 @@ export interface ParsedArtifactResult {
   rawText: string;
 }
 
+import { ProjectJSONParser } from './ProjectJSONParser';
+
 export class ActionStreamParser {
   /**
    * Normalizes a file path (removes leading ./ or /, trims whitespace)
@@ -70,6 +72,37 @@ export class ActionStreamParser {
       .replace(/<think>[\s\S]*?<\/think>/gi, '')
       .replace(/^[\s\S]*?<\/think>/gi, '')
       .trim();
+
+    // 0.1 Primary Contract Check: Structured JSON (Lovable / bolt.new standard)
+    const jsonContractResult = ProjectJSONParser.parse(cleaned);
+    if (jsonContractResult.success) {
+      if (jsonContractResult.data.type === 'full_build') {
+        jsonContractResult.data.contract.files.forEach(f => {
+          files[ActionStreamParser.normalizeFilePath(f.path)] = f.content;
+        });
+        return {
+          title: 'NONA Project',
+          files,
+          patches,
+          conversationalSummary: jsonContractResult.data.contract.explanation,
+          rawText: raw
+        };
+      } else if (jsonContractResult.data.type === 'incremental') {
+        jsonContractResult.data.contract.changes.forEach(c => {
+          const normPath = ActionStreamParser.normalizeFilePath(c.path);
+          if ((c.action === 'create' || c.action === 'update') && c.content !== undefined) {
+            files[normPath] = c.content;
+          }
+        });
+        return {
+          title: 'NONA Incremental Changes',
+          files,
+          patches,
+          conversationalSummary: jsonContractResult.data.contract.explanation,
+          rawText: raw
+        };
+      }
+    }
 
     // 1. Try Tagged XML: <nonaArtifact> and <nonaAction>
     const artifactMatch = cleaned.match(/<nonaArtifact\b([^>]*)>([\s\S]*?)<\/nonaArtifact>/i);

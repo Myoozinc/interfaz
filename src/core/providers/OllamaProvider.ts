@@ -14,9 +14,11 @@ export class OllamaProvider implements AIProvider {
     this.defaultModel = defaultModel;
 
     // Purge stale rate-limited Groq keys
-    const stale = localStorage.getItem('nona_cloud_api_key');
-    if (stale && stale.startsWith('gsk_')) {
-      localStorage.removeItem('nona_cloud_api_key');
+    if (typeof localStorage !== 'undefined') {
+      const stale = localStorage.getItem('nona_cloud_api_key');
+      if (stale && stale.startsWith('gsk_')) {
+        localStorage.removeItem('nona_cloud_api_key');
+      }
     }
   }
 

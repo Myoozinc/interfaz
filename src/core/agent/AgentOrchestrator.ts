@@ -43,47 +43,7 @@ export class AgentOrchestrator {
     agentCollaborationCouncil.setModel(model);
   }
 
-  private async generateNaturalSummary(userInstruction: string, actionType: string, detailContext: string): Promise<string> {
-    try {
-      const cleanInstruction = userInstruction.includes('Corrige los siguientes errores de ejecución')
-        ? 'Corrección de errores de ejecución y eventos interactivos en la aplicación'
-        : userInstruction.slice(0, 140);
 
-      const prompt = `Eres el asistente de ingeniería de NONA AI (estilo Lovable / Google Antigravity).
-El usuario solicitó: "${cleanInstruction}".
-Acción realizada: ${actionType} (${detailContext}).
-
-Escribe una respuesta corta, natural, conversacional y profesional en español (2 a 3 frases máximo):
-1. Explica directamente qué se construyó o qué problema técnico se corrigió.
-2. Menciona qué está listo para interactuar en la vista previa.
-3. Sugiere una posible siguiente mejora.
-Sé conciso, empático, sin plantillas robóticas ni encabezados genéricos.`;
-
-      let res = await this.aiProvider.streamChat(
-        [{ role: 'user', content: prompt }],
-        () => {},
-        { model: 'llama-3.3-70b-versatile', maxTokens: 250, temperature: 0.3 }
-      );
-
-      res = res
-        .replace(/<think>[\s\S]*?<\/think>/gi, '')
-        .replace(/^[\s\S]*?<\/think>/gi, '')
-        .trim();
-
-      if (
-        res.includes('Output Requirements') ||
-        res.includes('Action Taken:') ||
-        res.includes('Short, natural') ||
-        res.length < 15
-      ) {
-        return `Listo. He corregido los errores técnicos y los eventos de la aplicación. Todo está sincronizado y listo para interactuar en el Live Preview.`;
-      }
-
-      return res || `Listo. He aplicado los cambios solicitados y la vista previa ya está actualizada y funcional.`;
-    } catch {
-      return `He actualizado la aplicación con base en tu instrucción. Todos los eventos, controles y vistas previas están sincronizados y listos para probar.`;
-    }
-  }
 
   async run(
     userInstruction: string,
@@ -263,39 +223,41 @@ Responde de forma clara, natural y profesional:`;
     }
 
     // =========================================================================
-    // MODE 4: ⚡ SURGICAL_EDIT (Bug Fixes & Precision Tweaks)
+    // MODE 4: ⚡ INCREMENTAL_EDIT (Multi-File JSON Changes & Surgical Precision)
     // =========================================================================
-    onProgress(`⚡ NONA Surgical Diff Engine\n*(Localizando y aplicando parche en ${targetPath}...)*`, true);
+    onProgress(`⚡ NONA Incremental Engine\n*(Aplicando cambios sobre los archivos del proyecto...)*`, true);
 
-    const patchedCode = await surgicalDiffAgent.applySurgicalEdit(
+    const editResult = await surgicalDiffAgent.applyIncrementalProjectEdit(
       userInstruction,
-      currentCode,
-      () => onProgress('⚡ NONA Surgical Diff Engine\n*(Escribiendo parche...)*', false),
+      project.files,
+      () => onProgress('⚡ NONA Incremental Engine\n*(Escribiendo cambios...)*', false),
       options?.signal,
       options?.history
     );
 
-    // Save patched code to the target file
-    await this.toolRegistry.executeTool({
-      id: 'tc_patch_' + Date.now(),
-      name: 'project_write_file',
-      arguments: { path: targetPath, content: patchedCode }
-    }, project);
+    if (editResult.changes.length > 0) {
+      for (const change of editResult.changes) {
+        if (change.action === 'delete') {
+          delete project.files[change.path];
+        } else if (change.content !== undefined) {
+          await this.toolRegistry.executeTool({
+            id: 'tc_edit_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            name: 'project_write_file',
+            arguments: { path: change.path, content: change.content }
+          }, project);
+        }
+      }
 
-    await this.toolRegistry.executeTool({
-      id: 'tc_build_' + Date.now(),
-      name: 'build_project',
-      arguments: {}
-    }, project);
+      await this.toolRegistry.executeTool({
+        id: 'tc_build_' + Date.now(),
+        name: 'build_project',
+        arguments: {}
+      }, project);
 
-    const naturalEditSummary = await this.generateNaturalSummary(
-      userInstruction,
-      `Corrección quirúrgica en ${targetPath}`,
-      intent.reason || 'Se actualizaron los componentes y listeners manteniendo la consistencia de todo el proyecto'
-    );
+      agentEvents.emit('agent.completed', `Modificación incremental finalizada: ${editResult.changes.length} archivo(s) procesados.`);
+    }
 
-    agentEvents.emit('agent.completed', `Modificación quirúrgica finalizada en ${targetPath}.`);
-    return { responseText: naturalEditSummary, updatedProject: project, intent };
+    return { responseText: editResult.explanation, updatedProject: project, intent };
   }
 }
 

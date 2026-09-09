@@ -8,11 +8,15 @@ import {
   MousePointerClick,
   Terminal,
   Eye,
-  ShieldCheck,
   Wrench,
-  AlertTriangle
+  AlertTriangle,
+  Server,
+  Zap
 } from 'lucide-react';
 import type { FileItem } from '../types';
+import { webContainerService } from '../core/sandbox/WebContainerService';
+import { VirtualMultiFileBundler } from '../core/sandbox/VirtualMultiFileBundler';
+import { ensureCompleteViteProject } from '../core/sandbox/ProjectStructureDefaults';
 
 export interface ElementSelectionInfo {
   tagName: string;
@@ -35,6 +39,8 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   const [isInspectMode, setIsInspectMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'preview' | 'console'>('preview');
   const [consoleLogs, setConsoleLogs] = useState<{ type: 'log' | 'warn' | 'error' | 'info'; message: string; time: string }[]>([]);
+  const [webContainerUrl, setWebContainerUrl] = useState<string | null>(null);
+  const [isContainerBooting, setIsContainerBooting] = useState(false);
 
   const filesMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -63,15 +69,69 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     return Object.values(filesMap)[0] || '';
   }, [filesMap, htmlCode]);
 
-  // Reset console logs when preview code changes (without useEffect cascading renders)
+  // Reset console logs when preview code changes
   const [prevHtml, setPrevHtml] = useState(htmlFile);
   if (prevHtml !== htmlFile) {
     setPrevHtml(htmlFile);
     setConsoleLogs([]);
   }
 
+  // WebContainers lifecycle integration
+  useEffect(() => {
+    if (!webContainerService.isSupported()) return;
+    const isMultiFileReact = Object.keys(filesMap).some(k => k.endsWith('.tsx') || k.endsWith('.ts') || k === 'package.json');
+    if (!isMultiFileReact) return;
+
+    let isMounted = true;
+    setIsContainerBooting(true);
+
+    const fullProject = ensureCompleteViteProject(filesMap);
+
+    webContainerService.mountAndStartServer(fullProject, {
+      onServerReady: (url) => {
+        if (isMounted) {
+          setWebContainerUrl(url);
+          setIsContainerBooting(false);
+        }
+      },
+      onOutput: (chunk) => {
+        if (isMounted) {
+          setConsoleLogs(prev => [...prev.slice(-99), {
+            type: 'info',
+            message: `[Vite] ${chunk}`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          }]);
+        }
+      },
+      onError: (err) => {
+        if (isMounted) {
+          setIsContainerBooting(false);
+          setConsoleLogs(prev => [...prev.slice(-99), {
+            type: 'error',
+            message: `[Vite Error] ${err}`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          }]);
+        }
+      }
+    }).catch(err => {
+      console.warn('[WebContainer] Fallback to Virtual Multi-File Bundler:', err.message);
+      if (isMounted) setIsContainerBooting(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [filesMap]);
+
   // Clean compilation & bundling of source document (Antigravity Virtual Multi-File Sandbox)
   const srcDoc = useMemo(() => {
+    // 1. If project contains React TSX / JSX files, use VirtualMultiFileBundler
+    const hasReactFiles = Object.keys(filesMap).some(k => k.endsWith('.tsx') || k.endsWith('.jsx') || k.includes('src/App'));
+    if (hasReactFiles) {
+      const bundleRes = VirtualMultiFileBundler.bundle(filesMap);
+      return bundleRes.srcDoc;
+    }
+
     if (!htmlFile || htmlFile.trim().length === 0) {
       return `<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-900 text-white min-h-screen flex items-center justify-center font-sans"><div class="text-center p-6"><h2 class="text-lg font-bold">Esperando generación...</h2></div></body></html>`;
     }
@@ -472,10 +532,22 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
             )}
           </button>
 
-          <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>QA Verified 100%</span>
-          </div>
+          {isContainerBooting ? (
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold animate-pulse">
+              <Server className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+              <span>Iniciando WebContainer...</span>
+            </div>
+          ) : webContainerUrl ? (
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+              <Server className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span>WebContainer (Vite Live)</span>
+            </div>
+          ) : (
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold">
+              <Zap className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Virtual Multi-File Sandbox</span>
+            </div>
+          )}
         </div>
 
         {/* Viewport Switching & Inspection Controls */}
@@ -580,7 +652,8 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
               <iframe
                 key={iframeKey}
                 title="Live Sandbox Mobile"
-                srcDoc={srcDoc}
+                src={webContainerUrl || undefined}
+                srcDoc={!webContainerUrl ? srcDoc : undefined}
                 className="w-full h-full border-none bg-white flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
               />
@@ -593,7 +666,8 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
               <iframe
                 key={iframeKey}
                 title="Live Sandbox"
-                srcDoc={srcDoc}
+                src={webContainerUrl || undefined}
+                srcDoc={!webContainerUrl ? srcDoc : undefined}
                 className="w-full h-full border-none bg-white flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
               />

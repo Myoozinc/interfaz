@@ -7,26 +7,115 @@ export interface ModelRoutingDecision {
   maxTokens: number;
   temperature: number;
   complexityScore?: number;
+  estimatedAffectedFiles?: number;
+  requirementsCount?: number;
   routeCategory?: 'multimodal' | 'incremental_edit' | 'standard_build' | 'complex_build' | 'custom_ollama';
 }
 
 export interface ModelRoutingContext {
   history?: ChatMessage[];
   isEdit?: boolean;
+  hasExistingProject?: boolean;
   projectFileCount?: number;
+  existingFileNames?: string[];
 }
+
+/**
+ * ===================================================================================================
+ * TABLA DE DECISIÓN FINAL DE ENRUTAMIENTO DE MODELOS (NONA — FASE 3: SMART ROUTING)
+ * ===================================================================================================
+ *
+ * | # | Condición / Escenario                  | Señales Clave Identificadas                       | Servidor   | Modelo                      | maxTokens | Temp | Rationale Técnico                                                                             |
+ * |---|----------------------------------------|---------------------------------------------------|------------|-----------------------------|-----------|------|-----------------------------------------------------------------------------------------------|
+ * | 1 | Multimodal / Capturas / UI Mockup      | `attachments.some(a => image/video)`              | openrouter | google/gemini-2.5-flash     | 4000      | 0.20 | Visión computacional de alta resolución y baja latencia para transformar diseños a código.   |
+ * | 2 | Ollama Local Privado                   | `hasCustomOllama && requestedModel === 'ollama'`  | ollama     | qwen2.5-coder:7b            | 4000      | 0.20 | Ejecución 100% en máquina local del desarrollador sin transmitir datos a la nube.            |
+ * | 3 | Override Explícito del Usuario         | `requestedModel && != 'default' && != 'auto'`     | variable   | requestedModel              | 8192      | 0.15 | Respeto determinista a la selección explícita del usuario desde la barra de modelos.         |
+ * | 4 | Edición Incremental Chica              | `hasExistingProject && affectedFiles <= 2 &&`     | groq       | llama-3.3-70b-versatile     | 4000      | 0.10 | Modificación puntual y acotada (color, texto, botón, fix). Máxima velocidad (~450 t/s).      |
+ * |   | (Color, botón, título, fix puntual)    | `requirementsCount <= 2 && promptLength < 250`    |            |                             |           |      |                                                                                               |
+ * | 5 | Edición Multi-Archivo / Refactor       | `hasExistingProject && (affectedFiles > 2 ||`     | openrouter | deepseek/deepseek-chat      | 8192      | 0.15 | Modificación con impacto en múltiples componentes interdependientes o lógica de estado/API.   |
+ * |   | (Nuevas pantallas, rutas, store)       | `requirementsCount > 2 || promptLength >= 250)`  |            |                             |           |      |                                                                                               |
+ * | 6 | Generación Inicial / App Nueva         | `!hasExistingProject || isExplicitNewProject ||`  | openrouter | deepseek/deepseek-chat      | 12000     | 0.15 | Construcción completa multi-archivo React+Vite+TS con ventana amplia (8,000 - 16,000 tokens).|
+ * |   | (Proyecto desde cero, varias pantallas)| `requirementsCount >= 3`                          |            |                             |           |      |                                                                                               |
+ * ===================================================================================================
+ */
 
 export class OptimalModelRouter {
   /**
-   * Evaluates prompt complexity, attachments, feature count and build vs edit signals
-   * to immediately route the request to the most capable AI model and server.
-   *
-   * Criteria:
-   * - Incremental Edits / Small fixes: Groq LPU (Llama 3.3 70B Versatile, maxTokens 4000, ~450 tokens/s)
-   * - Full App Creations (Standard): OpenRouter (DeepSeek-V3 / Qwen 2.5 Coder 32B, maxTokens 8192)
-   * - Complex Architecture (3D, Physics, State, Auth, DB): OpenRouter (DeepSeek-V3 / Claude 3.5 Sonnet, maxTokens 8192+)
-   * - Vision / Multimodal: OpenRouter (Google Gemini 2.5 Flash, maxTokens 4000)
-   * - Local Ollama: Ollama (Qwen 2.5 Coder 7B, maxTokens 4000)
+   * Estima la cantidad de archivos probablemente afectados según la semántica
+   * del pedido del usuario y los archivos del proyecto existente.
+   */
+  public static estimateAffectedFiles(instruction: string, context?: ModelRoutingContext): number {
+    const lower = instruction.toLowerCase().trim();
+
+    // 1. Cambios cosméticos o de estilo ultra-acotados -> 1 archivo
+    const isCosmeticOrMinor = /(color|fondo|bot[oó]n|texto|t[ií]tulo|padding|margin|espaciado|borde|icono|icon|placeholder|hover|fuente|centrar|ocultar|mostrar|alineaci[oó]n)/i.test(lower);
+    const hasBroadStructuralScope = /(pantalla|vista|p[aá]gina|ruta|route|navegaci[oó]n|auth|login|registro|database|base de datos|supabase|store|context|carrito|dashboard)/i.test(lower);
+
+    if (isCosmeticOrMinor && !hasBroadStructuralScope && lower.length < 180) {
+      return 1;
+    }
+
+    // 2. Modificaciones de componente local -> 1 a 2 archivos
+    const isLocalComponent = /(contador|modal|dialog|toast|alerta|spinner|toggle|tooltip|dropdown|input|formulario|tabla)/i.test(lower);
+    if (isLocalComponent && !hasBroadStructuralScope && lower.length < 250) {
+      return 2;
+    }
+
+    // 3. Estructuras multi-pantalla, módulos o nuevas vistas -> 3 a 6 archivos
+    let affectedCount = 2;
+    if (/(pantalla|vista|p[aá]gina|tabs)/i.test(lower)) affectedCount += 2;
+    if (/(navegaci[oó]n|rutas|routes)/i.test(lower)) affectedCount += 1;
+    if (/(auth|login|registro|usuarios)/i.test(lower)) affectedCount += 1;
+    if (/(database|base de datos|supabase|localstorage|persist)/i.test(lower)) affectedCount += 1;
+    if (/(dashboard|panel|anal[ií]tica)/i.test(lower)) affectedCount += 1;
+
+    // Si es un proyecto nuevo sin archivos previos, el impacto abarca todo el scaffold
+    const hasExisting = context?.hasExistingProject ?? ((context?.projectFileCount || 0) > 1);
+    if (!hasExisting) {
+      return Math.max(4, affectedCount);
+    }
+
+    return affectedCount;
+  }
+
+  /**
+   * Cuenta la cantidad de requisitos o funcionalidades distintas solicitadas en el prompt.
+   */
+  public static countDistinctRequirements(instruction: string): number {
+    const raw = instruction.trim();
+    if (!raw) return 1;
+
+    let count = 0;
+
+    // A. Conteo de oraciones o cláusulas estructuradas
+    const sentences = raw.split(/[.;\n]+/).filter(s => s.trim().length > 8);
+    count += Math.max(1, sentences.length);
+
+    // B. Conteo de viñetas explícitas
+    const bullets = raw.match(/^\s*[-*•\d+.]\s+/gm);
+    if (bullets && bullets.length > 0) {
+      count = Math.max(count, bullets.length);
+    }
+
+    // C. Conectores de funcionalidades adicionales
+    const lower = raw.toLowerCase();
+    const connectors = [
+      'y además', 'y ademas', 'también', 'tambien', 'incluye', 'debe tener', 
+      'con pantalla de', 'con soporte para', 'con sistema de', 'permite', 
+      'y que tenga', 'por último', 'por ultimo', 'agrega una secci[oó]n'
+    ];
+    for (const c of connectors) {
+      if (lower.includes(c)) count++;
+    }
+
+    return count;
+  }
+
+  /**
+   * Enrutador inteligente basado en señales reales:
+   * 1. Presencia de proyecto previo en la sesión.
+   * 2. Cantidad de archivos probablemente afectados.
+   * 3. Longitud y cantidad de requisitos distintos en el pedido.
    */
   public selectOptimalModel(
     userInstruction: string,
@@ -35,11 +124,13 @@ export class OptimalModelRouter {
     requestedModel?: string,
     context?: ModelRoutingContext
   ): ModelRoutingDecision {
-    const hasVisuals = attachments.some(a => a.type === 'image' || a.type === 'video');
     const instructionLower = userInstruction.toLowerCase().trim();
     const promptLength = instructionLower.length;
+    const hasVisuals = attachments.some(a => a.type === 'image' || a.type === 'video');
 
-    // 1. Multimodal Vision or Video Frame Analysis
+    // ---------------------------------------------------------------------------------
+    // CASO 1: Multimodal / Visión Computacional
+    // ---------------------------------------------------------------------------------
     if (hasVisuals) {
       return {
         server: 'openrouter',
@@ -48,11 +139,15 @@ export class OptimalModelRouter {
         maxTokens: 4000,
         temperature: 0.2,
         routeCategory: 'multimodal',
-        complexityScore: 5
+        complexityScore: 5,
+        estimatedAffectedFiles: 3,
+        requirementsCount: 1
       };
     }
 
-    // 2. Custom Local Ollama (if explicitly requested)
+    // ---------------------------------------------------------------------------------
+    // CASO 2: Ollama Local Explícito
+    // ---------------------------------------------------------------------------------
     if (hasCustomOllama && requestedModel === 'ollama') {
       return {
         server: 'ollama',
@@ -61,17 +156,21 @@ export class OptimalModelRouter {
         maxTokens: 4000,
         temperature: 0.2,
         routeCategory: 'custom_ollama',
-        complexityScore: 3
+        complexityScore: 3,
+        estimatedAffectedFiles: 2,
+        requirementsCount: 1
       };
     }
 
-    // 3. Explicit Model Override by User
+    // ---------------------------------------------------------------------------------
+    // CASO 3: Selección Explícita de Modelo por el Usuario
+    // ---------------------------------------------------------------------------------
     if (requestedModel && requestedModel !== 'default' && requestedModel !== 'auto') {
       const isGroqExclusive = requestedModel.startsWith('groq/') || requestedModel.includes('instant');
       return {
         server: isGroqExclusive ? 'groq' : 'openrouter',
         model: requestedModel,
-        rationale: `🎯 Enrutado al modelo específico seleccionado: ${requestedModel}.`,
+        rationale: `🎯 Enrutado al modelo específico seleccionado por el usuario: ${requestedModel}.`,
         maxTokens: 8192,
         temperature: 0.15,
         routeCategory: 'complex_build',
@@ -79,101 +178,84 @@ export class OptimalModelRouter {
       };
     }
 
-    // 4. Signal Analysis: Incremental Edit vs Full Build
-    const EDIT_VERBS = [
-      'cambia', 'modifica', 'agrega', 'añade', 'elimina', 'quita', 'corrige', 
-      'ajusta', 'renombra', 'mueve', 'pinta', 'reemplaza', 'aumenta', 'reduce', 
-      'ponle', 'traduce', 'dale formato', 'arregla', 'sube', 'baja'
-    ];
+    // ---------------------------------------------------------------------------------
+    // ANÁLISIS DE SEÑALES REALES
+    // ---------------------------------------------------------------------------------
+    // Señal 1: Existencia de proyecto previo
+    const hasExistingProject = context?.hasExistingProject ?? ((context?.projectFileCount || 0) > 1);
 
-    const isExplicitEditVerb = EDIT_VERBS.some(v => 
-      instructionLower.startsWith(v) || instructionLower.includes(` ${v} `)
-    );
+    // Señal 2: Solicitud explícita de reiniciar o empezar desde cero
+    const isExplicitReset = /(nuevo proyecto|nueva app|nueva aplicaci[oó]n|desde cero|de cero|empezar de cero|borrar todo|reiniciar proyecto|haz otra app)/i.test(instructionLower);
 
-    const BUILD_KEYWORDS = [
-      'crea', 'haz una app', 'haz un juego', 'has una app', 'has un juego', 
-      'construye', 'desde cero', 'de cero', 'simulador', 'dashboard', 
-      'plataforma', 'sistema', 'nuevo proyecto', 'nueva aplicacion'
-    ];
+    // Señal 3: Estimación de archivos afectados
+    const estimatedAffectedFiles = OptimalModelRouter.estimateAffectedFiles(instructionLower, context);
 
-    const hasBuildKeyword = BUILD_KEYWORDS.some(k => instructionLower.includes(k));
+    // Señal 4: Cantidad de requisitos y longitud
+    const requirementsCount = OptimalModelRouter.countDistinctRequirements(instructionLower);
 
-    // 5. Complexity Scoring Engine
-    let complexityScore = 0;
+    // ---------------------------------------------------------------------------------
+    // CASO 4: Edición Incremental Chica (Groq LPU Engine ~450 tokens/s)
+    // Se activa cuando hay un proyecto existente, el pedido es puntual (color, botón, texto, fix),
+    // afecta a 1-2 archivos y los requisitos son simples.
+    // ---------------------------------------------------------------------------------
+    const isSmallIncrementalEdit = 
+      hasExistingProject && 
+      !isExplicitReset && 
+      estimatedAffectedFiles <= 2 &&
+      requirementsCount <= 2 &&
+      promptLength < 250;
 
-    // A) Length contribution
-    if (promptLength > 600) complexityScore += 3;
-    else if (promptLength > 250) complexityScore += 2;
-    else if (promptLength > 100) complexityScore += 1;
-
-    // B) Feature Count Contribution
-    // Auth & Security (+2)
-    if (/(\bauth\b|login|registro|jwt|token|password|usuario|sesion|sesión|permisos|roles)/i.test(instructionLower)) {
-      complexityScore += 2;
-    }
-    // Database & Persistence (+2)
-    if (/(database|base de datos|indexeddb|localstorage|sql|crud|persist|guardar datos|api rest)/i.test(instructionLower)) {
-      complexityScore += 2;
-    }
-    // State Management & Architecture (+2)
-    if (/(estado|store|redux|zustand|context|reactivo|modular|arquitectura|componentes)/i.test(instructionLower)) {
-      complexityScore += 2;
-    }
-    // 3D / Game Engine / Canvas Physics (+3)
-    if (/(three\.js|canvas|webgl|shader|fisica|física|colisiones|colision|juego|arcade|simulador|particulas|partículas|graficos 3d)/i.test(instructionLower)) {
-      complexityScore += 3;
-    }
-    // Web Audio (+1)
-    if (/(audio|sonido|musica|música|sintetizador|web audio)/i.test(instructionLower)) {
-      complexityScore += 1;
-    }
-    // Complex Data Viz / UI (+2)
-    if (/(dashboard|graficos|gráficos|chart|metricas|métricas|filtros|tabla interactiva|tabs|pestañas)/i.test(instructionLower)) {
-      complexityScore += 2;
-    }
-    // Deep Algorithm / Math (+3)
-    if (/(algoritmo|grafos|arbol|cálculo|matematica|matemática|machine learning|ia|refactoriza todo)/i.test(instructionLower)) {
-      complexityScore += 3;
-    }
-
-    // Determine if it qualifies as an incremental edit
-    const isEditMode = context?.isEdit ?? (isExplicitEditVerb && !hasBuildKeyword && promptLength < 180 && complexityScore < 3);
-
-    // ROUTE A: Rapid Incremental Edit (Groq LPU Engine)
-    if (isEditMode) {
+    if (isSmallIncrementalEdit) {
       return {
         server: 'groq',
         model: 'llama-3.3-70b-versatile',
-        rationale: '⚡ Enrutado a Groq LPU (Llama 3.3 70B Versatile) para iteración incremental ultrarrápida a ~450 tokens/s.',
+        rationale: '⚡ Enrutado a Groq LPU (Llama 3.3 70B Versatile) para iteración incremental rápida y económica (~450 tokens/s).',
         maxTokens: 4000,
-        temperature: 0.15,
+        temperature: 0.10,
         routeCategory: 'incremental_edit',
-        complexityScore
+        complexityScore: 1,
+        estimatedAffectedFiles,
+        requirementsCount
       };
     }
 
-    // ROUTE B: High-Complexity Architecture / 3D / Multi-Feature Applications
-    if (complexityScore >= 4 || hasBuildKeyword) {
+    // ---------------------------------------------------------------------------------
+    // CASO 5: Edición Multi-Archivo / Refactor Mediano en Proyecto Existente
+    // Cuando hay un proyecto pero se pide agregar múltiples pantallas, componentes o lógica profunda.
+    // ---------------------------------------------------------------------------------
+    const isMultiFileIncrementalEdit = 
+      hasExistingProject && 
+      !isExplicitReset && 
+      (estimatedAffectedFiles > 2 || requirementsCount > 2 || promptLength >= 250);
+
+    if (isMultiFileIncrementalEdit) {
       return {
         server: 'openrouter',
         model: 'deepseek/deepseek-chat',
-        rationale: `🧠 Enrutado a DeepSeek-V3 / OpenRouter (8,192 tokens) por requerimiento de construcción integral (Complejidad: ${complexityScore} pts).`,
+        rationale: `🧠 Enrutado a OpenRouter (DeepSeek-V3, 8,192 tokens) por modificación compleja multi-archivo en proyecto existente (~${estimatedAffectedFiles} archivos afectados, ${requirementsCount} requisitos).`,
         maxTokens: 8192,
         temperature: 0.15,
         routeCategory: 'complex_build',
-        complexityScore
+        complexityScore: 4,
+        estimatedAffectedFiles,
+        requirementsCount
       };
     }
 
-    // ROUTE C: Standard Full Generation Default
+    // ---------------------------------------------------------------------------------
+    // CASO 6: Generación Inicial de Aplicación Nueva Completa (Máxima Capacidad)
+    // Ventana extendida de 12,000 tokens (al menos 8,000 - 16,000 según especificación).
+    // ---------------------------------------------------------------------------------
     return {
       server: 'openrouter',
       model: 'deepseek/deepseek-chat',
-      rationale: '🚀 Enrutado a OpenRouter Cloud (DeepSeek-V3) con ventana extendida de 8,192 tokens para generación completa multi-archivo.',
-      maxTokens: 8192,
+      rationale: `🚀 Enrutado a OpenRouter (DeepSeek-V3) con ventana extendida de 12,000 tokens para generación inicial completa multi-archivo React + Vite (~${estimatedAffectedFiles} archivos previstos).`,
+      maxTokens: 12000,
       temperature: 0.15,
-      routeCategory: 'standard_build',
-      complexityScore
+      routeCategory: 'complex_build',
+      complexityScore: 5,
+      estimatedAffectedFiles,
+      requirementsCount
     };
   }
 }
