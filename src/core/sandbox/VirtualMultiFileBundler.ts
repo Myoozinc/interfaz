@@ -82,7 +82,8 @@ export class VirtualMultiFileBundler {
       "clsx": "https://esm.sh/clsx@2.1.1",
       "tailwind-merge": "https://esm.sh/tailwind-merge@2.5.5",
       "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
-      "canvas-confetti": "https://esm.sh/canvas-confetti@1.9.4"
+      "canvas-confetti": "https://esm.sh/canvas-confetti@1.9.4",
+      "three": "https://esm.sh/three@0.170.0"
     };
 
     // 3. Crear Data URIs para todos los módulos JS/TSX/TS del proyecto

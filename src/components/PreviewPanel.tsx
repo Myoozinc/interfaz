@@ -78,9 +78,15 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
 
   // WebContainers lifecycle integration
   useEffect(() => {
+    // Whenever filesMap changes, immediately reset WebContainer URL so Virtual Sandbox / HTML srcDoc renders instantly!
+    setWebContainerUrl(null);
+
     if (!webContainerService.isSupported()) return;
     const isMultiFileReact = Object.keys(filesMap).some(k => k.endsWith('.tsx') || k.endsWith('.ts') || k === 'package.json');
-    if (!isMultiFileReact) return;
+    if (!isMultiFileReact) {
+      setIsContainerBooting(false);
+      return;
+    }
 
     let isMounted = true;
     setIsContainerBooting(true);
@@ -106,6 +112,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       onError: (err) => {
         if (isMounted) {
           setIsContainerBooting(false);
+          setWebContainerUrl(null);
           setConsoleLogs(prev => [...prev.slice(-99), {
             type: 'error',
             message: `[Vite Error] ${err}`,
@@ -115,7 +122,10 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       }
     }).catch(err => {
       console.warn('[WebContainer] Fallback to Virtual Multi-File Bundler:', err.message);
-      if (isMounted) setIsContainerBooting(false);
+      if (isMounted) {
+        setIsContainerBooting(false);
+        setWebContainerUrl(null);
+      }
     });
 
     return () => {
@@ -650,7 +660,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
               </div>
               
               <iframe
-                key={iframeKey}
+                key={`${iframeKey}_${webContainerUrl ? 'wc_' + webContainerUrl : 'doc'}`}
                 title="Live Sandbox Mobile"
                 src={webContainerUrl || undefined}
                 srcDoc={!webContainerUrl ? srcDoc : undefined}
@@ -664,7 +674,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
               className="h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 flex flex-col"
             >
               <iframe
-                key={iframeKey}
+                key={`${iframeKey}_${webContainerUrl ? 'wc_' + webContainerUrl : 'doc'}`}
                 title="Live Sandbox"
                 src={webContainerUrl || undefined}
                 srcDoc={!webContainerUrl ? srcDoc : undefined}
