@@ -117,7 +117,12 @@ export class AgentCollaborationCouncil {
     }
 
     const reqLower = (effectiveInstruction + ' ' + userInstruction).toLowerCase();
+    const isNewAppOrGameCreation = 
+      /^(?:puedes\s+)?(?:hacer|crear|haz|has|construir|desarrollar|armar|programar|genera|generar)\s+(?:un|una)\s+(?:juego|app|aplicaci[oó]n|videojuego|landing|dashboard|sistema|tienda|clon|herramienta)/i.test(reqLower) &&
+      !/(?:dentro\s+de|en\s+el|en\s+la|al\s+juego|a\s+la\s+app|este\s+juego|esta\s+app)/i.test(reqLower);
+
     const isNewBuildRequest = 
+      isNewAppOrGameCreation ||
       reqLower.includes('has una app') ||
       reqLower.includes('haz una app') ||
       reqLower.includes('has un juego') ||

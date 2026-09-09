@@ -78,41 +78,61 @@ export default async function handler(req: Request) {
     const safeGroqMaxTokens = Math.max(900, Math.min(targetTokens, Math.max(1000, 7200 - estimatedPromptTokens)));
 
     const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
-      return fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${keyToUse}`,
-          'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-          'X-Title': 'NONA AI Software Factory',
-        },
-        body: JSON.stringify({
-          model: targetModel,
-          messages: formatMessages(messages),
-          stream: true,
-          temperature: temp,
-          max_tokens: tokens,
-        }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 18000);
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${keyToUse}`,
+            'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
+            'X-Title': 'NONA AI Software Factory',
+          },
+          body: JSON.stringify({
+            model: targetModel,
+            messages: formatMessages(messages),
+            stream: true,
+            temperature: temp,
+            max_tokens: tokens,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return res;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
     };
 
     const executeOpenRouter = async (keyToUse: string, orModel: string, tokens: number): Promise<Response> => {
-      return fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${keyToUse}`,
-          'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-          'X-Title': 'NONA AI Software Factory',
-        },
-        body: JSON.stringify({
-          model: orModel,
-          messages: formatMessages(messages),
-          stream: true,
-          temperature: temp,
-          max_tokens: tokens,
-        }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout to prevent 60s Edge death
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${keyToUse}`,
+            'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
+            'X-Title': 'NONA AI Software Factory',
+          },
+          body: JSON.stringify({
+            model: orModel,
+            messages: formatMessages(messages),
+            stream: true,
+            temperature: temp,
+            max_tokens: tokens,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return res;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
     };
 
     let aiResponse: Response | null = null;
@@ -157,14 +177,12 @@ export default async function handler(req: Request) {
       ];
 
       if (isOpenRouterPreferred && orKeyToUse) {
-        // TIER 1 (High-Capacity / OpenRouter preferred): DeepSeek-V3, Claude, Qwen Coder
+        // TIER 1 (High-Capacity / OpenRouter preferred): DeepSeek-V3, Qwen Coder (max 2 attempts before Groq fallback)
         const targetModels = Array.from(new Set([
           resolvedModel,
           'deepseek/deepseek-chat',
           'qwen/qwen-2.5-coder-32b-instruct',
-          'meta-llama/llama-3.3-70b-instruct',
-          ...VERIFIED_FREE_OR_MODELS
-        ].filter(Boolean)));
+        ].filter(Boolean))).slice(0, 2);
 
         for (const orModel of targetModels) {
           try {

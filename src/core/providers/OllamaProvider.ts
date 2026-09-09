@@ -90,13 +90,14 @@ export class OllamaProvider implements AIProvider {
       };
     });
 
-    onToken('⚡ Conectando con OpenRouter Cloud...', '', false);
+    const isGroq = model.includes('llama') || model.includes('mixtral') || model.startsWith('groq/');
+    onToken(isGroq ? '⚡ Conectando con Groq LPU (Ultra-rápido)...' : '⚡ Conectando con Cloud Engine...', '', false);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    const res = await fetch('/api/agent', {
+    let res = await fetch('/api/agent', {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -111,9 +112,49 @@ export class OllamaProvider implements AIProvider {
       signal: options?.signal,
     });
 
+    // Client-side automatic fallback to Groq LPU if OpenRouter model times out or errors
+    if (!res.ok && !isGroq) {
+      onToken('⚡ Conmutando automáticamente a Groq LPU por timeout / saturación en OpenRouter...', '', false);
+      try {
+        const fallbackRes = await fetch('/api/agent', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: formattedMessages,
+            openrouterKey: openrouterKey.trim() || undefined,
+            groqKey: groqKey.trim() || undefined,
+            maxTokensRequested: Math.min(options?.maxTokens || 4000, 4000),
+            temperature: options?.temperature,
+            stream: true,
+          }),
+          signal: options?.signal,
+        });
+        if (fallbackRes.ok) {
+          res = fallbackRes;
+        }
+      } catch {}
+    }
+
     if (!res.ok) {
-      const errJson = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(`Error en servidor cloud: ${errJson.error || res.statusText}`);
+      let errorDetail = '';
+      try {
+        const errJson = await res.json();
+        errorDetail = errJson.error || errJson.message || '';
+      } catch {
+        try {
+          const rawText = await res.text();
+          if (rawText.includes('FUNCTION_INVOCATION_TIMEOUT') || res.status === 504) {
+            errorDetail = 'Tiempo de espera agotado en el servidor cloud (Timeout 60s).';
+          } else if (rawText) {
+            errorDetail = rawText.slice(0, 150);
+          }
+        } catch {}
+      }
+      if (!errorDetail) {
+        errorDetail = res.status ? `Error HTTP ${res.status} (${res.statusText || 'Error de conexión'})` : 'Error de conexión con el servidor cloud';
+      }
+      throw new Error(`Error en servidor cloud: ${errorDetail}`);
     }
 
     const reader = res.body?.getReader();

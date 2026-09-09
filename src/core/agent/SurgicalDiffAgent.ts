@@ -57,7 +57,11 @@ export class SurgicalDiffAgent {
       'olvida el juego', 'haz otra cosa', 'borra este juego'
     ];
 
-    if (fullCreationStarts.some(kw => lower.includes(kw))) {
+    const isNewAppOrGameCreation = 
+      /^(?:puedes\s+)?(?:hacer|crear|haz|has|construir|desarrollar|armar|programar|genera|generar)\s+(?:un|una)\s+(?:juego|app|aplicaci[oó]n|videojuego|landing|dashboard|sistema|tienda|clon|herramienta)/i.test(lower) &&
+      !/(?:dentro\s+de|en\s+el|en\s+la|al\s+juego|a\s+la\s+app|este\s+juego|esta\s+app)/i.test(lower);
+
+    if (fullCreationStarts.some(kw => lower.includes(kw)) || isNewAppOrGameCreation) {
       return false;
     }
 

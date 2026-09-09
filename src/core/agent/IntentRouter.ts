@@ -68,8 +68,14 @@ export class IntentRouter {
       'quiero hacer', 'programa una', 'diseña una', 'disena una'
     ];
 
+    // Explicit new game or application creation requests (e.g. "puedes hacer un juego snake...", "haz una app de notas...")
+    const isNewAppOrGameCreation = 
+      /^(?:puedes\s+)?(?:hacer|crear|haz|has|construir|desarrollar|armar|programar|genera|generar)\s+(?:un|una)\s+(?:juego|app|aplicaci[oó]n|videojuego|landing|dashboard|sistema|tienda|clon|herramienta)/i.test(lower) &&
+      !/(?:dentro\s+de|en\s+el|en\s+la|al\s+juego|a\s+la\s+app|este\s+juego|esta\s+app)/i.test(lower);
+
     const isExplicitNew = isStarterOrPlaceholder ||
       newProjectPhrases.some(p => lower.includes(p)) ||
+      isNewAppOrGameCreation ||
       (!hasExistingCustomApp && creationVerbs.some(v => lower.startsWith(v) || lower.includes(` ${v} `)));
 
     // Modification / Fix keywords that specifically indicate repairing existing code
