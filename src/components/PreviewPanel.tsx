@@ -36,23 +36,90 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   const [activeTab, setActiveTab] = useState<'preview' | 'console'>('preview');
   const [consoleLogs, setConsoleLogs] = useState<{ type: 'log' | 'warn' | 'error' | 'info'; message: string; time: string }[]>([]);
 
-  const htmlFile = useMemo(() => {
-    if (htmlCode) return htmlCode;
+  const filesMap = useMemo(() => {
+    const map: Record<string, string> = {};
     if (Array.isArray(files)) {
-      const indexFile = files.find(f => f.name === 'index.html' || f.name.endsWith('.html'));
-      return indexFile ? indexFile.content : files[0]?.content || '';
+      files.forEach(f => {
+        const cleanName = f.name.replace(/^(\.\/|\/)/, '');
+        map[cleanName] = f.content;
+      });
+    } else if (files && typeof files === 'object') {
+      Object.entries(files).forEach(([k, v]) => {
+        const cleanName = k.replace(/^(\.\/|\/)/, '');
+        map[cleanName] = typeof v === 'string' ? v : (v as any).content || '';
+      });
     }
-    if (files && typeof files === 'object') {
-      return files['index.html'] || Object.values(files)[0] || '';
+    if (htmlCode) {
+      map['index.html'] = htmlCode;
     }
-    return '';
+    return map;
   }, [files, htmlCode]);
 
-  // Clean compilation & bundling of source document (Antigravity Zero-Artifact Engine)
+  const htmlFile = useMemo(() => {
+    if (htmlCode) return htmlCode;
+    if (filesMap['index.html']) return filesMap['index.html'];
+    const htmlKey = Object.keys(filesMap).find(k => k.endsWith('.html'));
+    if (htmlKey) return filesMap[htmlKey];
+    return Object.values(filesMap)[0] || '';
+  }, [filesMap, htmlCode]);
+
+  // Reset console logs when preview code changes (without useEffect cascading renders)
+  const [prevHtml, setPrevHtml] = useState(htmlFile);
+  if (prevHtml !== htmlFile) {
+    setPrevHtml(htmlFile);
+    setConsoleLogs([]);
+  }
+
+  // Clean compilation & bundling of source document (Antigravity Virtual Multi-File Sandbox)
   const srcDoc = useMemo(() => {
     if (!htmlFile || htmlFile.trim().length === 0) {
       return `<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-900 text-white min-h-screen flex items-center justify-center font-sans"><div class="text-center p-6"><h2 class="text-lg font-bold">Esperando generación...</h2></div></body></html>`;
     }
+
+    // 1. Virtual Multi-File Bundler & Import Map
+    const importMap: Record<string, string> = {};
+    const scriptBlobMap: Record<string, string> = {};
+    let injectedStyles = '';
+
+    Object.entries(filesMap).forEach(([filePath, content]) => {
+      // Inline virtual CSS files
+      if (filePath.endsWith('.css')) {
+        injectedStyles += `\n<style data-virtual-file="${filePath}">\n${content}\n</style>\n`;
+      }
+      // Create virtual Data URIs for all JS / TS / JSX / ESM files
+      else if (
+        filePath.endsWith('.js') ||
+        filePath.endsWith('.mjs') ||
+        filePath.endsWith('.ts') ||
+        filePath.endsWith('.jsx') ||
+        filePath.endsWith('.tsx')
+      ) {
+        try {
+          const moduleUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(content);
+
+          importMap[`./${filePath}`] = moduleUri;
+          importMap[`${filePath}`] = moduleUri;
+          importMap[`/${filePath}`] = moduleUri;
+
+          const baseName = filePath.split('/').pop();
+          if (baseName) {
+            importMap[`./${baseName}`] = moduleUri;
+            importMap[`${baseName}`] = moduleUri;
+            scriptBlobMap[baseName] = moduleUri;
+          }
+          scriptBlobMap[filePath] = moduleUri;
+          scriptBlobMap[`./${filePath}`] = moduleUri;
+        } catch (e) {
+          console.warn('[PreviewPanel] Error creating virtual module:', filePath, e);
+        }
+      }
+    });
+
+    const importMapScript = Object.keys(importMap).length > 0 ? `
+      <script type="importmap">
+      ${JSON.stringify({ imports: importMap }, null, 2)}
+      </script>
+    ` : '';
 
     const consoleCaptureScript = `
       <script>
@@ -78,8 +145,37 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
             } catch(e) {}
             _warn.apply(console, args);
           };
-          window.addEventListener('error', function(e) {
-            console.error(e.message);
+        })();
+      </script>
+    `;
+
+    const runtimeErrorCaptureScript = `
+      <script>
+        (function() {
+          window.onerror = function(msg, src, lineno, colno, err) {
+            try {
+              window.parent.postMessage({
+                type: 'SANDBOX_RUNTIME_ERROR',
+                level: 'error',
+                msg: String(msg),
+                source: String(src || ''),
+                line: lineno,
+                col: colno,
+                stack: err ? err.stack : ''
+              }, '*');
+            } catch(e) {}
+          };
+          window.addEventListener('unhandledrejection', function(event) {
+            try {
+              const reason = event.reason;
+              const errTxt = reason ? (reason.message || String(reason)) : 'Promise rechazada sin razón';
+              window.parent.postMessage({
+                type: 'SANDBOX_RUNTIME_ERROR',
+                level: 'error',
+                msg: 'Unhandled Rejection: ' + errTxt,
+                stack: reason && reason.stack ? reason.stack : ''
+              }, '*');
+            } catch(e) {}
           });
         })();
       </script>
@@ -235,9 +331,17 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       <script src="https://unpkg.com/lucide@latest"></script>
     `;
 
-    const allInjectedScripts = `${lifecyclePolyfillScript}${runtimePolyfills}${consoleCaptureScript}${inspectElementScript}${audioPolyfillScript}`;
+    const allInjectedScripts = `${importMapScript}${lifecyclePolyfillScript}${runtimePolyfills}${consoleCaptureScript}${runtimeErrorCaptureScript}${inspectElementScript}${audioPolyfillScript}${injectedStyles}`;
 
     let compiled = htmlFile;
+
+    // Rewrite relative script src to virtual blob URLs
+    Object.entries(scriptBlobMap).forEach(([specifier, blobUrl]) => {
+      const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(<script[^>]*src=["'])(\\./)?${escaped}(["'][^>]*>)`, 'gi');
+      compiled = compiled.replace(regex, `$1${blobUrl}$3`);
+    });
+
     if (compiled.includes('<head>')) {
       compiled = compiled.replace('<head>', `<head>${allInjectedScripts}`);
     } else if (compiled.includes('<!DOCTYPE html>') || compiled.includes('<html')) {
@@ -258,23 +362,24 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     }
 
     return compiled;
-  }, [htmlFile, isInspectMode]);
+  }, [htmlFile, filesMap, isInspectMode]);
 
-  // Auto-clear console logs on new generation or file update
-  useEffect(() => {
-    setConsoleLogs([]);
-  }, [htmlFile]);
-
-  // Handle postMessage logs and element inspection from iframe
+  // Handle postMessage logs, runtime errors, and element inspection from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'NONA_LOG') {
+      if (event.data?.type === 'SANDBOX_RUNTIME_ERROR' || event.data?.type === 'NONA_LOG') {
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const isRuntimeErr = event.data.type === 'SANDBOX_RUNTIME_ERROR';
+        const level = isRuntimeErr ? 'error' : event.data.level;
+        const msg = isRuntimeErr
+          ? `${event.data.msg}${event.data.line ? ` (Línea ${event.data.line}:C${event.data.col || 0})` : ''}`
+          : event.data.msg;
+
         setConsoleLogs(prev => [
           ...prev.slice(-49),
           {
-            type: event.data.level,
-            message: event.data.msg,
+            type: level,
+            message: msg,
             time
           }
         ]);

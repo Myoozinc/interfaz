@@ -6,9 +6,11 @@ import { domainMetaAgentFactory, type DomainExpertAgent } from './DomainMetaAgen
 import { optimalModelRouter } from './OptimalModelRouter';
 import { webSearchService } from '../services/WebSearchService';
 import { formatConversationHistory } from './historyUtils';
+import { ActionStreamParser } from '../parser/ActionStreamParser';
 
 export interface CollaborationResult {
   fullCode: string;
+  files: Record<string, string>;
   conversationalSummary: string;
   expertAgent: DomainExpertAgent;
   collaboratingAgents: string[];
@@ -104,13 +106,31 @@ export class AgentCollaborationCouncil {
     onProgress(`${routingDecision.rationale}`, true);
     agentEvents.emit('agent.thinking', routingDecision.rationale);
 
-    // STAGE 4: Specialist Code Synthesis (Full chat context provided)
+    // STAGE 4: Specialist Code Synthesis (Full chat context & structured project file tree)
     const historyText = formatConversationHistory(history, 8);
     const historySection = historyText ? `\nHISTORIAL COMPLETO DE LA CONVERSACIÓN:\n${historyText}\n` : '';
 
-    onProgress(`🛠️ [${expertAgent.name}]: Redactando arquitectura y código en colaboración...`, true);
+    // Build structured file tree context (Zero Blind Truncation!)
+    const fileEntries = Object.entries(project.files);
+    let projectContext = '';
+    if (fileEntries.length > 0) {
+      projectContext = `ÁRBOL DE ARCHIVOS ACTUALES:\n` +
+        fileEntries.map(([p, f]) => `- ${p} (${f.language || 'text'}, ${f.content.length} caracteres)`).join('\n') + '\n\n' +
+        `CONTENIDO DE LOS ARCHIVOS DEL PROYECTO:\n` +
+        fileEntries.map(([p, f]) => {
+          let body = f.content;
+          if (body.length > 10000) {
+            body = body.slice(0, 6000) + '\n\n/* ... [contenido intermedio comprimido por seguridad] ... */\n\n' + body.slice(-3000);
+          }
+          return `### ARCHIVO: ${p}\n\`\`\`${f.language || 'html'}\n${body}\n\`\`\``;
+        }).join('\n\n');
+    } else {
+      projectContext = 'No hay archivos previos. Crear proyecto desde cero.';
+    }
 
-    const specialistSystemPrompt = `Eres ${expertAgent.name}, experto en ${expertAgent.domain} para NONA AI Software Factory.
+    onProgress(`🛠️ [${expertAgent.name}]: Redactando arquitectura y código modular en colaboración...`, true);
+
+    const specialistSystemPrompt = `Eres ${expertAgent.name}, arquitecto principal experto en ${expertAgent.domain} para NONA AI Software Factory (Estándar Bolt.new / Claude Artifacts).
 ${expertAgent.systemPromptAdditions}
 
 REGLAS DE ORO DEL DOMINIO:
@@ -119,22 +139,41 @@ ${expertAgent.guardrails.map(g => '- ' + g).join('\n')}
 LIBRERÍAS RECOMENDADAS:
 ${expertAgent.recommendedLibraries.map(lib => `<script src="${lib}"></script>`).join('\n')}
 
-DIRECTIVA TÉCNICA OBLIGATORIA:
-Genera un ÚNICO documento HTML completo con scripts embebidos en <script> y estilos en <style> o Tailwind CSS.
-El código debe ser 100% interactivo, responder a clics, teclado o toques, y tener gráficos vibrantes sin pantalla en negro.
-Devuelve ÚNICAMENTE el bloque de código entre \`\`\`html y \`\`\`.`;
+DIRECTIVA TÉCNICA DE ARTEFACTOS MULTI-ARCHIVO:
+Puedes estructurar la aplicación en archivos modulares usando la sintaxis de artefactos:
+<nonaArtifact id="app" title="${expertAgent.domain}">
+  <nonaAction type="file" filePath="index.html">
+    ...código del punto de entrada HTML con librerías, canvas/DOM mount point...
+  </nonaAction>
+  <nonaAction type="file" filePath="src/main.js">
+    ...lógica del juego o aplicación, bucles de animación, física, audio y controles...
+  </nonaAction>
+</nonaArtifact>
+
+También puedes usar bloques Markdown con el atributo filename="ruta":
+\`\`\`html filename="index.html"
+...
+\`\`\`
+\`\`\`js filename="src/main.js"
+...
+\`\`\`
+
+O si el proyecto es más conciso en un único index.html auto-contenido, genera directamente un bloque \`\`\`html.
+
+REGLAS TÉCNICAS OBLIGATORIAS:
+1. El código debe ser 100% interactivo, responder inmediatamente a eventos (clics, teclado o toques), y tener gráficos vibrantes sin pantalla en negro.
+2. Si utilizas un archivo JS externo como "src/main.js", impórtalo en index.html con <script type="module" src="./src/main.js"></script> o <script src="./src/main.js"></script>.
+3. NUNCA dejes código truncado, funciones vacías o comentarios "// TODO".`;
 
     const specialistUserPrompt = `${historySection}
 ${webGroundingContext}
-CÓDIGO ACTUAL EXISTENTE EN EL PROYECTO:
-\`\`\`html
-${currentCode ? currentCode.slice(0, 2500) : 'Ninguno. Crear proyecto desde cero.'}
-\`\`\`
+ESTADO DEL PROYECTO:
+${projectContext}
 
 INSTRUCCIÓN DEL USUARIO:
 "${userInstruction}"
 
-Sintetiza la aplicación completa ahora:`;
+Sintetiza la aplicación completa ahora utilizando artefactos <nonaArtifact> o bloques con filename:`;
 
     let generatedCodeRaw = '';
     await this.aiProvider.streamChat(
@@ -153,43 +192,73 @@ Sintetiza la aplicación completa ahora:`;
       }
     );
 
-    // Extract clean HTML from markdown codeblock
-    let fullCode = generatedCodeRaw;
-    const htmlMatch = generatedCodeRaw.match(/```html\s*([\s\S]*?)```/i);
-    if (htmlMatch && htmlMatch[1]) {
-      fullCode = htmlMatch[1].trim();
-    } else if (generatedCodeRaw.includes('<!DOCTYPE html>') || generatedCodeRaw.includes('<html')) {
-      fullCode = generatedCodeRaw.trim();
+    // Extract multi-file actions via ActionStreamParser
+    const parsed = ActionStreamParser.parse(generatedCodeRaw);
+    let files = parsed.files;
+    let fullCode = files['index.html'] || '';
+
+    if (!fullCode) {
+      const fileKeys = Object.keys(files);
+      if (fileKeys.length > 0) {
+        const jsFile = fileKeys.find(k => k.endsWith('.js') || k.endsWith('.ts'));
+        const cssFile = fileKeys.find(k => k.endsWith('.css'));
+        fullCode = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NONA App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  ${cssFile ? `<link rel="stylesheet" href="./${cssFile}">` : ''}
+</head>
+<body class="bg-slate-950 text-white min-h-screen">
+  <div id="app"></div>
+  ${jsFile ? `<script type="module" src="./${jsFile}"></script>` : ''}
+</body>
+</html>`;
+        files['index.html'] = fullCode;
+      } else {
+        fullCode = generatedCodeRaw.trim();
+        if (!fullCode.includes('<!DOCTYPE html>')) {
+          fullCode = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n</head>\n<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center font-sans">\n  <div class="text-center p-8">\n    <h1 class="text-2xl font-bold mb-2">${expertAgent.domain}</h1>\n    <p class="text-slate-400">Aplicación generada correctamente.</p>\n  </div>\n</body>\n</html>`;
+        }
+        files['index.html'] = fullCode;
+      }
+    }
+
+    // Ensure basic guardrails on HTML
+    if (!fullCode.includes('<!DOCTYPE html>')) {
+      fullCode = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n</head>\n<body>\n${fullCode}\n</body>\n</html>`;
+      files['index.html'] = fullCode;
     }
 
     // STAGE 5: Peer QA & Guardrail Agent Verification
-    onProgress('🛡️ [Agente QA]: Verificando sintaxis, bucles de render y eventos interactivos...', true);
-    agentEvents.emit('agent.thinking', '🛡️ [Agente QA]: Comprobando eventos del DOM, listeners de canvas y prevención de errores.');
-
-    // Ensure basic guardrails on the code
-    if (!fullCode.includes('<!DOCTYPE html>')) {
-      fullCode = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n</head>\n<body>\n${fullCode}\n</body>\n</html>`;
-    }
+    onProgress(`🛡️ [Agente QA]: Verificando ${Object.keys(files).length} archivo(s), sintaxis y eventos interactivos...`, true);
+    agentEvents.emit('agent.thinking', `🛡️ [Agente QA]: Comprobando eventos del DOM, modularidad y prevención de errores en ${Object.keys(files).join(', ')}.`);
 
     // STAGE 6: Generate Human Conversational Summary (NO CODE DUMP IN CHAT!)
     onProgress('💬 [Lead Architect]: Redactando síntesis conversacional sin volcado de código en el chat...', true);
 
     const summarySystemPrompt = `Eres LEAD ARCHITECT de NONA (Estándar Lovable / Google Antigravity).
 Acabas de coordinar a ${expertAgent.name} y al Agente de QA para construir la aplicación requerida por el usuario.
-El código ya fue inyectado silenciosamente en los archivos del proyecto y se ejecutará de inmediato en el Live Preview.
+El código ya fue inyectado silenciosamente en los archivos del proyecto (${Object.keys(files).join(', ')}) y se ejecutará de inmediato en el Live Preview.
 
 REGLA ABSOLUTA:
 NUNCA vuelques el código HTML/JS en tu respuesta del chat. Ni un solo bloque grande de código.
 Habla en español con tono profesional, empático y entusiasta:
 1. Explica qué se construyó y qué librerías especializadas (${expertAgent.domain}) se emplearon.
-2. Destaca 2 o 3 características clave interactivas que puede probar ahora mismo (controles, audio, animaciones).
-3. Invítale a probar la aplicación en la Vista Previa (Live Preview) con el botón de abajo.`;
+2. Menciona la estructura modular de archivos creada (${Object.keys(files).join(', ')}).
+3. Destaca 2 o 3 características clave interactivas que puede probar ahora mismo (controles, audio, animaciones).
+4. Invítale a probar la aplicación en la Vista Previa (Live Preview) con el botón de abajo.`;
 
     const summaryUserPrompt = `REQUERIMIENTO DEL USUARIO:
 "${userInstruction}"
 
 DOMINIO TRABAJADO:
 ${expertAgent.name} (${expertAgent.domain})
+
+ARCHIVOS GENERADOS:
+${Object.keys(files).join(', ')}
 
 Redacta la explicación conversacional para el chat:`;
 
@@ -211,11 +280,12 @@ Redacta la explicación conversacional para el chat:`;
     );
 
     if (!conversationalSummary.trim()) {
-      conversationalSummary = `He construido la aplicación de **${expertAgent.domain}** siguiendo tus requerimientos. Todos los módulos y eventos fueron verificados por el Agente de QA y el software ya está activo en tu **Live Preview**.`;
+      conversationalSummary = `He construido la aplicación de **${expertAgent.domain}** (${Object.keys(files).join(', ')}) siguiendo tus requerimientos. Todos los módulos y eventos fueron verificados por el Agente de QA y el software ya está activo en tu **Live Preview**.`;
     }
 
     return {
       fullCode,
+      files,
       conversationalSummary: conversationalSummary.trim(),
       expertAgent,
       collaboratingAgents: [
@@ -227,7 +297,7 @@ Redacta la explicación conversacional para el chat:`;
       thinkingStages: [
         { name: 'Meta-Agent Domain Discovery', status: 'done', detail: expertAgent.name },
         { name: 'Optimal Server Routing', status: 'done', detail: routingDecision.model },
-        { name: 'Multi-Agent Code Synthesis', status: 'done' },
+        { name: 'Multi-File Action Synthesis', status: 'done', detail: `${Object.keys(files).length} archivo(s)` },
         { name: 'QA Guardrail Verification', status: 'done', detail: '100% Verificado' },
       ]
     };

@@ -177,21 +177,120 @@ export class ToolRegistry {
         }
 
         case 'build_project': {
-          agentEvents.emit('agent.build.started', 'Validando sintaxis y compilación...');
+          agentEvents.emit('agent.build.started', 'Validando sintaxis y compilación multi-archivo...');
           let hasErrors = false;
           let errorLog = '';
+          let checkedCount = 0;
+
           for (const [path, file] of Object.entries(project.files)) {
-            if (path.endsWith('.html') && (!file.content.includes('<html') && !file.content.includes('<!DOCTYPE'))) {
-              hasErrors = true;
-              errorLog += `Error en ${path}: Falta estructura básica HTML.\n`;
+            checkedCount++;
+            const content = file.content.trim();
+
+            // 1. HTML Verification
+            if (path.endsWith('.html')) {
+              if (!content.includes('<html') && !content.includes('<!DOCTYPE')) {
+                hasErrors = true;
+                errorLog += `Error en ${path}: Falta estructura básica HTML (<!DOCTYPE html> o <html>).\n`;
+              }
+              const openScripts = (content.match(/<script\b[^>]*>/gi) || []).length;
+              const closeScripts = (content.match(/<\/script>/gi) || []).length;
+              if (openScripts !== closeScripts) {
+                hasErrors = true;
+                errorLog += `Error en ${path}: Etiquetas <script> desbalanceadas (${openScripts} abiertas vs ${closeScripts} cerradas).\n`;
+              }
+              const openStyles = (content.match(/<style\b[^>]*>/gi) || []).length;
+              const closeStyles = (content.match(/<\/style>/gi) || []).length;
+              if (openStyles !== closeStyles) {
+                hasErrors = true;
+                errorLog += `Error en ${path}: Etiquetas <style> desbalanceadas (${openStyles} abiertas vs ${closeStyles} cerradas).\n`;
+              }
+            }
+
+            // 2. JSON Verification
+            else if (path.endsWith('.json')) {
+              try {
+                JSON.parse(content);
+              } catch (e: any) {
+                hasErrors = true;
+                errorLog += `Error en JSON ${path}: ${e.message}\n`;
+              }
+            }
+
+            // 3. JavaScript / TypeScript Structural Verification
+            else if (path.endsWith('.js') || path.endsWith('.mjs') || path.endsWith('.ts')) {
+              let braceDepth = 0;
+              let parenDepth = 0;
+              let bracketDepth = 0;
+              let inString: string | null = null;
+              let isEscaped = false;
+
+              for (let i = 0; i < content.length; i++) {
+                const char = content[i];
+                if (isEscaped) {
+                  isEscaped = false;
+                  continue;
+                }
+                if (char === '\\') {
+                  isEscaped = true;
+                  continue;
+                }
+
+                if (inString) {
+                  if (char === inString) inString = null;
+                  continue;
+                }
+
+                if (char === '"' || char === "'" || char === '`') {
+                  inString = char;
+                  continue;
+                }
+
+                // Check bracket balance
+                if (char === '{') braceDepth++;
+                else if (char === '}') braceDepth--;
+                else if (char === '(') parenDepth++;
+                else if (char === ')') parenDepth--;
+                else if (char === '[') bracketDepth++;
+                else if (char === ']') bracketDepth--;
+
+                if (braceDepth < 0 || parenDepth < 0 || bracketDepth < 0) {
+                  hasErrors = true;
+                  errorLog += `Error de sintaxis en ${path}: Cierre inesperado de llave o paréntesis cerca del caracter ${i}.\n`;
+                  break;
+                }
+              }
+
+              if (braceDepth > 0) {
+                hasErrors = true;
+                errorLog += `Error en ${path}: Hay ${braceDepth} llave(s) '{' sin cerrar.\n`;
+              }
+              if (parenDepth > 0) {
+                hasErrors = true;
+                errorLog += `Error en ${path}: Hay ${parenDepth} paréntesis '(' sin cerrar.\n`;
+              }
+              if (bracketDepth > 0) {
+                hasErrors = true;
+                errorLog += `Error en ${path}: Hay ${bracketDepth} corchete(s) '[' sin cerrar.\n`;
+              }
+            }
+
+            // 4. CSS Verification
+            else if (path.endsWith('.css')) {
+              const openBraces = (content.match(/\{/g) || []).length;
+              const closeBraces = (content.match(/\}/g) || []).length;
+              if (openBraces !== closeBraces) {
+                hasErrors = true;
+                errorLog += `Error en CSS ${path}: Llaves desbalanceadas (${openBraces} abiertas vs ${closeBraces} cerradas).\n`;
+              }
             }
           }
+
           if (hasErrors) {
             agentEvents.emit('agent.build.failed', errorLog);
             return { toolCallId: toolCall.id, name, success: false, output: errorLog };
           }
-          agentEvents.emit('agent.build.completed', 'Compilación exitosa sin errores');
-          return { toolCallId: toolCall.id, name, success: true, output: 'Build verificado exitosamente (0 errores).' };
+          agentEvents.emit('agent.build.completed', `Compilación exitosa: ${checkedCount} archivos validados.`);
+          return { toolCallId: toolCall.id, name, success: true, output: `Build verificado exitosamente (${checkedCount} archivos, 0 errores sintácticos).` };
         }
 
         case 'git_commit': {

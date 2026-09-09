@@ -2,25 +2,7 @@ export const config = {
   runtime: 'edge',
 };
 
-// Built-in Groq key (Verified 100% active: Qwen 3.8 27B + GPT-OSS 120B)
-const getBuiltInGroqKey = () => {
-  const g1 = ['g','s','k','_'].join('');
-  const g2 = ['S','g','I','U','P','2','Z','o','r','e','J','n','t','U','r','p','l','G','u','6','W','G','d','y','b','3','F','Y','M','6','r','k','v','Y','t','G','g','i','l','j','k','2','J','A','L','7','3','W','D','L','h','r'].join('');
-  return g1 + g2;
-};
-
-// Built-in OpenRouter key
-const getBuiltInOrKey = () => {
-  const p1 = ['s','k','-','o','r','-','v','1','-'].join('');
-  const p2 = ['b','e','0','5','c','f','d','2','d','9','c','b'].join('');
-  const p3 = ['5','4','5','9','1','5','8','e','1','4','f','1'].join('');
-  const p4 = ['5','b','7','6','5','9','0','7','c','7','b','c'].join('');
-  const p5 = ['d','7','4','e','5','a','a','a','4','e','5','0'].join('');
-  const p6 = ['f','1','6','1','8','e','a','1','4','c','6','2','c','e','9','d'].join('');
-  return p1 + p2 + p3 + p4 + p5 + p6;
-};
-
-// Verified active 100% FREE models on OpenRouter (No credit limits)
+// Verified active 100% FREE models on OpenRouter (when an OpenRouter key is configured)
 const VERIFIED_FREE_OR_MODELS = [
   'nvidia/nemotron-3.5-lightning:free',
   'inclusionai/ling-3.0-flash-fin:free',
@@ -55,6 +37,17 @@ export default async function handler(req: Request) {
     const customOr = (openrouterKey && openrouterKey.startsWith('sk-or-')) ? openrouterKey :
                      (apiKey && apiKey.startsWith('sk-or-')) ? apiKey :
                      (clientBearer && clientBearer.startsWith('sk-or-')) ? clientBearer : null;
+
+    // Server-side environment variables (Vercel / .env)
+    const envGroqKeys: string[] = [
+      process.env.GROQ_API_KEY || '',
+      ...(process.env.GROQ_API_KEYS ? process.env.GROQ_API_KEYS.split(',') : [])
+    ].map(k => k.trim()).filter(Boolean);
+
+    const envOrKey = (process.env.OPENROUTER_API_KEY || '').trim();
+
+    const groqKeysToTry = customGroq ? [customGroq, ...envGroqKeys] : envGroqKeys;
+    const orKeyToUse = customOr || envOrKey;
 
     const formatMessages = (msgs: any[]) => {
       return msgs.map((m: any) => {
@@ -126,71 +119,67 @@ export default async function handler(req: Request) {
     let lastError = '';
 
     if (hasImages) {
-      // Vision model
-      const orToken = customOr || getBuiltInOrKey();
-      aiResponse = await executeOpenRouter(orToken, 'google/gemini-2.5-flash', 2000);
+      // Vision model: Prefer OpenRouter gemini-2.5-flash or Groq vision
+      if (orKeyToUse) {
+        aiResponse = await executeOpenRouter(orKeyToUse, 'google/gemini-2.5-flash', 2000);
+      } else if (groqKeysToTry.length > 0) {
+        aiResponse = await executeGroq(groqKeysToTry[0], 'llama-3.2-11b-vision-preview', 2000);
+      } else {
+        throw new Error('Para procesar imágenes se requiere OPENROUTER_API_KEY o GROQ_API_KEY configurada.');
+      }
     } else {
-      // TIER 1: Groq with Custom Key (if supplied)
-      if (customGroq) {
-        try {
-          const res = await executeGroq(customGroq, 'qwen/qwen3.8-27b', safeGroqMaxTokens);
-          if (res.ok) aiResponse = res;
-        } catch (e: any) {
-          console.warn('Custom Groq key error', e.message);
+      // TIER 1: Groq Engine (Qwen 3.8 27B -> Qwen 3.6 27B -> GPT-OSS 120B -> GPT-OSS 20B)
+      if (groqKeysToTry.length > 0) {
+        const groqModels = ['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+        for (const key of groqKeysToTry) {
+          for (const targetM of groqModels) {
+            try {
+              const res = await executeGroq(key, targetM, safeGroqMaxTokens);
+              if (res.ok) {
+                aiResponse = res;
+                break;
+              } else {
+                const errTxt = await res.text().catch(() => '');
+                lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
+              }
+            } catch (e: any) {
+              lastError = `Groq (${targetM}) error: ${e.message}`;
+            }
+          }
+          if (aiResponse && aiResponse.ok) break;
         }
       }
 
-      // TIER 2: Groq Built-in Key (Cascade: Qwen 3.8 27B -> Qwen 3.6 27B -> GPT-OSS 120B -> GPT-OSS 20B)
-      if (!aiResponse || !aiResponse.ok) {
-        const groqModels = ['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
-        for (const targetM of groqModels) {
+      // TIER 2: OpenRouter (Custom key or server env key)
+      if ((!aiResponse || !aiResponse.ok) && orKeyToUse) {
+        const targetModels = [
+          model || 'qwen/qwen-2.5-coder-32b-instruct',
+          'meta-llama/llama-3.3-70b-instruct',
+          ...VERIFIED_FREE_OR_MODELS
+        ];
+        for (const orModel of targetModels) {
           try {
-            const res = await executeGroq(getBuiltInGroqKey(), targetM, safeGroqMaxTokens);
+            const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 3000));
             if (res.ok) {
               aiResponse = res;
               break;
             } else {
-              const errTxt = await res.text().catch(() => '');
-              lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
+              const errText = await res.text().catch(() => '');
+              lastError = `OpenRouter (${orModel}): ${errText.slice(0, 100)}`;
             }
           } catch (e: any) {
-            lastError = `Groq (${targetM}) error: ${e.message}`;
-          }
-        }
-      }
-
-      // TIER 3: OpenRouter with Custom Key (if supplied by user)
-      if ((!aiResponse || !aiResponse.ok) && customOr) {
-        for (const orModel of [model || 'qwen/qwen-2.5-coder-32b-instruct', 'meta-llama/llama-3.3-70b-instruct']) {
-          try {
-            const res = await executeOpenRouter(customOr, orModel, Math.min(targetTokens, 3000));
-            if (res.ok) {
-              aiResponse = res;
-              break;
-            }
-          } catch {}
-        }
-      }
-
-      // TIER 4: OpenRouter 100% Free Tier Models (Zero credit requirement)
-      if (!aiResponse || !aiResponse.ok) {
-        for (const freeModel of VERIFIED_FREE_OR_MODELS) {
-          try {
-            const res = await executeOpenRouter(getBuiltInOrKey(), freeModel, 2500);
-            if (res.ok) {
-              aiResponse = res;
-              break;
-            }
-            const errText = await res.text().catch(() => '');
-            lastError = `OpenRouter Free (${freeModel}): ${errText.slice(0, 100)}`;
-          } catch (e: any) {
-            lastError = `OpenRouter Free (${freeModel}) Exception: ${e.message}`;
+            lastError = `OpenRouter (${orModel}) Exception: ${e.message}`;
           }
         }
       }
     }
 
     if (!aiResponse || !aiResponse.ok) {
+      if (groqKeysToTry.length === 0 && !orKeyToUse) {
+        return new Response(JSON.stringify({
+          error: 'No se detectó ninguna clave de API. Configura GROQ_API_KEY o OPENROUTER_API_KEY en las variables de entorno de Vercel (.env) o ingresa tu API Key en los Ajustes de NONA.'
+        }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+      }
       throw new Error(`Servicio de IA no disponible temporalmente. Detalle: ${lastError}`);
     }
 

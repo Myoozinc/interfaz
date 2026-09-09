@@ -1,5 +1,5 @@
 import type { ChatMessage, ChatAttachment } from '../../types';
-import type { FullStackProject, ToolCall } from '../types';
+import type { FullStackProject } from '../types';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { ToolRegistry } from './ToolRegistry';
 import { agentEvents } from './AgentEvents';
@@ -79,8 +79,19 @@ Sé conciso, empático, sin plantillas robóticas ni encabezados genéricos.`;
       mode?: 'chat' | 'builder';
     }
   ): Promise<AgentExecutionResult> {
-    const mainFile = project.files['index.html'] || Object.values(project.files)[0];
-    const currentCode = mainFile?.content || '';
+    // Determine target file context
+    let targetPath = 'index.html';
+    if (!project.files['index.html'] && Object.keys(project.files).length > 0) {
+      targetPath = Object.keys(project.files)[0];
+    }
+    for (const p of Object.keys(project.files)) {
+      if (userInstruction.toLowerCase().includes(p.toLowerCase())) {
+        targetPath = p;
+        break;
+      }
+    }
+    const targetFile = project.files[targetPath] || project.files['index.html'] || Object.values(project.files)[0];
+    const currentCode = targetFile?.content || '';
 
     // Step 1: Intelligent Intent Classification & Routing with History
     const intent = intentRouter.classifyIntent(userInstruction, currentCode, options?.history);
@@ -186,23 +197,32 @@ Responde de forma clara, natural y profesional:`;
         }
       );
 
-      // Save verified code directly into index.html
-      const toolCall: ToolCall = {
-        id: 'tc_' + Date.now(),
-        name: 'project_write_file',
-        arguments: { path: 'index.html', content: collabResult.fullCode }
-      };
+      // Save all multi-file actions directly into project files
+      const fileEntries = Object.entries(collabResult.files);
+      if (fileEntries.length > 0) {
+        for (const [filePath, content] of fileEntries) {
+          await this.toolRegistry.executeTool({
+            id: 'tc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            name: 'project_write_file',
+            arguments: { path: filePath, content }
+          }, project);
+        }
+      } else {
+        await this.toolRegistry.executeTool({
+          id: 'tc_' + Date.now(),
+          name: 'project_write_file',
+          arguments: { path: 'index.html', content: collabResult.fullCode }
+        }, project);
+      }
 
-      await this.toolRegistry.executeTool(toolCall, project);
-
-      // Validate project build
+      // Validate project build across all files
       await this.toolRegistry.executeTool({
         id: 'tc_build_' + Date.now(),
         name: 'build_project',
         arguments: {}
       }, project);
 
-      agentEvents.emit('agent.completed', `Software construido por ${collabResult.expertAgent.name} y verificado en sandbox.`);
+      agentEvents.emit('agent.completed', `Software construido por ${collabResult.expertAgent.name} (${fileEntries.length} archivos) y verificado en sandbox.`);
       
       return { 
         responseText: collabResult.conversationalSummary, 
@@ -221,7 +241,7 @@ Responde de forma clara, natural y profesional:`;
     // =========================================================================
     // MODE 4: ⚡ SURGICAL_EDIT (Bug Fixes & Precision Tweaks)
     // =========================================================================
-    onProgress('⚡ NONA Surgical Diff Engine\n*(Localizando y aplicando parche en caliente...)*', true);
+    onProgress(`⚡ NONA Surgical Diff Engine\n*(Localizando y aplicando parche en ${targetPath}...)*`, true);
 
     const patchedCode = await surgicalDiffAgent.applySurgicalEdit(
       userInstruction,
@@ -231,11 +251,11 @@ Responde de forma clara, natural y profesional:`;
       options?.history
     );
 
-    // Save patched code to index.html
+    // Save patched code to the target file
     await this.toolRegistry.executeTool({
       id: 'tc_patch_' + Date.now(),
       name: 'project_write_file',
-      arguments: { path: 'index.html', content: patchedCode }
+      arguments: { path: targetPath, content: patchedCode }
     }, project);
 
     await this.toolRegistry.executeTool({
@@ -246,11 +266,11 @@ Responde de forma clara, natural y profesional:`;
 
     const naturalEditSummary = await this.generateNaturalSummary(
       userInstruction,
-      'Corrección quirúrgica de componentes y eventos',
-      intent.reason || 'Se actualizaron los listeners, botones y lógica en caliente manteniendo el juego original'
+      `Corrección quirúrgica en ${targetPath}`,
+      intent.reason || 'Se actualizaron los componentes y listeners manteniendo la consistencia de todo el proyecto'
     );
 
-    agentEvents.emit('agent.completed', 'Modificación quirúrgica finalizada.');
+    agentEvents.emit('agent.completed', `Modificación quirúrgica finalizada en ${targetPath}.`);
     return { responseText: naturalEditSummary, updatedProject: project, intent };
   }
 }
