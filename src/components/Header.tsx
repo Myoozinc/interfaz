@@ -11,7 +11,8 @@ import {
   Activity,
   PanelLeft,
   Terminal,
-  MessageSquare
+  MessageSquare,
+  Sparkles
 } from 'lucide-react';
 import type { UserCredits, UserAccount } from '../types';
 
@@ -25,6 +26,7 @@ interface HeaderProps {
   onOpenMediaModal: () => void;
   onOpenDiagnostics: () => void;
   onOpenAuthModal: () => void;
+  onOpenTemplatesModal?: () => void;
   onExportZip: () => void;
   viewMode: 'chat' | 'split' | 'preview' | 'editor';
   setViewMode: (mode: 'chat' | 'split' | 'preview' | 'editor') => void;
@@ -42,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMediaModal,
   onOpenDiagnostics,
   onOpenAuthModal: _onOpenAuthModal,
+  onOpenTemplatesModal,
   onExportZip,
   viewMode,
   setViewMode,
@@ -151,6 +154,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <MessageSquare className="w-3.5 h-3.5" />
             <span>Modo Chat</span>
+          </button>
+        )}
+
+        {/* ⚡ Gallery Templates Button */}
+        {onOpenTemplatesModal && (
+          <button
+            onClick={onOpenTemplatesModal}
+            title="Explorar Galería de Plantillas y Videojuegos 3D Funcionales"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-50 to-violet-50 hover:from-indigo-100 hover:to-violet-100 border border-indigo-200/80 text-indigo-700 text-xs font-bold shadow-2xs transition-all cursor-pointer hover:scale-102"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Plantillas</span>
           </button>
         )}
 

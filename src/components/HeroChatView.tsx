@@ -4,7 +4,7 @@ import {
   Gamepad2, 
   BarChart3, 
   Music, 
-  Smartphone, 
+  Rocket, 
   Columns, 
   Play, 
   Check, 
@@ -36,6 +36,7 @@ interface HeroChatViewProps {
   onRemoveAttachment?: (id: string) => void;
   inspectedElement?: string | null;
   onClearInspectedElement?: () => void;
+  onOpenTemplatesModal?: () => void;
   isGenerating?: boolean;
   thinkingText?: string;
 }
@@ -54,6 +55,7 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   onRemoveAttachment,
   inspectedElement,
   onClearInspectedElement,
+  onOpenTemplatesModal,
   isGenerating = false,
   thinkingText = '',
 }) => {
@@ -69,24 +71,24 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
 
   const quickActions = [
     {
-      label: 'Videojuego 3D Three.js',
+      label: '🏎️ Carreras 3D Cyberpunk',
       icon: Gamepad2,
-      prompt: 'Crea un videojuego 3D espacial con Three.js, partículas, controles de teclado y efectos de sonido con Web Audio API',
+      prompt: 'Crea un juego de carreras 3D con Three.js, físicas de velocidad y derrape, velocímetro digital HUD, sonido de motor Web Audio y controles táctiles y de teclado',
     },
     {
-      label: 'Dashboard SaaS en Vivo',
-      icon: BarChart3,
-      prompt: 'Construye un dashboard SaaS moderno con métricas interactivas en tiempo real, gráficos y modo oscuro con Tailwind CSS',
-    },
-    {
-      label: 'Sintetizador de Música 3D',
+      label: '🎹 Sintetizador Web DAW',
       icon: Music,
-      prompt: 'Crea un sintetizador musical interactivo con teclado virtual, visualizador de audio por ondas y efectos de sonido',
+      prompt: 'Crea una estación de producción musical y secuenciador por pasos con osciloscopio en tiempo real y efectos de audio',
     },
     {
-      label: 'App Interactiva Táctil',
-      icon: Smartphone,
-      prompt: 'Crea una aplicación móvil interactiva con diseño táctil, botones dinámicos y animaciones de confeti',
+      label: '🚀 Simulador Espacial 3D',
+      icon: Rocket,
+      prompt: 'Crea un simulador de combate espacial 3D con campo de asteroides, disparos láser y efectos de partículas',
+    },
+    {
+      label: '📊 Dashboard SaaS & MRR',
+      icon: BarChart3,
+      prompt: 'Construye un dashboard SaaS moderno con métricas interactivas en tiempo real, gráficos Chart.js y modo oscuro',
     },
   ];
 
@@ -141,6 +143,20 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
             onRemoveAttachment={onRemoveAttachment}
             placeholder="Describe tu idea o pega una URL de referencia (soporta audio, video, imágenes)..."
           />
+
+          {/* ⚡ Featured Templates Gallery Button */}
+          {onOpenTemplatesModal && (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={onOpenTemplatesModal}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-500 hover:opacity-95 text-white text-xs font-bold shadow-lg shadow-indigo-500/25 transition-all cursor-pointer hover:scale-102"
+              >
+                <Sparkles className="w-4 h-4 text-cyan-300" />
+                <span>⚡ Explorar Galería de Plantillas y Videojuegos 3D Funcionales</span>
+              </button>
+            </div>
+          )}
 
           {/* Quick Action Suggestion Chips */}
           <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 pt-1">

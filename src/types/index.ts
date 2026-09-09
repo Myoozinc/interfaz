@@ -57,6 +57,9 @@ export interface ProjectTemplate {
   name: string;
   description: string;
   icon: string;
+  category?: string;
+  tags?: string[];
+  badge?: string;
   files: FileItem[];
 }
 

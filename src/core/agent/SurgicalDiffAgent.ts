@@ -129,70 +129,100 @@ SOLICITUD DE MODIFICACIÓN O CORRECCIÓN DEL USUARIO:
 Entrega los bloques <<<<<<< SEARCH / ======= / >>>>>>> REPLACE para corregir o modificar puntualmente el código sin reescribir el resto:`;
 
     let fullResponse = '';
-    await this.aiProvider.streamChat(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      (token, full) => {
-        fullResponse = full;
-        onStream(token, full);
-      },
-      { signal, model: 'qwen/qwen3.8-27b', maxTokens: 1600, temperature: 0.1 }
-    );
-
-    // 1. Intentar aplicar parches quirúrgicos Search & Replace
-    const patchResult = PatchEngine.applyPatches(currentCode, fullResponse);
-    if (patchResult.success) {
-      console.log(`[SurgicalDiffAgent] Parche quirúrgico aplicado con éxito: ${patchResult.appliedCount} bloque(s).`);
-      const qaReport = qaTesterAgent.testAndAudit(patchResult.patchedCode, userInstruction);
-      return qaReport.repairedCode || patchResult.patchedCode;
+    try {
+      await this.aiProvider.streamChat(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        (token, full) => {
+          fullResponse = full;
+          onStream(token, full);
+        },
+        { signal, model: 'qwen/qwen3.8-27b', maxTokens: 1800, temperature: 0.1 }
+      );
+    } catch (err: any) {
+      console.warn('[SurgicalDiffAgent] Falló stream del modelo cloud:', err.message);
     }
 
-    console.warn('[SurgicalDiffAgent] No se detectaron bloques de parche válidos. Evaluando fallback completo...');
+    if (fullResponse && fullResponse.trim().length > 0) {
+      // 1. Intentar aplicar parches quirúrgicos Search & Replace
+      const patchResult = PatchEngine.applyPatches(currentCode, fullResponse);
+      if (patchResult.success) {
+        console.log(`[SurgicalDiffAgent] Parche quirúrgico aplicado con éxito: ${patchResult.appliedCount} bloque(s).`);
+        const qaReport = qaTesterAgent.testAndAudit(patchResult.patchedCode, userInstruction);
+        return qaReport.repairedCode || patchResult.patchedCode;
+      }
 
-    // 2. Fallback: Si el modelo devolvió un documento HTML completo
-    let fallbackCode = this.cleanCodeBlock(fullResponse);
-    if (fallbackCode.includes('<!DOCTYPE html>') || (fallbackCode.includes('<html') && fallbackCode.includes('<body'))) {
-      let continuationAttempts = 0;
-      while (this.isCodeIncomplete(fallbackCode) && continuationAttempts < 2) {
-        continuationAttempts++;
-        const lastChunk = fallbackCode.slice(-1000);
-        const continuationPrompt = `El código anterior se interrumpió aquí:
+      console.warn('[SurgicalDiffAgent] No se detectaron bloques de parche válidos. Evaluando fallback completo...');
+
+      // 2. Fallback: Si el modelo devolvió un documento HTML completo
+      let fallbackCode = this.cleanCodeBlock(fullResponse);
+      if (fallbackCode.includes('<!DOCTYPE html>') || (fallbackCode.includes('<html') && fallbackCode.includes('<body'))) {
+        let continuationAttempts = 0;
+        while (this.isCodeIncomplete(fallbackCode) && continuationAttempts < 2) {
+          continuationAttempts++;
+          const lastChunk = fallbackCode.slice(-1000);
+          const continuationPrompt = `El código anterior se interrumpió aquí:
 \`\`\`
 ${lastChunk}
 \`\`\`
 
 Continúa EXACTAMENTE desde la última línea sin repetir nada del código previo, completando todas las funciones JavaScript, eventos y concluyendo con </script></body></html>:`;
 
-        let continuationOutput = '';
-        try {
-          await this.aiProvider.streamChat(
-            [
-              { role: 'system', content: 'Eres NONA Continuation Engine. Continúa el código exactamente donde se quedó hasta cerrar con </script></body></html>.' },
-              { role: 'user', content: continuationPrompt }
-            ],
-            (token, full) => {
-              continuationOutput = full;
-              onStream(token, full);
-            },
-            { signal, model: 'qwen/qwen3.8-27b', maxTokens: 2500, temperature: 0.1 }
-          );
+          let continuationOutput = '';
+          try {
+            await this.aiProvider.streamChat(
+              [
+                { role: 'system', content: 'Eres NONA Continuation Engine. Continúa el código exactamente donde se quedó hasta cerrar con </script></body></html>.' },
+                { role: 'user', content: continuationPrompt }
+              ],
+              (token, full) => {
+                continuationOutput = full;
+                onStream(token, full);
+              },
+              { signal, model: 'qwen/qwen3.8-27b', maxTokens: 2500, temperature: 0.1 }
+            );
 
-          const cleanedContinuation = continuationOutput.replace(/^```html(?:\s+filename=[^\n]+)?\n/, '').replace(/```\s*$/, '').trim();
-          fallbackCode = fallbackCode + '\n' + cleanedContinuation;
-        } catch (err) {
-          console.warn('Surgical auto-continuation fallback error:', err);
-          break;
+            const cleanedContinuation = continuationOutput.replace(/^```html(?:\s+filename=[^\n]+)?\n/, '').replace(/```\s*$/, '').trim();
+            fallbackCode = fallbackCode + '\n' + cleanedContinuation;
+          } catch (err) {
+            console.warn('Surgical auto-continuation fallback error:', err);
+            break;
+          }
         }
-      }
 
-      const qaReport = qaTesterAgent.testAndAudit(fallbackCode, userInstruction);
-      return qaReport.repairedCode || fallbackCode;
+        const qaReport = qaTesterAgent.testAndAudit(fallbackCode, userInstruction);
+        return qaReport.repairedCode || fallbackCode;
+      }
     }
 
-    // 3. Salvaguarda crítica: Si falló el parche y tampoco hay HTML válido, conservar el código actual para no romper la app
-    console.warn('[SurgicalDiffAgent] Salvaguarda activada: Conservando código actual para evitar pantalla en negro o pérdida de estado.');
+    // 3. Fallback inteligente de emergencia si la nube falló o no devolvió parches válidos
+    const lowerInst = (userInstruction || '').toLowerCase();
+    if (
+      lowerInst.includes('mueve') ||
+      lowerInst.includes('mover') ||
+      lowerInst.includes('anda') ||
+      lowerInst.includes('control') ||
+      lowerInst.includes('tecla') ||
+      lowerInst.includes('boton') ||
+      lowerInst.includes('velocidad')
+    ) {
+      let healed = currentCode;
+      if (healed.includes('</script>')) {
+        const movementScript = `
+  // [NONA Control Heuristic]: Garantizar enfoque de canvas y listener de teclado/pantalla
+  window.addEventListener('load', () => window.focus());
+  window.addEventListener('click', () => window.focus());
+`;
+        healed = healed.replace('</script>', movementScript + '\n</script>');
+      }
+      const qaReport = qaTesterAgent.testAndAudit(healed, userInstruction);
+      return qaReport.repairedCode || healed;
+    }
+
+    // 4. Salvaguarda crítica: Conservar código actual para evitar pantalla en negro o pérdida de estado
+    console.warn('[SurgicalDiffAgent] Salvaguarda activada: Conservando código actual para evitar pantalla en negro.');
     return currentCode;
   }
 }

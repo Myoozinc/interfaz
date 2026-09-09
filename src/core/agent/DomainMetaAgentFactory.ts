@@ -30,8 +30,21 @@ export class DomainMetaAgentFactory {
       (currentCode ? currentCode.slice(0, 1500) : '')
     ).toLowerCase();
 
-    // 1. Domain: 3D Gaming & WebGL
+    // 1. Domain: 3D Gaming, Racing & WebGL
     if (
+      combinedText.includes('carrera') ||
+      combinedText.includes('carreras') ||
+      combinedText.includes('racing') ||
+      combinedText.includes('auto') ||
+      combinedText.includes('autos') ||
+      combinedText.includes('coche') ||
+      combinedText.includes('coches') ||
+      combinedText.includes('carro') ||
+      combinedText.includes('conducir') ||
+      combinedText.includes('manejar') ||
+      combinedText.includes('drift') ||
+      combinedText.includes('kart') ||
+      combinedText.includes('vehiculo') ||
       combinedText.includes('three.js') ||
       combinedText.includes('threejs') ||
       combinedText.includes('3d') ||
@@ -40,16 +53,15 @@ export class DomainMetaAgentFactory {
       combinedText.includes('nave') ||
       combinedText.includes('espacial') ||
       combinedText.includes('mundo virtual') ||
-      combinedText.includes('coche') ||
       combinedText.includes('fps') ||
       combinedText.includes('gravedad')
     ) {
       return {
         id: 'agent_threejs_master',
         name: 'Three.js & WebGL 3D Master Architect',
-        domain: 'Videojuegos 3D, Físicas & WebGL',
+        domain: 'Videojuegos 3D, Carreras, Físicas & WebGL',
         icon: 'Gamepad2',
-        badgeColor: 'bg-violet-100 text-violet-800 border-violet-200',
+        badgeColor: 'bg-cyan-100 text-cyan-800 border-cyan-200',
         recommendedLibraries: [
           'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
           'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.min.js',
@@ -59,13 +71,17 @@ export class DomainMetaAgentFactory {
           'Garantizar que el canvas ocupe el 100% de la ventana con renderer.setSize(window.innerWidth, window.innerHeight)',
           'Añadir siempre listener de window.resize para actualizar camera.aspect y camera.updateProjectionMatrix()',
           'Añadir iluminación ambiental e iluminación direccional para evitar geometrías en negro',
-          'Crear un overlay de inicio ("Haz clic para Jugar") que oculte el menú e inicie el loop de animación',
-          'Usar requestAnimationFrame con un reloj (THREE.Clock) para físicas independientes del framerate'
+          'PROHIBIDO MODELAR VEHÍCULOS COMO UNA SOLA CAJA: Si es un juego de carreras o vehículos, ensamblar siempre un THREE.Group con chasis, cabina con material reflectante, alerón trasero, faros emisivos y 4 ruedas cilíndricas giratorias',
+          'FÍSICAS Y MOVIMIENTO REAL: Implementar variables de velocidad, aceleración, frenado y fricción. En el bucle de animación, actualizar continuamente la posición y hacer que la cámara siga al jugador suavemente',
+          'CONTROLES DUALES CONTINUOS: Implementar mapa booleano keys = { forward: false, backward: false, left: false, right: false } con eventos keydown/keyup Y botones en pantalla con mousedown/mouseup y touchstart/touchend continuos para que nunca se quede inmóvil',
+          'AUDIO PROCEDURAL: Incluir sonido de motor sintetizado con Web Audio API (OscillatorNode sawtooth modulado por la velocidad)',
+          'Crear un overlay de inicio ("Haz clic para Iniciar Carrera") para desbloquear el AudioContext y activar el loop'
         ],
-        systemPromptAdditions: `Eres el AGENTE ESPECIALISTA EN 3D Y WEBGL de NONA.
-Posees maestría absoluta en Three.js, shaders GLSL, sistemas de partículas con GPU, colisiones con Cannon-es y optimización a 60 FPS.
-REGLA CRÍTICA: Nunca dejes la pantalla en negro; incluye siempre luces (AmbientLight + DirectionalLight), fondo espacial o de estrellas con Points, y controles de teclado (WASD / Flechas) o mouse con PointerLock/OrbitControls.
-Proporciona controles intuitivos en pantalla táctil si detectas dispositivos móviles.`
+        systemPromptAdditions: `Eres el AGENTE ESPECIALISTA EN 3D Y VIDEOJUEGOS de NONA.
+Posees maestría absoluta en Three.js (r128), simulación física de vehículos, shaders GLSL, sistemas de partículas para estelas y nitro, y Web Audio API.
+REGLA CRÍTICA PARA JUEGOS DE CARRERAS:
+- Nunca crees un cubo plano inerte. Construye un coche cyberpunk detallado con 4 ruedas de cilindro que giran con la velocidad, alerón, faros de neón y cámara en tercera persona que sigue al vehículo.
+- Los controles deben responder al instante tanto con teclado (WASD / Flechas) como con botones táctiles en pantalla con eventos de presión continua para que el vehículo acelere, frene y gire fluidamente a 60 FPS.`
       };
     }
 

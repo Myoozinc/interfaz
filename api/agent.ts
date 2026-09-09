@@ -58,25 +58,31 @@ export default async function handler(req: Request) {
 
     const formatMessages = (msgs: any[]) => {
       return msgs.map((m: any) => {
+        let textContent = m.content || '';
+        // If message text is excessively large (e.g. huge code payload), compact to prevent HTTP 413
+        if (textContent.length > 14000) {
+          textContent = textContent.slice(0, 9000) + '\n\n/* ... [contexto comprimido por seguridad] ... */\n\n' + textContent.slice(-4000);
+        }
+
         if (m.images && m.images.length > 0) {
-          const contentParts: any[] = [{ type: 'text', text: m.content }];
+          const contentParts: any[] = [{ type: 'text', text: textContent }];
           m.images.forEach((img: string) => {
             const url = img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
             contentParts.push({ type: 'image_url', image_url: { url } });
           });
           return { role: m.role, content: contentParts };
         }
-        return { role: m.role, content: m.content };
+        return { role: m.role, content: textContent };
       });
     };
 
-    const targetTokens = maxTokensRequested || 3200;
+    const targetTokens = maxTokensRequested || 3000;
     const temp = typeof temperature === 'number' ? temperature : 0.15;
 
     // Estimate prompt tokens to prevent Groq TPM limit (HTTP 413)
     const promptCharCount = JSON.stringify(messages).length;
     const estimatedPromptTokens = Math.ceil(promptCharCount / 3.4);
-    const safeGroqMaxTokens = Math.max(1200, Math.min(targetTokens, Math.floor(7400 - estimatedPromptTokens)));
+    const safeGroqMaxTokens = Math.max(900, Math.min(targetTokens, Math.max(1000, 7200 - estimatedPromptTokens)));
 
     const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
       return fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -134,27 +140,22 @@ export default async function handler(req: Request) {
         }
       }
 
-      // TIER 2: Groq Built-in Key (Qwen 3.8 27B)
+      // TIER 2: Groq Built-in Key (Cascade: Qwen 3.8 27B -> Qwen 3.6 27B -> GPT-OSS 120B -> GPT-OSS 20B)
       if (!aiResponse || !aiResponse.ok) {
-        try {
-          const res1 = await executeGroq(getBuiltInGroqKey(), 'qwen/qwen3.8-27b', safeGroqMaxTokens);
-          if (res1.ok) {
-            aiResponse = res1;
-          } else {
-            const err1 = await res1.text().catch(() => '');
-            lastError = `Groq (qwen3.8): ${err1.slice(0, 100)}`;
-            // Try Groq GPT-OSS 120B
-            const res2 = await executeGroq(getBuiltInGroqKey(), 'openai/gpt-oss-120b', safeGroqMaxTokens);
-            if (res2.ok) {
-              aiResponse = res2;
+        const groqModels = ['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+        for (const targetM of groqModels) {
+          try {
+            const res = await executeGroq(getBuiltInGroqKey(), targetM, safeGroqMaxTokens);
+            if (res.ok) {
+              aiResponse = res;
+              break;
             } else {
-              // Try Groq GPT-OSS 20B
-              const res3 = await executeGroq(getBuiltInGroqKey(), 'openai/gpt-oss-20b', safeGroqMaxTokens);
-              if (res3.ok) aiResponse = res3;
+              const errTxt = await res.text().catch(() => '');
+              lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
             }
+          } catch (e: any) {
+            lastError = `Groq (${targetM}) error: ${e.message}`;
           }
-        } catch (e: any) {
-          lastError = `Groq Built-In error: ${e.message}`;
         }
       }
 

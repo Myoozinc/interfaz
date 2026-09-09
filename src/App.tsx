@@ -20,6 +20,7 @@ import { HeroChatView } from './components/HeroChatView';
 import { CreditsModal } from './components/CreditsModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
+import { TemplatesGalleryModal } from './components/TemplatesGalleryModal';
 import { MediaLibraryModal } from './components/MediaLibraryModal';
 import { AuthModal } from './components/AuthModal';
 import { DiagnosticsPage } from './components/DiagnosticsPage';
@@ -98,6 +99,7 @@ export function App() {
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false);
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
   const [ollamaUrl, setOllamaUrl] = useState(() => {
     return localStorage.getItem('nona_inference_url') || '/api/agent';
   });
@@ -325,7 +327,14 @@ export function App() {
     setFiles(template.files);
     setActiveFileId(template.files[0]?.id || '1');
     setProjectName(template.name);
+    setWorkspaceCenterTab('preview');
     setViewMode('split');
+    confetti({
+      particleCount: 60,
+      spread: 90,
+      origin: { y: 0.6 },
+      colors: ['#06b6d4', '#6366f1', '#ec4899', '#10b981']
+    });
   };
 
   // Credits & Monetization
@@ -538,6 +547,7 @@ export function App() {
         onOpenMediaModal={() => setIsMediaModalOpen(true)}
         onOpenDiagnostics={() => setShowDiagnostics(true)}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenTemplatesModal={() => setIsTemplatesModalOpen(true)}
         onExportZip={handleExportZip}
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -590,6 +600,7 @@ export function App() {
                 attachments={attachments}
                 onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
                 onRemoveAttachment={(id) => setAttachments(prev => prev.filter(a => a.id !== id))}
+                onOpenTemplatesModal={() => setIsTemplatesModalOpen(true)}
                 inspectedElement={inspectedElement}
                 onClearInspectedElement={() => setInspectedElement(null)}
                 isGenerating={isGenerating}
@@ -837,6 +848,16 @@ export function App() {
         onCreateProject={handleCreateProject}
         onDeleteProject={handleDeleteProject}
         onDuplicateProject={handleDuplicateProject}
+      />
+
+      {/* Templates & Functional Apps Gallery Modal */}
+      <TemplatesGalleryModal
+        isOpen={isTemplatesModalOpen}
+        onClose={() => setIsTemplatesModalOpen(false)}
+        onSelectTemplate={(tmpl) => {
+          handleLoadTemplate(tmpl);
+          setIsTemplatesModalOpen(false);
+        }}
       />
 
       {/* Media Library Modal */}
