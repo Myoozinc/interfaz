@@ -1,4 +1,7 @@
 import type { ProjectTemplate } from '../types';
+import { MARIO_KART_GAME_HTML } from './marioKartTemplate';
+
+export { MARIO_KART_GAME_HTML };
 
 export const STARTER_TEMPLATES: ProjectTemplate[] = [
   // =========================================================================
@@ -557,7 +560,28 @@ export const STARTER_TEMPLATES: ProjectTemplate[] = [
   },
 
   // =========================================================================
-  // 2. 🎹 SYNTHWAVE WEB DAW & STEP SEQUENCER (Tone.js & Web Audio API)
+  // 2. 🏎️ MARIO KART 3D ARCADE GP (Three.js Cartoon Racing Game)
+  // =========================================================================
+  {
+    id: 'mario-kart-3d-arcade',
+    name: '🏎️ Mario Kart 3D Arcade GP',
+    description: 'Juego de carreras arcade 3D estilo cartoon en Three.js con praderas verdes, colinas, kart detallado, monedas recolectables, turbos y sonido Web Audio',
+    icon: 'Gamepad2',
+    category: 'Videojuegos 3D',
+    tags: ['Three.js', 'WebGL', 'Mario Kart Style', 'Físicas Arcade', 'Monedas & Turbos'],
+    badge: 'Popular',
+    files: [
+      {
+        id: '1',
+        name: 'index.html',
+        language: 'html',
+        content: MARIO_KART_GAME_HTML
+      }
+    ]
+  },
+
+  // =========================================================================
+  // 3. 🎹 SYNTHWAVE WEB DAW & STEP SEQUENCER (Tone.js & Web Audio API)
   // =========================================================================
   {
     id: 'synthwave-web-daw',

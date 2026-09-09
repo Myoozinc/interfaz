@@ -36,16 +36,37 @@ export class IntentRouter {
 
     const hasExistingCustomApp = !!(currentCode && currentCode.trim().length > 100 && !isStarterOrPlaceholder);
 
-    // New project explicit keywords / verbs
+    // Priority -1: Direct Action Chips to Build or Preview
+    if (
+      lower.startsWith('▶') ||
+      lower.includes('construir y ver en preview') ||
+      lower.includes('construye la aplicación') ||
+      lower.includes('construye la aplicacion') ||
+      lower.includes('construir aplicación') ||
+      lower.includes('construir aplicacion')
+    ) {
+      return {
+        type: 'FULL_BUILD',
+        confidence: 0.99,
+        reason: 'Acción directa solicitada para construir y desplegar la aplicación completa en Live Preview.',
+        isExplicitNew: true
+      };
+    }
+
+    // New project explicit keywords / verbs (supporting standard Spanish and common phonetic variations like has/haz)
     const newVerbs = [
       'crea un juego', 'crea una app', 'haz un juego', 'haz una app',
+      'has un juego', 'has una app', 'has una nueva', 'has un nuevo',
       'crea un nuevo', 'crea una nueva', 'haz un nuevo', 'haz una nueva',
+      'crear un juego', 'crear una app', 'hacer un juego', 'hacer una app',
       'nuevo proyecto', 'desde cero', 'de cero', 'reinicia todo', 'crea otro juego',
       'crea otra app', 'empezar de cero', 'empecemos de nuevo', 'borra todo',
-      'cambia de juego', 'juego nuevo', 'app nueva', 'haz otra cosa',
+      'cambia de juego', 'juego nuevo', 'app nueva', 'haz otra cosa', 'has otra cosa',
       'olvida el juego', 'reiniciar proyecto', 'borra este juego',
       'quiero un juego', 'quiero hacer un juego', 'quiero una app',
-      'desarrolla un juego', 'desarrolla una app', 'construye un juego'
+      'desarrolla un juego', 'desarrolla una app', 'construye un juego', 'construye una app',
+      'juego de carreras', 'mario kart', 'estilo mario kart', 'no quiero estilo neon',
+      'cambia el estilo', 'cambia a estilo', 'hazlo estilo', 'juego arcade'
     ];
 
     const isExplicitNew = isStarterOrPlaceholder ||
@@ -53,14 +74,14 @@ export class IntentRouter {
       lower.includes('otro juego') ||
       lower.includes('otra app') ||
       lower.includes('desde cero') ||
-      lower.includes('de cero');
+      lower.includes('de cero') ||
+      lower.includes('mario kart');
 
-    // Modification / Fix keywords that override new verbs if user is asking to repair
+    // Modification / Fix keywords that specifically indicate repairing existing code
     const repairKeywords = [
-      'corrige', 'arregla', 'repara', 'pantalla en negro', 'pantalla negra',
-      'no funciona', 'no inicia', 'no responde', 'no hace nada', 'falla',
-      'el error', 'un error', 'bug', 'soluciona', 'cuando presiono', 'al hacer click',
-      'el botón', 'el boton', 'el auto', 'el coche', 'la nave', 'el jugador',
+      'corrige', 'arregla', 'repara', 'soluciona', 'pantalla en negro', 'pantalla negra',
+      'no funciona', 'no inicia', 'no responde', 'no hace nada', 'falla el',
+      'el error', 'un error', 'bug', 'cuando presiono', 'al hacer click',
       'da una pantalla', 'se queda en negro', 'se ve negro'
     ];
     const isExplicitRepair = repairKeywords.some(rk => lower.includes(rk));
@@ -85,15 +106,15 @@ export class IntentRouter {
       'ideas para', 'como planearias', 'cómo planearías'
     ];
 
-    if (planKeywords.some(pk => lower.includes(pk)) && !isExplicitRepair) {
+    if (planKeywords.some(pk => lower.includes(pk)) && !isExplicitRepair && !isExplicitNew) {
       return {
         type: 'INTERACTIVE_PLAN',
         confidence: 0.92,
         reason: 'Solicitud de co-creación, ideas y planificación arquitectónica interactiva.',
         isExplicitNew: false,
         suggestedActionChips: [
-          '🚀 Desarrollar Opción A (Recomendada)',
-          '🎨 Probar con Estilo Cyberpunk / Neón',
+          '▶ Construir y Ver en Preview',
+          '🎨 Probar con Estilo Mario Kart 3D',
           '📱 Optimizar para Móviles y Pantalla Táctil'
         ]
       };
@@ -110,20 +131,37 @@ export class IntentRouter {
 
     const hasCodeAction = [
       'corrige', 'arregla', 'repara', 'cambia', 'modifica', 'agrega', 'añade',
-      'pon', 'quita', 'elimina', 'haz', 'crea', 'construye', 'programa', 'actualiza', 'pantalla'
+      'pon', 'quita', 'elimina', 'haz', 'has', 'crea', 'construye', 'programa', 'actualiza', 'pantalla'
     ].some(a => lower.includes(a));
 
-    if (questionPatterns.some(q => lower.includes(q)) && !hasCodeAction) {
+    if (questionPatterns.some(q => lower.includes(q)) && !hasCodeAction && !isExplicitNew) {
       return {
         type: 'CHAT_CONSULT',
         confidence: 0.95,
         reason: 'Consulta conceptual o pregunta sobre la arquitectura sin solicitud directa de código.',
-        isExplicitNew: false
+        isExplicitNew: false,
+        suggestedActionChips: [
+          '▶ Construir y Ver en Preview',
+          '🎨 Ver Estilos Disponibles',
+          '✨ Agregar Funciones Avanzadas'
+        ]
       };
     }
 
-    // Priority 3: GOLDEN RULE — If user has an existing custom app AND is repairing/modifying, ITERATE!
-    if (hasExistingCustomApp && (!isExplicitNew || isExplicitRepair)) {
+    // Priority 3: Explicit New App / Game Creation (FULL_BUILD)
+    if (isExplicitNew) {
+      return {
+        type: 'FULL_BUILD',
+        confidence: 0.96,
+        reason: hasExistingCustomApp
+          ? 'El usuario solicitó explícitamente iniciar una nueva aplicación o videojuego con un estilo diferente.'
+          : 'Creación inicial de la aplicación o videojuego completo.',
+        isExplicitNew: true
+      };
+    }
+
+    // Priority 4: GOLDEN RULE — If user has an existing custom app AND is repairing/modifying, ITERATE!
+    if (hasExistingCustomApp) {
       return {
         type: 'SURGICAL_EDIT',
         confidence: 0.98,
@@ -132,13 +170,11 @@ export class IntentRouter {
       };
     }
 
-    // Priority 4: Explicit Full App / Game Creation (FULL_BUILD)
+    // Default Fallback: FULL_BUILD
     return {
       type: 'FULL_BUILD',
       confidence: 0.9,
-      reason: hasExistingCustomApp && isExplicitNew
-        ? 'El usuario solicitó explícitamente iniciar una nueva aplicación o videojuego diferente.'
-        : 'Creación inicial de la aplicación o videojuego.',
+      reason: 'Creación inicial de la aplicación o videojuego.',
       isExplicitNew: true
     };
   }

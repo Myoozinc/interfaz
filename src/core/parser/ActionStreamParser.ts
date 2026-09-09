@@ -65,16 +65,22 @@ export class ActionStreamParser {
     const patches: ParsedPatchAction[] = [];
     let title: string | undefined = undefined;
 
+    // 0. Sanitize internal model reasoning / thinking tokens (DeepSeek-R1 / Qwen-2.5 / Groq)
+    const cleaned = raw
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/^[\s\S]*?<\/think>/gi, '')
+      .trim();
+
     // 1. Try Tagged XML: <nonaArtifact> and <nonaAction>
-    const artifactMatch = raw.match(/<nonaArtifact\b([^>]*)>([\s\S]*?)<\/nonaArtifact>/i);
-    const hasOpenArtifact = !artifactMatch && /<nonaArtifact\b([^>]*)>([\s\S]*)/i.test(raw);
+    const artifactMatch = cleaned.match(/<nonaArtifact\b([^>]*)>([\s\S]*?)<\/nonaArtifact>/i);
+    const hasOpenArtifact = !artifactMatch && /<nonaArtifact\b([^>]*)>([\s\S]*)/i.test(cleaned);
 
     const artifactContent = artifactMatch 
       ? artifactMatch[2] 
-      : (hasOpenArtifact ? (raw.match(/<nonaArtifact\b([^>]*)>([\s\S]*)/i)?.[2] || '') : null);
+      : (hasOpenArtifact ? (cleaned.match(/<nonaArtifact\b([^>]*)>([\s\S]*)/i)?.[2] || '') : null);
 
     if (artifactContent !== null) {
-      const titleAttr = (artifactMatch ? artifactMatch[1] : (raw.match(/<nonaArtifact\b([^>]*)>/i)?.[1] || '')).match(/title=["']([^"']+)["']/i);
+      const titleAttr = (artifactMatch ? artifactMatch[1] : (cleaned.match(/<nonaArtifact\b([^>]*)>/i)?.[1] || '')).match(/title=["']([^"']+)["']/i);
       if (titleAttr) title = titleAttr[1];
 
       // Parse all <nonaAction> tags (including unclosed trailing actions for streaming resilience)
@@ -112,13 +118,13 @@ export class ActionStreamParser {
     }
 
     // 2. If no files were found via XML, try Multi-File Markdown Blocks:
-    // e.g. ```html filename="index.html" ... ``` or ```js filename="src/app.js"
+    // e.g. ```html filename="index.html" ... ``` or ```js filename="src/app.js" (supports unclosed fences)
     if (Object.keys(files).length === 0) {
-      const codeBlockRegex = /```([a-zA-Z0-9_-]+)?(?:\s+(?:filename|file|path)=["']?([^\s"'\n]+)["']?)?\s*\n([\s\S]*?)```/gi;
+      const codeBlockRegex = /```([a-zA-Z0-9_-]+)?(?:\s+(?:filename|file|path)=["']?([^\s"'\n]+)["']?)?\s*\n([\s\S]*?)(?:```|$)/gi;
       let blockMatch: RegExpExecArray | null;
       let blockCount = 0;
 
-      while ((blockMatch = codeBlockRegex.exec(raw)) !== null) {
+      while ((blockMatch = codeBlockRegex.exec(cleaned)) !== null) {
         blockCount++;
         const lang = (blockMatch[1] || '').toLowerCase();
         let explicitFile = blockMatch[2];
@@ -148,28 +154,29 @@ export class ActionStreamParser {
       }
     }
 
-    // 3. Fallback: Check if raw text contains an entire HTML document without markdown fences
+    // 3. Fallback: Check if cleaned text contains an entire HTML document without markdown fences
     if (Object.keys(files).length === 0) {
-      const doctypeIdx = raw.indexOf('<!DOCTYPE html>');
+      const doctypeIdx = cleaned.indexOf('<!DOCTYPE html>');
       if (doctypeIdx !== -1) {
-        const htmlEndIdx = raw.lastIndexOf('</html>');
+        const htmlEndIdx = cleaned.lastIndexOf('</html>');
         if (htmlEndIdx !== -1) {
-          files['index.html'] = raw.slice(doctypeIdx, htmlEndIdx + 7).trim();
+          files['index.html'] = cleaned.slice(doctypeIdx, htmlEndIdx + 7).trim();
         } else {
-          files['index.html'] = raw.slice(doctypeIdx).trim();
+          files['index.html'] = cleaned.slice(doctypeIdx).trim();
         }
-      } else if (raw.includes('<html') && raw.includes('</body>')) {
-        const startIdx = raw.indexOf('<html');
-        const endIdx = raw.lastIndexOf('</html>');
-        files['index.html'] = raw.slice(startIdx, endIdx !== -1 ? endIdx + 7 : undefined).trim();
+      } else if (cleaned.includes('<html') && cleaned.includes('</body>')) {
+        const startIdx = cleaned.indexOf('<html');
+        const endIdx = cleaned.lastIndexOf('</html>');
+        files['index.html'] = cleaned.slice(startIdx, endIdx !== -1 ? endIdx + 7 : undefined).trim();
       }
     }
 
     // 4. Extract Conversational Text (any text outside <nonaArtifact> or markdown codeblocks)
-    let conversationalText = raw
+    let conversationalText = cleaned
       .replace(/<nonaArtifact[\s\S]*?<\/nonaArtifact>/gi, '')
       .replace(/<nonaArtifact[\s\S]*/gi, '') // Unfinished artifact
-      .replace(/```[\s\S]*?```/g, '')
+      .replace(/```[\s\S]*?(?:```|$)/g, '')
+      .replace(/<\/think>/gi, '')
       .trim();
 
     return {

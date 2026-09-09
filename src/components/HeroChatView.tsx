@@ -94,7 +94,11 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
 
   const handleChipClick = (chip: string) => {
     if (chip.includes('Construir y Ver en Preview') || chip.includes('Probar en Preview en Vivo')) {
-      onSendMessage(chip, 'builder');
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && !m.content.includes('Construir y Ver en Preview'))?.content || '';
+      const promptToSend = lastUserMsg 
+        ? `Construye la aplicación ahora: ${lastUserMsg}`
+        : chip;
+      onSendMessage(promptToSend, 'builder');
     } else if (chip.includes('Ver Preview Actual') || chip.includes('Ver Código en Editor')) {
       onOpenWorkspace();
     } else {

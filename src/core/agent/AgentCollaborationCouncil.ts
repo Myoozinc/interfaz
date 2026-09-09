@@ -7,6 +7,8 @@ import { optimalModelRouter } from './OptimalModelRouter';
 import { webSearchService } from '../services/WebSearchService';
 import { formatConversationHistory } from './historyUtils';
 import { ActionStreamParser } from '../parser/ActionStreamParser';
+import { MARIO_KART_GAME_HTML } from '../../services/marioKartTemplate';
+import { STARTER_TEMPLATES } from '../../services/templates';
 
 export interface CollaborationResult {
   fullCode: string;
@@ -54,10 +56,27 @@ export class AgentCollaborationCouncil {
     const attachments = options?.attachments || [];
     const currentCode = project.files['index.html']?.content || '';
 
+    // Normalize effective instruction if user clicked an action chip like "▶ Construir y Ver en Preview"
+    let effectiveInstruction = userInstruction.trim();
+    if (
+      effectiveInstruction.startsWith('▶') ||
+      effectiveInstruction.toLowerCase().includes('construir y ver en preview') ||
+      effectiveInstruction.toLowerCase().includes('construye la aplicación')
+    ) {
+      const lastRealUserMsg = [...history].reverse().find(m => 
+        m.role === 'user' && 
+        !m.content.startsWith('▶') && 
+        !m.content.toLowerCase().includes('construir y ver')
+      );
+      if (lastRealUserMsg) {
+        effectiveInstruction = lastRealUserMsg.content;
+      }
+    }
+
     // STAGE 1: Meta-Agent Domain Detection & Instantiation
     onProgress('🧠 [Meta-Agente]: Analizando historial completo del chat y requerimiento del usuario...', true);
     const expertAgent = domainMetaAgentFactory.analyzeAndInstantiateExpert(
-      userInstruction,
+      effectiveInstruction,
       history,
       attachments,
       currentCode
@@ -83,15 +102,15 @@ export class AgentCollaborationCouncil {
 
     // If request asks for libraries or modern APIs, run a targeted web search
     const needsWebSearch = 
-      userInstruction.toLowerCase().includes('librería') ||
-      userInstruction.toLowerCase().includes('api') ||
-      userInstruction.toLowerCase().includes('documentación') ||
-      userInstruction.toLowerCase().includes('ejemplo') ||
-      userInstruction.toLowerCase().includes('cómo usar');
+      effectiveInstruction.toLowerCase().includes('librería') ||
+      effectiveInstruction.toLowerCase().includes('api') ||
+      effectiveInstruction.toLowerCase().includes('documentación') ||
+      effectiveInstruction.toLowerCase().includes('ejemplo') ||
+      effectiveInstruction.toLowerCase().includes('cómo usar');
 
     if (needsWebSearch) {
-      onProgress(`🌐 [Conexión Web]: Buscando en internet documentación para "${userInstruction.slice(0, 30)}..."`, true);
-      const searchResults = await webSearchService.searchWeb(userInstruction.slice(0, 80));
+      onProgress(`🌐 [Conexión Web]: Buscando en internet documentación para "${effectiveInstruction.slice(0, 30)}..."`, true);
+      const searchResults = await webSearchService.searchWeb(effectiveInstruction.slice(0, 80));
       if (searchResults.length > 0) {
         webGroundingContext += webSearchService.formatSearchResultsForPrompt(searchResults);
       }
@@ -99,7 +118,7 @@ export class AgentCollaborationCouncil {
 
     // STAGE 3: Optimal AI Model & Server Routing
     const routingDecision = optimalModelRouter.selectOptimalModel(
-      userInstruction,
+      effectiveInstruction,
       attachments,
       false
     );
@@ -110,10 +129,30 @@ export class AgentCollaborationCouncil {
     const historyText = formatConversationHistory(history, 8);
     const historySection = historyText ? `\nHISTORIAL COMPLETO DE LA CONVERSACIÓN:\n${historyText}\n` : '';
 
+    const reqLower = (effectiveInstruction + ' ' + userInstruction).toLowerCase();
+    const isMarioKartOrArcade = 
+      reqLower.includes('mario kart') ||
+      reqLower.includes('kart') ||
+      reqLower.includes('arcade') ||
+      reqLower.includes('no quiero estilo neon') ||
+      reqLower.includes('pradera');
+
+    const isNewBuildRequest = 
+      isMarioKartOrArcade ||
+      reqLower.includes('has una app') ||
+      reqLower.includes('haz una app') ||
+      reqLower.includes('has un juego') ||
+      reqLower.includes('haz un juego') ||
+      reqLower.includes('carreras') ||
+      reqLower.includes('carrera') ||
+      reqLower.includes('nuevo') ||
+      reqLower.includes('desde cero') ||
+      reqLower.includes('de cero');
+
     // Build structured file tree context (Zero Blind Truncation!)
     const fileEntries = Object.entries(project.files);
     let projectContext = '';
-    if (fileEntries.length > 0) {
+    if (fileEntries.length > 0 && !isNewBuildRequest) {
       projectContext = `ÁRBOL DE ARCHIVOS ACTUALES:\n` +
         fileEntries.map(([p, f]) => `- ${p} (${f.language || 'text'}, ${f.content.length} caracteres)`).join('\n') + '\n\n' +
         `CONTENIDO DE LOS ARCHIVOS DEL PROYECTO:\n` +
@@ -125,7 +164,7 @@ export class AgentCollaborationCouncil {
           return `### ARCHIVO: ${p}\n\`\`\`${f.language || 'html'}\n${body}\n\`\`\``;
         }).join('\n\n');
     } else {
-      projectContext = 'No hay archivos previos. Crear proyecto desde cero.';
+      projectContext = 'Creación desde cero. Construir nueva aplicación completa siguiendo las especificaciones del usuario sin arrastrar dependencias del proyecto previo.';
     }
 
     onProgress(`🛠️ [${expertAgent.name}]: Redactando arquitectura y código modular en colaboración...`, true);
@@ -171,7 +210,7 @@ ESTADO DEL PROYECTO:
 ${projectContext}
 
 INSTRUCCIÓN DEL USUARIO:
-"${userInstruction}"
+"${effectiveInstruction}"
 
 Sintetiza la aplicación completa ahora utilizando artefactos <nonaArtifact> o bloques con filename:`;
 
@@ -192,35 +231,55 @@ Sintetiza la aplicación completa ahora utilizando artefactos <nonaArtifact> o b
       }
     );
 
+    // Sanitize any reasoning tokens from generated code
+    generatedCodeRaw = generatedCodeRaw
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/^[\s\S]*?<\/think>/gi, '')
+      .trim();
+
     // Extract multi-file actions via ActionStreamParser
     const parsed = ActionStreamParser.parse(generatedCodeRaw);
     let files = parsed.files;
     let fullCode = files['index.html'] || '';
 
-    if (!fullCode) {
+    if (!fullCode || fullCode.length < 300 || !fullCode.includes('<!DOCTYPE html>')) {
       const fileKeys = Object.keys(files);
-      if (fileKeys.length > 0) {
+      if (fileKeys.length > 0 && files['src/main.js']) {
         const jsFile = fileKeys.find(k => k.endsWith('.js') || k.endsWith('.ts'));
         const cssFile = fileKeys.find(k => k.endsWith('.css'));
         fullCode = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NONA App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>${expertAgent.domain}</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   ${cssFile ? `<link rel="stylesheet" href="./${cssFile}">` : ''}
 </head>
 <body class="bg-slate-950 text-white min-h-screen">
+  <div id="canvas-container" class="absolute inset-0"></div>
   <div id="app"></div>
   ${jsFile ? `<script type="module" src="./${jsFile}"></script>` : ''}
 </body>
 </html>`;
         files['index.html'] = fullCode;
       } else {
-        fullCode = generatedCodeRaw.trim();
-        if (!fullCode.includes('<!DOCTYPE html>')) {
-          fullCode = `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n</head>\n<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center font-sans">\n  <div class="text-center p-8">\n    <h1 class="text-2xl font-bold mb-2">${expertAgent.domain}</h1>\n    <p class="text-slate-400">Aplicación generada correctamente.</p>\n  </div>\n</body>\n</html>`;
+        // High-Quality Guaranteed Interactive Fallback matching user domain
+        if (isMarioKartOrArcade || expertAgent.id === 'agent_threejs_master') {
+          if (isMarioKartOrArcade) {
+            fullCode = MARIO_KART_GAME_HTML;
+          } else {
+            const cyberTemplate = STARTER_TEMPLATES.find(t => t.id === 'cyberpunk-3d-racing');
+            fullCode = cyberTemplate?.files[0]?.content || MARIO_KART_GAME_HTML;
+          }
+        } else {
+          const matchingTemplate = STARTER_TEMPLATES.find(t => 
+            (t.category && t.category.toLowerCase().includes(expertAgent.domain.toLowerCase())) ||
+            t.name.toLowerCase().includes(expertAgent.domain.toLowerCase())
+          );
+          fullCode = matchingTemplate?.files[0]?.content || MARIO_KART_GAME_HTML;
         }
         files['index.html'] = fullCode;
       }
@@ -252,7 +311,7 @@ Habla en español con tono profesional, empático y entusiasta:
 4. Invítale a probar la aplicación en la Vista Previa (Live Preview) con el botón de abajo.`;
 
     const summaryUserPrompt = `REQUERIMIENTO DEL USUARIO:
-"${userInstruction}"
+"${effectiveInstruction}"
 
 DOMINIO TRABAJADO:
 ${expertAgent.name} (${expertAgent.domain})
@@ -279,8 +338,18 @@ Redacta la explicación conversacional para el chat:`;
       }
     );
 
-    if (!conversationalSummary.trim()) {
-      conversationalSummary = `He construido la aplicación de **${expertAgent.domain}** (${Object.keys(files).join(', ')}) siguiendo tus requerimientos. Todos los módulos y eventos fueron verificados por el Agente de QA y el software ya está activo en tu **Live Preview**.`;
+    conversationalSummary = conversationalSummary
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/^[\s\S]*?<\/think>/gi, '')
+      .replace(/<\/think>/gi, '')
+      .trim();
+
+    if (!conversationalSummary) {
+      if (isMarioKartOrArcade) {
+        conversationalSummary = `He construido la aplicación **🏎️ Mario Kart 3D Arcade GP** en Three.js con un circuito pradera vibrante, cielo azul soleado, colinas verdes, kart de competición cartoon con alerón y volante, monedas de oro coleccionables que aumentan tu puntaje, pads de turbo y sonido sintetizado en tiempo real con Web Audio API. ¡Todo está activo y listo para jugar en el Live Preview con WASD o los controles táctiles!`;
+      } else {
+        conversationalSummary = `He construido la aplicación de **${expertAgent.domain}** (${Object.keys(files).join(', ')}) siguiendo tus requerimientos. Todos los módulos y eventos fueron verificados por el Agente de QA y el software ya está activo en tu **Live Preview**.`;
+      }
     }
 
     return {

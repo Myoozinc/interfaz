@@ -428,7 +428,11 @@ export const ChatPanel = ({
                         key={cIdx}
                         onClick={() => {
                           if (chip.includes('Construir y Ver en Preview')) {
-                            handleSendMessage(chip, 'builder');
+                            const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && !m.content.includes('Construir y Ver en Preview'))?.content || '';
+                            const promptToSend = lastUserMsg 
+                              ? `Construye la aplicación ahora: ${lastUserMsg}`
+                              : chip;
+                            handleSendMessage(promptToSend, 'builder');
                           } else if (chip.includes('Ver Preview Actual')) {
                             if (onSwitchView) onSwitchView('preview');
                           } else {
