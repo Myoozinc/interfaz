@@ -8,6 +8,7 @@ import { webSearchService } from '../services/WebSearchService';
 import { formatConversationHistory } from './historyUtils';
 import { ActionStreamParser } from '../parser/ActionStreamParser';
 import { MARIO_KART_GAME_HTML } from '../../services/marioKartTemplate';
+import { AIR_COMBAT_GAME_HTML } from '../../services/airCombatTemplate';
 import { STARTER_TEMPLATES } from '../../services/templates';
 
 export interface CollaborationResult {
@@ -130,6 +131,25 @@ export class AgentCollaborationCouncil {
     const historySection = historyText ? `\nHISTORIAL COMPLETO DE LA CONVERSACIÓN:\n${historyText}\n` : '';
 
     const reqLower = (effectiveInstruction + ' ' + userInstruction).toLowerCase();
+    const isAirCombat = 
+      reqLower.includes('avion') ||
+      reqLower.includes('aviones') ||
+      reqLower.includes('vuelo') ||
+      reqLower.includes('volar') ||
+      reqLower.includes('aereo') ||
+      reqLower.includes('aéreo') ||
+      reqLower.includes('guerra de aviones') ||
+      reqLower.includes('combate aereo') ||
+      reqLower.includes('combate aéreo') ||
+      reqLower.includes('piloto') ||
+      reqLower.includes('caza') ||
+      reqLower.includes('cazas') ||
+      reqLower.includes('dogfight') ||
+      reqLower.includes('jet') ||
+      reqLower.includes('jets') ||
+      reqLower.includes('helicoptero') ||
+      reqLower.includes('helicóptero');
+
     const isMarioKartOrArcade = 
       reqLower.includes('mario kart') ||
       reqLower.includes('kart') ||
@@ -138,6 +158,7 @@ export class AgentCollaborationCouncil {
       reqLower.includes('pradera');
 
     const isNewBuildRequest = 
+      isAirCombat ||
       isMarioKartOrArcade ||
       reqLower.includes('has una app') ||
       reqLower.includes('haz una app') ||
@@ -267,19 +288,19 @@ Sintetiza la aplicación completa ahora utilizando artefactos <nonaArtifact> o b
         files['index.html'] = fullCode;
       } else {
         // High-Quality Guaranteed Interactive Fallback matching user domain
-        if (isMarioKartOrArcade || expertAgent.id === 'agent_threejs_master') {
-          if (isMarioKartOrArcade) {
-            fullCode = MARIO_KART_GAME_HTML;
-          } else {
-            const cyberTemplate = STARTER_TEMPLATES.find(t => t.id === 'cyberpunk-3d-racing');
-            fullCode = cyberTemplate?.files[0]?.content || MARIO_KART_GAME_HTML;
-          }
+        if (isAirCombat || expertAgent.id === 'agent_flight_combat') {
+          fullCode = AIR_COMBAT_GAME_HTML;
+        } else if (isMarioKartOrArcade) {
+          fullCode = MARIO_KART_GAME_HTML;
+        } else if (expertAgent.id === 'agent_threejs_master' && (reqLower.includes('carrera') || reqLower.includes('auto') || reqLower.includes('coche') || reqLower.includes('racing') || reqLower.includes('vehiculo') || reqLower.includes('kart'))) {
+          const cyberTemplate = STARTER_TEMPLATES.find(t => t.id === 'cyberpunk-3d-racing');
+          fullCode = cyberTemplate?.files[0]?.content || MARIO_KART_GAME_HTML;
         } else {
           const matchingTemplate = STARTER_TEMPLATES.find(t => 
             (t.category && t.category.toLowerCase().includes(expertAgent.domain.toLowerCase())) ||
             t.name.toLowerCase().includes(expertAgent.domain.toLowerCase())
           );
-          fullCode = matchingTemplate?.files[0]?.content || MARIO_KART_GAME_HTML;
+          fullCode = matchingTemplate?.files[0]?.content || (isAirCombat ? AIR_COMBAT_GAME_HTML : MARIO_KART_GAME_HTML);
         }
         files['index.html'] = fullCode;
       }
@@ -345,7 +366,9 @@ Redacta la explicación conversacional para el chat:`;
       .trim();
 
     if (!conversationalSummary) {
-      if (isMarioKartOrArcade) {
+      if (isAirCombat || expertAgent.id === 'agent_flight_combat') {
+        conversationalSummary = `He construido la aplicación **✈️ Ace Combat 3D: Dogfight Sky Fury** en Three.js con un simulador de vuelo y combate aéreo completo: caza de combate con fuselaje aerodinámico y postcombustión, ametralladoras dobles en las alas con sonido Web Audio API, escuadra de cazas enemigos que patrullan los cielos, explosiones de partículas, nubes volumétricas procedurales y HUD táctico con altímetro, velocímetro y mira de puntería. ¡Despega ahora mismo desde el Live Preview!`;
+      } else if (isMarioKartOrArcade) {
         conversationalSummary = `He construido la aplicación **🏎️ Mario Kart 3D Arcade GP** en Three.js con un circuito pradera vibrante, cielo azul soleado, colinas verdes, kart de competición cartoon con alerón y volante, monedas de oro coleccionables que aumentan tu puntaje, pads de turbo y sonido sintetizado en tiempo real con Web Audio API. ¡Todo está activo y listo para jugar en el Live Preview con WASD o los controles táctiles!`;
       } else {
         conversationalSummary = `He construido la aplicación de **${expertAgent.domain}** (${Object.keys(files).join(', ')}) siguiendo tus requerimientos. Todos los módulos y eventos fueron verificados por el Agente de QA y el software ya está activo en tu **Live Preview**.`;

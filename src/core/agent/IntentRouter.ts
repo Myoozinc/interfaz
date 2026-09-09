@@ -66,7 +66,9 @@ export class IntentRouter {
       'quiero un juego', 'quiero hacer un juego', 'quiero una app',
       'desarrolla un juego', 'desarrolla una app', 'construye un juego', 'construye una app',
       'juego de carreras', 'mario kart', 'estilo mario kart', 'no quiero estilo neon',
-      'cambia el estilo', 'cambia a estilo', 'hazlo estilo', 'juego arcade'
+      'cambia el estilo', 'cambia a estilo', 'hazlo estilo', 'juego arcade',
+      'juego de aviones', 'guerra de aviones', 'simulador de vuelo', 'combate aereo', 'combate aéreo',
+      'juego de vuelo', 'juego de cazas', 'combate de aviones', 'dogfight'
     ];
 
     const isExplicitNew = isStarterOrPlaceholder ||
@@ -75,7 +77,9 @@ export class IntentRouter {
       lower.includes('otra app') ||
       lower.includes('desde cero') ||
       lower.includes('de cero') ||
-      lower.includes('mario kart');
+      lower.includes('mario kart') ||
+      lower.includes('avion') ||
+      lower.includes('aviones');
 
     // Modification / Fix keywords that specifically indicate repairing existing code
     const repairKeywords = [

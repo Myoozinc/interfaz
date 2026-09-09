@@ -30,6 +30,60 @@ export class DomainMetaAgentFactory {
       (currentCode ? currentCode.slice(0, 1500) : '')
     ).toLowerCase();
 
+    // 0. Domain: 3D Aerial Combat, Dogfight & Flight Simulator (Planes, Jets, Warbirds)
+    if (
+      combinedText.includes('avion') ||
+      combinedText.includes('aviones') ||
+      combinedText.includes('vuelo') ||
+      combinedText.includes('volar') ||
+      combinedText.includes('aereo') ||
+      combinedText.includes('aéreo') ||
+      combinedText.includes('guerra de aviones') ||
+      combinedText.includes('combate aereo') ||
+      combinedText.includes('combate aéreo') ||
+      combinedText.includes('piloto') ||
+      combinedText.includes('caza') ||
+      combinedText.includes('cazas') ||
+      combinedText.includes('dogfight') ||
+      combinedText.includes('jet') ||
+      combinedText.includes('jets') ||
+      combinedText.includes('helicoptero') ||
+      combinedText.includes('helicóptero') ||
+      combinedText.includes('f-16') ||
+      combinedText.includes('f-22') ||
+      combinedText.includes('spitfire')
+    ) {
+      return {
+        id: 'agent_flight_combat',
+        name: 'Ace Flight & 3D Dogfight Architect',
+        domain: 'Combate Aéreo 3D, Guerra de Aviones & Simulador de Vuelo WebGL',
+        icon: 'Plane',
+        badgeColor: 'bg-sky-100 text-sky-800 border-sky-200',
+        recommendedLibraries: [
+          'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
+        ],
+        guardrails: [
+          'Garantizar que el canvas ocupe el 100% de la ventana con renderer.setSize(window.innerWidth, window.innerHeight)',
+          'Añadir listener de window.resize para actualizar camera.aspect y camera.updateProjectionMatrix()',
+          'Añadir iluminación ambiental y direccional para evitar geometrías en negro',
+          'MODELADO AERONÁUTICO DETALLADO: Ensamblar un caza o avión militar 3D con THREE.Group que incluya fuselaje aerodinámico cónico, alas en delta con alerones, cabina reflectante, timón de cola vertical, ametralladoras dobles en las alas y tobera con llama emisiva de turbina',
+          'FÍSICAS DE VUELO REALES: Avance continuo hacia adelante en la dirección del avión, pitch (cabeceo) al subir/bajar, y roll (alabeo) al virar. Cámara en tercera persona suave que sigue al avión',
+          'SISTEMA DE COMBATE Y DISPAROS: Proyectiles láser o balas de ametralladora disparadas con [ESPACIO] o botón [DISPARAR], con sonido sintetizado Web Audio API',
+          'ENEMIGOS Y EXPLOSIONES: Spawnea cazas enemigos en el cielo. Al impactarlos con disparos, reducir su salud y producir explosiones de partículas 3D con sonido y sumar puntos al score',
+          'HUD TÁCTICO: Retícula / mira central, altímetro, velocímetro y contador de bajas',
+          'AUDIO PROCEDURAL: Sonido de turbina de jet en bucle modulado por la velocidad y efectos de ametralladora'
+        ],
+        systemPromptAdditions: `Eres el AGENTE ESPECIALISTA EN COMBATE AÉREO Y SIMULACIÓN DE VUELO 3D de NONA.
+Posees maestría en Three.js (r128), física aerodinámica de vuelo espacial/aéreo, sistemas de partículas para disparos/explosiones/postcombustión, y Web Audio API.
+REGLA CRÍTICA:
+- Construye un simulador de combate aéreo 3D emocionante con cazas de combate (NUNCA un juego de carreras de autos).
+- El jugador controla un avión caza militar 3D (fuselaje, cabina, alas en delta, turbina con llama brillante).
+- Puede maniobrar (pitch, roll, yaw), acelerar con turbo, disparar ráfagas de ametralladora y destruir cazas enemigos en pleno vuelo.
+- HUD táctico con mira central de puntería, altímetro, velocímetro y contador de bajas.
+- Controles duales: Teclado (WASD/Flechas + Espacio) y botones táctiles en pantalla para móviles.`
+      };
+    }
+
     // 1. Domain: 3D Gaming, Racing & WebGL
     if (
       combinedText.includes('carrera') ||

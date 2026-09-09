@@ -1,7 +1,8 @@
 import type { ProjectTemplate } from '../types';
 import { MARIO_KART_GAME_HTML } from './marioKartTemplate';
+import { AIR_COMBAT_GAME_HTML } from './airCombatTemplate';
 
-export { MARIO_KART_GAME_HTML };
+export { MARIO_KART_GAME_HTML, AIR_COMBAT_GAME_HTML };
 
 export const STARTER_TEMPLATES: ProjectTemplate[] = [
   // =========================================================================
@@ -581,7 +582,28 @@ export const STARTER_TEMPLATES: ProjectTemplate[] = [
   },
 
   // =========================================================================
-  // 3. 🎹 SYNTHWAVE WEB DAW & STEP SEQUENCER (Tone.js & Web Audio API)
+  // 3. ✈️ ACE COMBAT 3D: DOGFIGHT SKY FURY (Three.js Flight Simulator)
+  // =========================================================================
+  {
+    id: 'ace-combat-3d-dogfight',
+    name: '✈️ Ace Combat 3D: Dogfight Sky Fury',
+    description: 'Simulador de combate aéreo 3D en Three.js con caza militar detallado, ametralladoras dobles, cazas enemigos, explosiones de partículas, postcombustión y HUD táctico',
+    icon: 'Plane',
+    category: 'Combate Aéreo 3D',
+    tags: ['Three.js', 'WebGL', 'Simulador de Vuelo', 'Combate Aéreo', 'Web Audio API'],
+    badge: 'Nuevo',
+    files: [
+      {
+        id: '1',
+        name: 'index.html',
+        language: 'html',
+        content: AIR_COMBAT_GAME_HTML
+      }
+    ]
+  },
+
+  // =========================================================================
+  // 4. 🎹 SYNTHWAVE WEB DAW & STEP SEQUENCER (Tone.js & Web Audio API)
   // =========================================================================
   {
     id: 'synthwave-web-daw',

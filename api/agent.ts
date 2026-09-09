@@ -128,9 +128,14 @@ export default async function handler(req: Request) {
         throw new Error('Para procesar imágenes se requiere OPENROUTER_API_KEY o GROQ_API_KEY configurada.');
       }
     } else {
-      // TIER 1: Groq Engine (Qwen 3.8 27B -> Qwen 3.6 27B -> GPT-OSS 120B -> GPT-OSS 20B)
+      // TIER 1: Groq Engine (Llama 3.3 70B Versatile -> Llama 3.1 8B Instant -> DeepSeek R1 Distill)
       if (groqKeysToTry.length > 0) {
-        const groqModels = ['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+        const groqModels = [
+          'llama-3.3-70b-versatile',
+          'llama-3.1-8b-instant',
+          'deepseek-r1-distill-llama-70b',
+          'mixtral-8x7b-32768'
+        ];
         for (const key of groqKeysToTry) {
           for (const targetM of groqModels) {
             try {
