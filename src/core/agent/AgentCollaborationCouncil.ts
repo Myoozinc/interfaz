@@ -19,6 +19,49 @@ export interface CollaborationResult {
   thinkingStages: { name: string; status: 'done' | 'running' | 'pending'; detail?: string }[];
 }
 
+/**
+ * Detecta si el requerimiento del usuario implica persistencia, backend o base de datos (Supabase BaaS).
+ */
+export function detectBaaSRequirement(instruction: string): boolean {
+  const lower = instruction.toLowerCase();
+  return /(supabase|base de datos|database|persist|guardar en db|guardar usuarios|auth|autenticaci[oó]n|login|registro|signup)/i.test(lower);
+}
+
+/**
+ * Extrae rutas de componentes importados relativos desde el código fuente (ej: src/App.tsx).
+ */
+export function extractRelativeComponentImports(code: string, fromDir: string = 'src'): string[] {
+  const imports: string[] = [];
+  const regex = /(?:import|export)\s+(?:[\s\S]*?from\s+)?['"]((?:\.|\@\/)[^'"]+)['"]/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(code)) !== null) {
+    const spec = match[1];
+    if (spec.endsWith('.css') || spec.endsWith('.svg') || spec.endsWith('.png') || spec.endsWith('.json')) {
+      continue;
+    }
+    if (spec.includes('components') || spec.includes('pages') || spec.includes('views') || spec.startsWith('./')) {
+      let resolved = spec;
+      if (resolved.startsWith('@/')) {
+        resolved = `src/${resolved.slice(2)}`;
+      } else if (resolved.startsWith('./')) {
+        resolved = `${fromDir}/${resolved.slice(2)}`;
+      } else if (resolved.startsWith('../')) {
+        resolved = resolved.replace(/^\.\.\//, '');
+      }
+
+      if (resolved.includes('lib/utils') || resolved.includes('lib/supabase')) {
+        continue;
+      }
+
+      if (!resolved.endsWith('.tsx') && !resolved.endsWith('.ts') && !resolved.endsWith('.jsx') && !resolved.endsWith('.js')) {
+        resolved += '.tsx';
+      }
+      imports.push(resolved);
+    }
+  }
+  return Array.from(new Set(imports));
+}
+
 export class AgentCollaborationCouncil {
   private aiProvider: OllamaProvider;
 
@@ -171,61 +214,46 @@ export class AgentCollaborationCouncil {
       projectContext = 'Creación desde cero. Construir nueva aplicación completa siguiendo las especificaciones del usuario sin arrastrar dependencias del proyecto previo.';
     }
 
+    // Paso 2: Detección condicional de BaaS Supabase y optimización de prompts
+    const needsBaaS = detectBaaSRequirement(effectiveInstruction);
+    const baasLibraryText = needsBaaS ? '- @supabase/supabase-js (Para BaaS, base de datos y autenticación)\n' : '';
+    const baasPromptSection = needsBaaS ? `\n\nINTEGRACIÓN BACKEND-AS-A-SERVICE (SUPABASE):
+- Importa { createClient } de '@supabase/supabase-js' en "src/lib/supabase.ts".
+- Variables seguras con fallback mock:
+  const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://mock-project.supabase.co';
+  const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'mock-anon-key-nona';
+- Proporciona en comentarios SQL al inicio de "src/lib/supabase.ts" el script DDL (CREATE TABLE ...).` : '';
+
     const specialistSystemPrompt = `Eres ${expertAgent.name}, arquitecto de software senior para NONA (Estándar Lovable / bolt.new / v0).
 Tu objetivo es generar una aplicación COMPLETA, PROFESIONAL, MULTI-ARCHIVO Y 100% FUNCIONAL.
 
 ${expertAgent.systemPromptAdditions}
 
-REGLAS DE ORO DEL DOMINIO:
+REGLAS DEL DOMINIO:
 ${expertAgent.guardrails.map(g => '- ' + g).join('\n')}
 
 LIBRERÍAS DISPONIBLES:
 ${expertAgent.recommendedLibraries.map(lib => `- ${lib}`).join('\n')}
-- @supabase/supabase-js (Para BaaS, base de datos y autenticación)
-- lucide-react (Iconos vectoriales limpios)
-- clsx & tailwind-merge (Utilidades de estilos dinámicos)
+${baasLibraryText}- lucide-react (Iconos vectoriales)
+- clsx & tailwind-merge (Estilos dinámicos)
 
-ARQUITECTURA DE CARPETAS CONVENCIONAL (OBLIGATORIA):
-Organiza el código de forma limpia y predecible:
-- "src/components/": Componentes UI reutilizables (nombres en PascalCase, ej: Navbar.tsx, Hero.tsx, UserCard.tsx).
-- "src/pages/": Vistas o pantallas completas si el proyecto tiene múltiples pantallas/rutas (ej: Home.tsx, Dashboard.tsx, Settings.tsx).
-- "src/lib/": Utilidades compartidas (ej: src/lib/utils.ts) y clientes de APIs externas / BaaS.
-- "src/types/": Definiciones de tipos e interfaces TypeScript (ej: src/types/index.ts).
-- "src/App.tsx": Componente raíz que orquesta vistas, navegación y estado global.
-- "src/index.css" e "index.html": Estilos base y contenedor HTML.
-
-INTEGRACIÓN BACKEND-AS-A-SERVICE (SUPABASE):
-Si el usuario solicita persistencia, base de datos, guardar usuarios, autenticación o comentarios:
-- NO improvises un servidor Express/Node propio dentro de NONA.
-- Integra Supabase creando "src/lib/supabase.ts" importando { createClient } de '@supabase/supabase-js'.
-- Utiliza variables de entorno seguras con fallback mock:
-  const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://mock-project.supabase.co';
-  const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'mock-anon-key-nona';
-- Proporciona en comentarios SQL al inicio de "src/lib/supabase.ts" la sentencia DDL para crear las tablas necesarias (ej: CREATE TABLE ...).
-
-CONSISTENCIA DE DISEÑO Y TAILWIND:
-- Utiliza una paleta moderna y cohesiva: fondos oscuros premium (bg-slate-950, bg-slate-900, bordes border-slate-800/80), tipografía nítida con contraste adecuado (text-slate-100, text-slate-400), y acentos vibrantes bien definidos (indigo-500/600, violet-500 o emerald-500).
-- Emplea iconos de 'lucide-react' para enriquecer botones y menús.
+ARQUITECTURA Y ESTILO:
+- Estructura: "index.html", "src/App.tsx", "src/components/*.tsx", "src/lib/utils.ts", "src/index.css".
+- Estilos Tailwind: Dark mode moderno (bg-slate-950/900, text-slate-100), bordes sutiles y acentos nítidos.${baasPromptSection}
 
 CONTRATO OBLIGATORIO DE SALIDA (JSON ESTRUCTURADO):
-Debes responder ÚNICAMENTE con un objeto JSON válido (puedes encerrarlo en un bloque \`\`\`json ... \`\`\`) con la siguiente estructura exacta:
+Responde ÚNICAMENTE con un JSON válido con la siguiente estructura:
 {
   "files": [
-    { "path": "src/App.tsx", "content": "..." },
-    { "path": "src/components/MiComponente.tsx", "content": "..." },
-    { "path": "src/lib/utils.ts", "content": "..." },
-    { "path": "src/index.css", "content": "..." },
-    { "path": "index.html", "content": "..." }
+    { "path": "src/App.tsx", "content": "código completo" },
+    { "path": "index.html", "content": "código completo" }
   ],
-  "explanation": "Resumen conciso y claro en español de qué se construyó y qué características interactivas están listas para probar."
+  "explanation": "Resumen técnico conciso en español de qué se construyó e interactividad lista para probar."
 }
 
-REGLAS TÉCNICAS ESTRICTAS:
-1. El campo "files" debe ser un array que contenga TODOS los archivos necesarios para ejecutar la aplicación de inmediato.
-2. Cada archivo debe tener su ruta ("path") y su código fuente ("content") COMPLETO. Prohibido código truncado, funciones vacías o comentarios "// TODO".
-3. Incluye un punto de entrada ejecutable (ej. "index.html" y archivos "src/..."), con Tailwind CSS, librerías requeridas y scripts interactivos.
-4. El JSON debe ser 100% válido y parseable: escapa correctamente comillas dobles y caracteres de escape dentro de "content".
-5. NO agregues texto conversacional antes ni después del bloque JSON. Todo tu resumen explicativo para el usuario debe ir dentro del campo "explanation".`;
+REGLAS TÉCNICAS:
+1. El campo "files" debe contener código COMPLETO, ejecutable e interactivo. Prohibido código truncado o "// TODO".
+2. JSON 100% válido: escapa comillas dobles y caracteres de escape dentro de "content". Cero texto conversacional fuera del JSON.`;
 
     const maxRetries = 2;
     let attempt = 0;
@@ -256,6 +284,9 @@ INSTRUCCIÓN DEL USUARIO:
         attemptUserPrompt += `\n\n[CORRECCIÓN TÉCNICA OBLIGATORIA - INTENTO ${attempt + 1}/${maxRetries + 1}]:
 El intento anterior no cumplió con el contrato estructurado: ${lastFailureReason}.
 Por favor devuelve EXCLUSIVAMENTE el objeto JSON válido con la clave "files" (array de { "path": string, "content": string }) y "explanation" (string). Asegúrate de incluir código 100% interactivo y funcional, sin omitir ningún archivo.`;
+      } else if (isNewBuildRequest) {
+        attemptUserPrompt += `\n\nFASE 1 (Scaffold y Raíz):
+Genera la arquitectura base de la aplicación (al menos "index.html" y "src/App.tsx"). Diseña "src/App.tsx" completo con layout, navegación y componentes modulares importados desde "./components/NombreComponente".`;
       } else {
         attemptUserPrompt += `\n\nGenera la aplicación completa ahora respondiendo estrictamente en el formato JSON especificado:`;
       }
@@ -272,7 +303,7 @@ Por favor devuelve EXCLUSIVAMENTE el objeto JSON válido con la clave "files" (a
         {
           signal: options?.signal,
           model: routingDecision.model,
-          maxTokens: routingDecision.maxTokens,
+          maxTokens: isNewBuildRequest ? 4000 : routingDecision.maxTokens,
           temperature: routingDecision.temperature
         }
       );
@@ -304,6 +335,136 @@ Por favor devuelve EXCLUSIVAMENTE el objeto JSON válido con la clave "files" (a
           lastFailureReason = parseResult.error;
           attempt++;
           continue;
+        }
+      }
+
+      // =========================================================================
+      // PASO 3: Generación Multi-Fase Secuencial para Proyectos Nuevos (FULL_BUILD)
+      // =========================================================================
+      if (isNewBuildRequest && candidateFiles['src/App.tsx']) {
+        // Detectar si src/App.tsx importa componentes que aún no están en candidateFiles
+        const importedComponents = extractRelativeComponentImports(candidateFiles['src/App.tsx'], 'src');
+        const missingComponents = importedComponents.filter(c => !candidateFiles[c]);
+
+        if (missingComponents.length > 0) {
+          onProgress(`🧩 [${expertAgent.name}]: Sintetizando componentes modulares (Fase 2: ${missingComponents.map(p => p.split('/').pop()).join(', ')})...`, true);
+          agentEvents.emit('agent.thinking', `🧩 Fase 2: Implementando componentes requeridos: ${missingComponents.join(', ')}`);
+
+          const phase2Prompt = `FASE 2 (Componentes Reutilizables):
+Implementa el código COMPLETO y 100% interactivo para los siguientes componentes requeridos por src/App.tsx:
+${missingComponents.map(p => `- "${p}"`).join('\n')}
+
+CONTEXTO DE src/App.tsx:
+\`\`\`tsx
+${candidateFiles['src/App.tsx']}
+\`\`\`
+
+Responde ÚNICAMENTE en formato JSON con la clave "files" (array de { "path": string, "content": string }) conteniendo estos componentes con sus tipos, interactividad y estilos Tailwind.`;
+
+          try {
+            let phase2Raw = '';
+            await this.aiProvider.streamChat(
+              [
+                { role: 'system', content: specialistSystemPrompt },
+                { role: 'user', content: phase2Prompt }
+              ],
+              (_tok, full) => { phase2Raw = full; },
+              {
+                signal: options?.signal,
+                model: routingDecision.model,
+                maxTokens: 4000,
+                temperature: routingDecision.temperature
+              }
+            );
+
+            phase2Raw = phase2Raw
+              .replace(/<think>[\s\S]*?<\/think>/gi, '')
+              .replace(/^[\s\S]*?<\/think>/gi, '')
+              .trim();
+
+            const p2Result = ProjectJSONParser.parseFullBuild(phase2Raw);
+            if (p2Result.success) {
+              for (const f of p2Result.contract.files) {
+                candidateFiles[ProjectJSONParser.normalizePath(f.path)] = f.content;
+              }
+            } else {
+              const fb2 = ActionStreamParser.parse(phase2Raw);
+              for (const [p, c] of Object.entries(fb2.files)) {
+                candidateFiles[ProjectJSONParser.normalizePath(p)] = c;
+              }
+            }
+          } catch (e: any) {
+            agentEvents.emit('agent.thinking', `Aviso en Fase 2: ${e.message}`);
+          }
+        }
+
+        // Fase 3: Archivos de soporte y BaaS si faltan y se requieren
+        const allCode = Object.values(candidateFiles).join('\n');
+        const missingSupport: string[] = [];
+        if (needsBaaS && !candidateFiles['src/lib/supabase.ts']) {
+          missingSupport.push('src/lib/supabase.ts');
+        }
+        if (allCode.includes('lib/utils') && !candidateFiles['src/lib/utils.ts'] && !candidateFiles['src/lib/utils.js']) {
+          missingSupport.push('src/lib/utils.ts');
+        }
+
+        if (missingSupport.length > 0) {
+          onProgress(`🎨 [${expertAgent.name}]: Generando soporte y utilidades (Fase 3: ${missingSupport.map(p => p.split('/').pop()).join(', ')})...`, true);
+
+          const phase3Prompt = `FASE 3 (Estilos y Utilidades):
+Genera los siguientes archivos de soporte necesarios para completar el proyecto:
+${missingSupport.map(p => `- "${p}"`).join('\n')}
+${missingSupport.includes('src/lib/supabase.ts') ? '- "src/lib/supabase.ts": Cliente de Supabase (@supabase/supabase-js) con fallback seguro y DDL SQL en comentarios.' : ''}
+${missingSupport.includes('src/lib/utils.ts') ? '- "src/lib/utils.ts": Utilidad cn() con clsx y tailwind-merge.' : ''}
+
+Responde ÚNICAMENTE en formato JSON con la clave "files".`;
+
+          try {
+            let phase3Raw = '';
+            await this.aiProvider.streamChat(
+              [
+                { role: 'system', content: specialistSystemPrompt },
+                { role: 'user', content: phase3Prompt }
+              ],
+              (_tok, full) => { phase3Raw = full; },
+              {
+                signal: options?.signal,
+                model: routingDecision.model,
+                maxTokens: 3000,
+                temperature: routingDecision.temperature
+              }
+            );
+
+            phase3Raw = phase3Raw
+              .replace(/<think>[\s\S]*?<\/think>/gi, '')
+              .replace(/^[\s\S]*?<\/think>/gi, '')
+              .trim();
+
+            const p3Result = ProjectJSONParser.parseFullBuild(phase3Raw);
+            if (p3Result.success) {
+              for (const f of p3Result.contract.files) {
+                candidateFiles[ProjectJSONParser.normalizePath(f.path)] = f.content;
+              }
+            } else {
+              const fb3 = ActionStreamParser.parse(phase3Raw);
+              for (const [p, c] of Object.entries(fb3.files)) {
+                candidateFiles[ProjectJSONParser.normalizePath(p)] = c;
+              }
+            }
+          } catch (e: any) {
+            agentEvents.emit('agent.thinking', `Aviso en Fase 3: ${e.message}`);
+          }
+        }
+
+        // Garantías locales de estilos y clientes sin llamadas adicionales a la IA
+        if (!candidateFiles['src/index.css']) {
+          candidateFiles['src/index.css'] = `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\nbody {\n  margin: 0;\n  font-family: system-ui, -apple-system, sans-serif;\n}`;
+        }
+        if (allCode.includes('lib/utils') && !candidateFiles['src/lib/utils.ts']) {
+          candidateFiles['src/lib/utils.ts'] = `import { clsx, type ClassValue } from 'clsx';\nimport { twMerge } from 'tailwind-merge';\n\nexport function cn(...inputs: ClassValue[]) {\n  return twMerge(clsx(inputs));\n}\n`;
+        }
+        if (needsBaaS && !candidateFiles['src/lib/supabase.ts']) {
+          candidateFiles['src/lib/supabase.ts'] = `// DDL Supabase:\n// CREATE TABLE IF NOT EXISTS app_data (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), data jsonb, created_at timestamptz DEFAULT now());\n\nimport { createClient } from '@supabase/supabase-js';\n\nconst supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://mock-project.supabase.co';\nconst supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'mock-anon-key-nona';\n\nexport const supabase = createClient(supabaseUrl, supabaseAnonKey);\n`;
         }
       }
 

@@ -244,13 +244,13 @@ export class OptimalModelRouter {
 
     // ---------------------------------------------------------------------------------
     // CASO 6: Generación Inicial de Aplicación Nueva Completa (Máxima Capacidad)
-    // Ventana de 8,000 tokens (según especificación Lovable de 8,000 a 16,000 tokens).
+    // Ventana de 12,000 tokens (rango extendido para generación multi-archivo completa).
     // ---------------------------------------------------------------------------------
     return {
       server: 'openrouter',
       model: 'deepseek/deepseek-chat',
-      rationale: `🚀 Enrutado a OpenRouter (DeepSeek-V3) con ventana de 8,000 tokens para generación inicial completa multi-archivo React + Vite (~${estimatedAffectedFiles} archivos previstos).`,
-      maxTokens: 8000,
+      rationale: `🚀 Enrutado a OpenRouter (DeepSeek-V3) con ventana de 12,000 tokens para generación inicial completa multi-archivo React + Vite (~${estimatedAffectedFiles} archivos previstos).`,
+      maxTokens: 12000,
       temperature: 0.15,
       routeCategory: 'complex_build',
       complexityScore: 5,

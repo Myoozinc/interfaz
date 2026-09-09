@@ -1,6 +1,6 @@
-export const config = {
-  runtime: 'edge',
-};
+// Standard Node.js Serverless runtime on Vercel with 60s timeout limit (Paso 1)
+export const maxDuration = 60;
+
 
 // Verified active 100% FREE models on OpenRouter (when an OpenRouter key is configured)
 const VERIFIED_FREE_OR_MODELS = [
@@ -72,14 +72,15 @@ export default async function handler(req: Request) {
     const targetTokens = maxTokensRequested || 3000;
     const temp = typeof temperature === 'number' ? temperature : 0.15;
 
-    // Estimate prompt tokens to prevent Groq TPM limit (HTTP 413)
-    const promptCharCount = JSON.stringify(messages).length;
-    const estimatedPromptTokens = Math.ceil(promptCharCount / 3.4);
-    const safeGroqMaxTokens = Math.max(900, Math.min(targetTokens, Math.max(1000, 7200 - estimatedPromptTokens)));
+    // Paso 4: Reajuste del presupuesto de tokens.
+    // Garantizamos un piso robusto de 6,000 a 8,192 tokens en Groq para evitar respuestas JSON
+    // truncadas a la mitad. Groq LPU soporta 8,192 tokens de salida sin cortes por TPM
+    // cuando el prompt se mantiene dentro del context window estándar.
+    const safeGroqMaxTokens = Math.max(6000, Math.min(targetTokens, 8192));
 
     const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 18000);
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout para Groq LPU ultra rápido
       try {
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -108,7 +109,8 @@ export default async function handler(req: Request) {
 
     const executeOpenRouter = async (keyToUse: string, orModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout to prevent 60s Edge death
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout permitido por runtime Serverless Node.js
+
       try {
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
@@ -186,7 +188,9 @@ export default async function handler(req: Request) {
 
         for (const orModel of targetModels) {
           try {
-            const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 7000));
+            // Permitir hasta 16,000 tokens en OpenRouter para generación completa multi-archivo
+            const openRouterTokens = Math.max(8000, Math.min(targetTokens, 16000));
+            const res = await executeOpenRouter(orKeyToUse, orModel, openRouterTokens);
             if (res.ok) {
               aiResponse = res;
               break;
@@ -252,7 +256,8 @@ export default async function handler(req: Request) {
           ];
           for (const orModel of targetModels) {
             try {
-              const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 6000));
+              const openRouterTokens = Math.max(6000, Math.min(targetTokens, 12000));
+              const res = await executeOpenRouter(orKeyToUse, orModel, openRouterTokens);
               if (res.ok) {
                 aiResponse = res;
                 break;
