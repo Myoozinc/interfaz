@@ -168,7 +168,7 @@ export default async function handler(req: Request) {
 
         for (const orModel of targetModels) {
           try {
-            const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 12000));
+            const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 7000));
             if (res.ok) {
               aiResponse = res;
               break;
@@ -234,7 +234,7 @@ export default async function handler(req: Request) {
           ];
           for (const orModel of targetModels) {
             try {
-              const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 8192));
+              const res = await executeOpenRouter(orKeyToUse, orModel, Math.min(targetTokens, 6000));
               if (res.ok) {
                 aiResponse = res;
                 break;
