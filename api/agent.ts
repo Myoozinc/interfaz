@@ -1,6 +1,6 @@
-// Standard Node.js Serverless runtime on Vercel with 60s timeout limit (Paso 1)
-export const maxDuration = 60;
-
+export const config = {
+  runtime: 'edge',
+};
 
 // Verified active 100% FREE models on OpenRouter (when an OpenRouter key is configured)
 const VERIFIED_FREE_OR_MODELS = [
@@ -72,15 +72,13 @@ export default async function handler(req: Request) {
     const targetTokens = maxTokensRequested || 3000;
     const temp = typeof temperature === 'number' ? temperature : 0.15;
 
-    // Paso 4: Reajuste del presupuesto de tokens.
-    // Garantizamos un piso robusto de 6,000 a 8,192 tokens en Groq para evitar respuestas JSON
-    // truncadas a la mitad. Groq LPU soporta 8,192 tokens de salida sin cortes por TPM
-    // cuando el prompt se mantiene dentro del context window estándar.
-    const safeGroqMaxTokens = Math.max(6000, Math.min(targetTokens, 8192));
+    // Presupuesto de tokens optimizado para Groq LPU (respetando el límite de 6,000 TPM del tier gratuito)
+    // Con la generación multi-fase, cada llamada genera 1,500 - 2,500 tokens. 4,000 es el techo perfecto sin riesgo de 413/429.
+    const safeGroqMaxTokens = Math.max(2500, Math.min(targetTokens, 4000));
 
     const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s timeout para Groq LPU ultra rápido
+      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout para Groq LPU (~450 t/s)
       try {
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -109,8 +107,7 @@ export default async function handler(req: Request) {
 
     const executeOpenRouter = async (keyToUse: string, orModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout permitido por runtime Serverless Node.js
-
+      const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s timeout estricto para evitar HTTP 504 en Vercel
       try {
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
@@ -157,7 +154,8 @@ export default async function handler(req: Request) {
         resolvedModel === 'qwen3.8-27b' ||
         resolvedModel === 'qwen3.8'
       ) {
-        resolvedModel = targetTokens >= 5000 ? 'deepseek/deepseek-chat' : 'llama-3.3-70b-versatile';
+        // Enrutamiento nativo a Groq LPU Llama 3.3 70B (~450 t/s) para latencia instantánea
+        resolvedModel = 'llama-3.3-70b-versatile';
       }
 
       const isExplicitGroq = resolvedModel && (
@@ -167,11 +165,11 @@ export default async function handler(req: Request) {
         resolvedModel.startsWith('groq/')
       );
 
-      const isOpenRouterPreferred = (resolvedModel && (
+      const isOpenRouterPreferred = resolvedModel && (
         resolvedModel.includes('/') &&
         !resolvedModel.startsWith('groq/') &&
         !isExplicitGroq
-      )) || (targetTokens >= 5000);
+      );
 
       const standardGroqModels = [
         'llama-3.3-70b-versatile',
@@ -179,17 +177,15 @@ export default async function handler(req: Request) {
       ];
 
       if (isOpenRouterPreferred && orKeyToUse) {
-        // TIER 1 (High-Capacity / OpenRouter preferred): DeepSeek-V3, Qwen Coder (max 2 attempts before Groq fallback)
+        // TIER 1 (OpenRouter): 1 intento con 7s timeout estricto para no agotar la ventana de Vercel
         const targetModels = Array.from(new Set([
           resolvedModel,
           'deepseek/deepseek-chat',
-          'qwen/qwen-2.5-coder-32b-instruct',
-        ].filter(Boolean))).slice(0, 2);
+        ].filter(Boolean))).slice(0, 1);
 
         for (const orModel of targetModels) {
           try {
-            // Permitir hasta 16,000 tokens en OpenRouter para generación completa multi-archivo
-            const openRouterTokens = Math.max(8000, Math.min(targetTokens, 16000));
+            const openRouterTokens = Math.max(3000, Math.min(targetTokens, 6000));
             const res = await executeOpenRouter(orKeyToUse, orModel, openRouterTokens);
             if (res.ok) {
               aiResponse = res;

@@ -112,9 +112,9 @@ export class OllamaProvider implements AIProvider {
       signal: options?.signal,
     });
 
-    // Client-side automatic fallback to Groq LPU if OpenRouter model times out or errors
-    if (!res.ok && !isGroq) {
-      onToken('⚡ Conmutando automáticamente a Groq LPU por timeout / saturación en OpenRouter...', '', false);
+    // Client-side automatic fallback to Groq LPU if primary model times out or errors
+    if (!res.ok) {
+      onToken('⚡ Conmutando automáticamente a Groq LPU de alta velocidad (~450 t/s)...', '', false);
       try {
         const fallbackRes = await fetch('/api/agent', {
           method: 'POST',
@@ -145,7 +145,7 @@ export class OllamaProvider implements AIProvider {
         try {
           const rawText = await res.text();
           if (rawText.includes('FUNCTION_INVOCATION_TIMEOUT') || res.status === 504) {
-            errorDetail = 'Tiempo de espera agotado en el servidor cloud (Timeout 60s).';
+            errorDetail = 'Tiempo de espera agotado en el servidor cloud (504 Gateway Timeout). Por favor reintenta; el sistema conmutará automáticamente a Groq LPU.';
           } else if (rawText) {
             errorDetail = rawText.slice(0, 150);
           }
