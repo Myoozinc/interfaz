@@ -207,6 +207,59 @@ export class WebContainerService {
     const cleanPath = path.replace(/^(\.\/|\/)/, '');
     await this.webcontainer.fs.writeFile(cleanPath, content);
   }
+
+  /**
+   * Inicia un shell interactivo ('jsh') dentro del WebContainer conectado
+   * a una terminal con flujos bidireccionales de stdin/stdout.
+   */
+  public async startInteractiveShell(options: {
+    cols?: number;
+    rows?: number;
+    onOutput: (data: string) => void;
+    onExit?: (code: number) => void;
+  }): Promise<{
+    write: (data: string) => Promise<void>;
+    resize: (cols: number, rows: number) => void;
+    kill: () => void;
+  }> {
+    const container = await this.boot();
+    const shellProcess = await container.spawn('jsh', {
+      terminal: {
+        cols: options.cols || 80,
+        rows: options.rows || 24,
+      },
+    });
+
+    const writer = shellProcess.input.getWriter();
+
+    shellProcess.output.pipeTo(
+      new WritableStream({
+        write(chunk) {
+          options.onOutput(chunk);
+        },
+      })
+    );
+
+    shellProcess.exit.then((code: number) => {
+      if (options.onExit) options.onExit(code);
+    });
+
+    return {
+      write: async (data: string) => {
+        await writer.write(data);
+      },
+      resize: (cols: number, rows: number) => {
+        try {
+          shellProcess.resize({ cols, rows });
+        } catch {}
+      },
+      kill: () => {
+        try {
+          shellProcess.kill();
+        } catch {}
+      },
+    };
+  }
 }
 
 export const webContainerService = WebContainerService.getInstance();

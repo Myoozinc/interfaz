@@ -12,8 +12,10 @@ import {
   PanelLeft,
   Terminal,
   MessageSquare,
-  Sparkles
+  Sparkles,
+  Database
 } from 'lucide-react';
+import { GitHubIcon } from './icons/GitHubIcon';
 import type { UserCredits, UserAccount } from '../types';
 
 interface HeaderProps {
@@ -27,6 +29,8 @@ interface HeaderProps {
   onOpenDiagnostics: () => void;
   onOpenAuthModal: () => void;
   onOpenTemplatesModal?: () => void;
+  onOpenGitHubModal?: () => void;
+  onOpenSupabaseModal?: () => void;
   onExportZip: () => void;
   viewMode: 'chat' | 'split' | 'preview' | 'editor';
   setViewMode: (mode: 'chat' | 'split' | 'preview' | 'editor') => void;
@@ -45,6 +49,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDiagnostics,
   onOpenAuthModal: _onOpenAuthModal,
   onOpenTemplatesModal,
+  onOpenGitHubModal,
+  onOpenSupabaseModal,
   onExportZip,
   viewMode,
   setViewMode,
@@ -196,6 +202,28 @@ export const Header: React.FC<HeaderProps> = ({
           <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
           <span>{credits.balance}</span>
         </button>
+
+        {/* Supabase BaaS Modal */}
+        {onOpenSupabaseModal && (
+          <button
+            onClick={onOpenSupabaseModal}
+            title="Supabase BaaS: Auto-Provisionamiento y Base de Datos"
+            className="p-1.5 rounded-xl bg-white hover:bg-emerald-50 border border-slate-200/80 text-emerald-600 hover:text-emerald-700 transition-colors shadow-2xs cursor-pointer"
+          >
+            <Database className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {/* GitHub Sync Modal */}
+        {onOpenGitHubModal && (
+          <button
+            onClick={onOpenGitHubModal}
+            title="Sincronizar con GitHub y Desplegar en Vercel (1 Clic)"
+            className="p-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/80 text-slate-700 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
+          >
+            <GitHubIcon className="w-3.5 h-3.5" />
+          </button>
+        )}
 
         {/* Export ZIP */}
         <button

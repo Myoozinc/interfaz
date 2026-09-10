@@ -9,12 +9,14 @@ import {
   Code2, 
   Columns, 
   X, 
-  MessageSquare 
+  MessageSquare,
+  Terminal 
 } from 'lucide-react';
 import { Header } from './components/Header';
 import { SidebarFiles } from './components/SidebarFiles';
 import { EditorPanel } from './components/EditorPanel';
 import { PreviewPanel } from './components/PreviewPanel';
+import { TerminalPanel } from './components/TerminalPanel';
 import { ChatPanel } from './components/ChatPanel';
 import { HeroChatView } from './components/HeroChatView';
 import { CreditsModal } from './components/CreditsModal';
@@ -22,6 +24,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
 import { TemplatesGalleryModal } from './components/TemplatesGalleryModal';
 import { MediaLibraryModal } from './components/MediaLibraryModal';
+import { GitHubExportModal } from './components/GitHubExportModal';
+import { SupabaseConnectModal } from './components/SupabaseConnectModal';
 import { AuthModal } from './components/AuthModal';
 import { DiagnosticsPage } from './components/DiagnosticsPage';
 import { AgentActivityStream } from './components/AgentActivityStream';
@@ -47,7 +51,7 @@ export function App() {
 
   // Workspace layout state (Preview active by default, files and editor collapsible)
   const [isFilesDrawerOpen, setIsFilesDrawerOpen] = useState(false);
-  const [workspaceCenterTab, setWorkspaceCenterTab] = useState<'preview' | 'code' | 'split'>('preview');
+  const [workspaceCenterTab, setWorkspaceCenterTab] = useState<'preview' | 'code' | 'split' | 'terminal'>('preview');
 
   // Agent execution state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -101,6 +105,8 @@ export function App() {
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [ollamaUrl, setOllamaUrl] = useState(() => {
     return localStorage.getItem('nona_inference_url') || '/api/agent';
   });
@@ -555,6 +561,8 @@ export function App() {
         onOpenDiagnostics={() => setShowDiagnostics(true)}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenTemplatesModal={() => setIsTemplatesModalOpen(true)}
+        onOpenGitHubModal={() => setIsGitHubModalOpen(true)}
+        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         onExportZip={handleExportZip}
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -674,6 +682,18 @@ export function App() {
                       <Columns className="w-3.5 h-3.5" />
                       <span>Dividir Ambos</span>
                     </button>
+
+                    <button
+                      onClick={() => setWorkspaceCenterTab('terminal')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                        workspaceCenterTab === 'terminal'
+                          ? 'bg-white text-indigo-600 font-bold shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Terminal className="w-3.5 h-3.5" />
+                      <span>Terminal</span>
+                    </button>
                   </div>
 
                   {/* Right: Quick shortcut back to chat mode */}
@@ -784,6 +804,16 @@ export function App() {
                       </>
                     )}
 
+                    {/* 4. Terminal Interactive Panel */}
+                    {workspaceCenterTab === 'terminal' && (
+                      <div className="flex-1 h-full overflow-hidden">
+                        <TerminalPanel
+                          files={files}
+                          onSendMessage={(msg) => handleSendMessage(msg, 'builder')}
+                        />
+                      </div>
+                    )}
+
                   </div>
 
                   {/* Splitter Handle 3: Workspace / Chat Panel */}
@@ -881,6 +911,22 @@ export function App() {
         currentUser={currentUser}
         onLogin={setCurrentUser}
         onLogout={() => setCurrentUser(null)}
+      />
+
+      {/* GitHub Export & Sync Modal (Fase B) */}
+      <GitHubExportModal
+        isOpen={isGitHubModalOpen}
+        onClose={() => setIsGitHubModalOpen(false)}
+        projectName={projectName}
+        files={files}
+      />
+
+      {/* Supabase BaaS Auto-Provisioning Modal (Fase C) */}
+      <SupabaseConnectModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
+        files={files}
+        onUpdateFiles={(newFiles) => setFiles(newFiles)}
       />
 
     </div>
