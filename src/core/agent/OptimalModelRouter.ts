@@ -238,10 +238,10 @@ export class OptimalModelRouter {
 
     if (isMultiFileIncrementalEdit) {
       return {
-        server: 'openrouter',
-        model: 'deepseek/deepseek-chat',
-        rationale: `🧠 Enrutado a OpenRouter (DeepSeek-V3, 8,192 tokens) por modificación compleja multi-archivo en proyecto existente (~${estimatedAffectedFiles} archivos afectados, ${requirementsCount} requisitos).`,
-        maxTokens: 8192,
+        server: 'groq',
+        model: 'llama-3.3-70b-versatile',
+        rationale: `⚡ Enrutado a Groq LPU (Llama 3.3 70B Versatile, 4,000 tokens) para edición multi-archivo en proyecto existente (~${estimatedAffectedFiles} archivos afectados). Generación multi-fase manejada por el orquestador.`,
+        maxTokens: 4000,
         temperature: 0.15,
         routeCategory: 'complex_build',
         complexityScore: 4,
@@ -251,14 +251,16 @@ export class OptimalModelRouter {
     }
 
     // ---------------------------------------------------------------------------------
-    // CASO 6: Generación Inicial de Aplicación Nueva Completa (Máxima Capacidad)
-    // Ventana de 12,000 tokens (rango extendido para generación multi-archivo completa).
+    // CASO 6: Generación Inicial de Aplicación Nueva Completa
+    // Groq LPU (llama-3.3-70b-versatile) con generación multi-fase secuencial
+    // manejada por AgentCollaborationCouncil (Fase 1 scaffold, Fase 2 componentes, Fase 3 soporte).
+    // OpenRouter/deepseek NO se usa por defecto — produce archivos script_N.js con errores ESM.
     // ---------------------------------------------------------------------------------
     return {
-      server: 'openrouter',
-      model: 'deepseek/deepseek-chat',
-      rationale: `🚀 Enrutado a OpenRouter (DeepSeek-V3) con ventana de 12,000 tokens para generación inicial completa multi-archivo React + Vite (~${estimatedAffectedFiles} archivos previstos).`,
-      maxTokens: 12000,
+      server: 'groq',
+      model: 'llama-3.3-70b-versatile',
+      rationale: `🚀 Enrutado a Groq LPU (Llama 3.3 70B Versatile) para generación inicial multi-archivo React + Vite. Fase 1: scaffold, Fase 2: componentes, Fase 3: soporte (~${estimatedAffectedFiles} archivos previstos).`,
+      maxTokens: 4000,
       temperature: 0.15,
       routeCategory: 'complex_build',
       complexityScore: 5,

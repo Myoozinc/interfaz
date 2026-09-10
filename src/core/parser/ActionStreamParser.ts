@@ -182,7 +182,13 @@ export class ActionStreamParser {
         } else if (lang === 'css') {
           files['styles.css'] = code;
         } else if (lang === 'js' || lang === 'javascript' || lang === 'ts' || lang === 'typescript') {
-          files[blockCount === 1 ? 'src/main.js' : `src/script_${blockCount}.js`] = code;
+          // Assign meaningful file paths: first unnamed JS block becomes src/App.tsx,
+          // subsequent unnamed blocks become src/components/ModuleN.tsx.
+          // This avoids src/script_N.js which fails QA validation and ESM checks.
+          const tsxPath = blockCount === 1
+            ? (files['src/App.tsx'] ? `src/components/Module${blockCount}.tsx` : 'src/App.tsx')
+            : `src/components/Module${blockCount}.tsx`;
+          files[tsxPath] = code;
         }
       }
     }

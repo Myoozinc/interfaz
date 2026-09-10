@@ -243,18 +243,23 @@ ARQUITECTURA Y ESTILO:
 - Estilos Tailwind: Dark mode moderno (bg-slate-950/900, text-slate-100), bordes sutiles y acentos nítidos.${baasPromptSection}
 
 CONTRATO OBLIGATORIO DE SALIDA (JSON ESTRUCTURADO):
-Responde ÚNICAMENTE con un JSON válido con la siguiente estructura:
+Responde ÚNICAMENTE con un objeto JSON válido. NINGÚN texto antes o después del JSON. NINGÚN bloque markdown. NINGÚN archivo llamado script_N.js.
+
+Formato exacto requerido:
 {
   "files": [
-    { "path": "src/App.tsx", "content": "código completo" },
-    { "path": "index.html", "content": "código completo" }
+    { "path": "index.html", "content": "<!DOCTYPE html>..." },
+    { "path": "src/App.tsx", "content": "import React..." },
+    { "path": "src/components/Header.tsx", "content": "import React..." }
   ],
   "explanation": "Resumen técnico conciso en español de qué se construyó e interactividad lista para probar."
 }
 
 REGLAS TÉCNICAS:
 1. El campo "files" debe contener código COMPLETO, ejecutable e interactivo. Prohibido código truncado o "// TODO".
-2. JSON 100% válido: escapa comillas dobles y caracteres de escape dentro de "content". Cero texto conversacional fuera del JSON.`;
+2. JSON 100% válido: escapa comillas dobles y caracteres de escape dentro de "content". Cero texto conversacional fuera del JSON.
+3. SIEMPRE incluir "src/App.tsx" como componente raíz de React. NUNCA usar nombres como "script_1.js", "main.js" sin extensión .tsx/.ts/.jsx.
+4. Todos los imports deben apuntar a archivos incluidos en el array "files" o a dependencias externas listadas arriba.`;
 
     const maxRetries = 2;
     let attempt = 0;
