@@ -123,7 +123,8 @@ export const ChatPanel = ({
   const handleSendMessage = async (
     customPrompt?: string, 
     modeOverride?: 'chat' | 'builder',
-    customAttachments?: ChatAttachment[]
+    customAttachments?: ChatAttachment[],
+    modelOverride?: string
   ) => {
     let promptToSend = (customPrompt || inputPrompt).trim();
     const activeAtts = customAttachments || attachments;
@@ -202,6 +203,7 @@ export const ChatPanel = ({
           signal: abortController.signal,
           history: [...messages, newUserMsg],
           mode: modeOverride,
+          model: modelOverride,
         }
       );
 
@@ -540,7 +542,7 @@ export const ChatPanel = ({
       {/* Modern Floating Omnibar Input */}
       <div className="p-3 border-t border-slate-200/80 bg-white shrink-0">
         <FloatingOmnibar
-          onSendMessage={(text, mode, _model, atts) => handleSendMessage(text, mode, atts)}
+          onSendMessage={(text, mode, model, atts) => handleSendMessage(text, mode, atts, model)}
           isGenerating={isGenerating}
           inspectedElement={inspectedElement}
           onClearInspectedElement={onClearInspectedElement}

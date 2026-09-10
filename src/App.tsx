@@ -386,7 +386,8 @@ export function App() {
     customPrompt?: string, 
     modeOverride?: 'chat' | 'builder', 
     customImages?: string[],
-    customAttachments?: ChatAttachment[]
+    customAttachments?: ChatAttachment[],
+    customModel?: string
   ) => {
     let promptToSend = (customPrompt || pendingPrompt || '').trim();
     const activeAttachments = customAttachments || attachments;
@@ -467,6 +468,7 @@ export function App() {
           signal: abortController.signal,
           history: [...messages, newUserMsg],
           mode: executionMode,
+          model: customModel,
         }
       );
 
@@ -481,10 +483,9 @@ export function App() {
         }));
         setFiles(updatedFileList);
 
-        if (executionMode === 'builder') {
-          setViewMode('split');
-          setWorkspaceCenterTab('preview');
-        }
+        // Always switch to split view so the user immediately sees the interactive app in Live Preview!
+        setViewMode('split');
+        setWorkspaceCenterTab('preview');
 
         confetti({
           particleCount: 50,
@@ -605,7 +606,7 @@ export function App() {
               /* Mode 1: Central Conversational Multi-Agent View */
               <HeroChatView
                 messages={messages}
-                onSendMessage={(prompt, mode, _model, atts) => handleSendMessage(prompt, mode, undefined, atts)}
+                onSendMessage={(prompt, mode, model, atts) => handleSendMessage(prompt, mode, undefined, atts, model)}
                 creditsBalance={credits.balance}
                 onOpenWorkspace={() => {
                   setViewMode('split');

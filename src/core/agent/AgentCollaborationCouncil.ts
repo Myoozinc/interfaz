@@ -93,6 +93,7 @@ export class AgentCollaborationCouncil {
       history?: ChatMessage[];
       attachments?: ChatAttachment[];
       signal?: AbortSignal;
+      model?: string;
     }
   ): Promise<CollaborationResult> {
     const history = options?.history || [];
@@ -180,7 +181,7 @@ export class AgentCollaborationCouncil {
       effectiveInstruction,
       attachments,
       false,
-      undefined,
+      options?.model,
       {
         history,
         isEdit: !isNewBuildRequest && Object.keys(project.files).length > 2,

@@ -73,8 +73,10 @@ export default async function handler(req: Request) {
     const temp = typeof temperature === 'number' ? temperature : 0.15;
 
     // Presupuesto de tokens optimizado para Groq LPU (respetando el límite de 6,000 TPM del tier gratuito)
-    // Con la generación multi-fase, cada llamada genera 1,500 - 2,500 tokens. 4,000 es el techo perfecto sin riesgo de 413/429.
-    const safeGroqMaxTokens = Math.max(2500, Math.min(targetTokens, 4000));
+    // Con la generación multi-fase, cada llamada genera 1,500 - 2,500 tokens.
+    const safeGroqMaxTokens = maxTokensRequested 
+      ? Math.min(Math.max(maxTokensRequested, 200), 4000) 
+      : 3500;
 
     const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
@@ -107,7 +109,7 @@ export default async function handler(req: Request) {
 
     const executeOpenRouter = async (keyToUse: string, orModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s timeout estricto para evitar HTTP 504 en Vercel
+      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout ágil para conmutar a Groq sin agotar la ventana de Vercel
       try {
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
@@ -165,7 +167,10 @@ export default async function handler(req: Request) {
         resolvedModel.startsWith('groq/')
       );
 
-      const isOpenRouterPreferred = resolvedModel && (
+      // OpenRouter solo se prioriza si el usuario configuró explícitamente su clave personalizada
+      const isOpenRouterPreferred = Boolean(
+        customOr &&
+        resolvedModel &&
         resolvedModel.includes('/') &&
         !resolvedModel.startsWith('groq/') &&
         !isExplicitGroq
@@ -173,19 +178,22 @@ export default async function handler(req: Request) {
 
       const standardGroqModels = [
         'llama-3.3-70b-versatile',
-        'llama-3.1-8b-instant'
+        'llama3-70b-8192',
+        'llama3-8b-8192',
+        'llama-3.2-3b-preview'
       ];
 
       if (isOpenRouterPreferred && orKeyToUse) {
-        // TIER 1 (OpenRouter): 1 intento con 7s timeout estricto para no agotar la ventana de Vercel
+        // TIER 1 (OpenRouter): 1 intento con 4s timeout ágil
         const targetModels = Array.from(new Set([
           resolvedModel,
           'deepseek/deepseek-chat',
-        ].filter(Boolean))).slice(0, 1);
-
+          'qwen/qwen-2.5-coder-32b-instruct',
+          ...VERIFIED_FREE_OR_MODELS
+        ]));
         for (const orModel of targetModels) {
           try {
-            const openRouterTokens = Math.max(3000, Math.min(targetTokens, 6000));
+            const openRouterTokens = Math.max(6000, Math.min(targetTokens, 12000));
             const res = await executeOpenRouter(orKeyToUse, orModel, openRouterTokens);
             if (res.ok) {
               aiResponse = res;
@@ -199,7 +207,7 @@ export default async function handler(req: Request) {
           }
         }
 
-        // Fallback to Groq LPU if OpenRouter models fail
+        // Si OpenRouter falla o expira, Fallback instantáneo a Groq LPU
         if ((!aiResponse || !aiResponse.ok) && groqKeysToTry.length > 0) {
           for (const key of groqKeysToTry) {
             for (const targetM of standardGroqModels) {
@@ -210,17 +218,17 @@ export default async function handler(req: Request) {
                   break;
                 } else {
                   const errTxt = await res.text().catch(() => '');
-                  lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
+                  lastError += ` | Groq (${targetM}): ${errTxt.slice(0, 100)}`;
                 }
               } catch (e: any) {
-                lastError = `Groq (${targetM}) error: ${e.message}`;
+                lastError += ` | Groq (${targetM}) error: ${e.message}`;
               }
             }
             if (aiResponse && aiResponse.ok) break;
           }
         }
       } else {
-        // TIER 1 (Fast Low-Latency / Groq preferred): Llama 3.3 70B, Llama 3.1 8B Instant
+        // TIER 1 (Fast Low-Latency / Groq LPU preferred): Llama 3.3 70B (~450 tokens/s)
         if (groqKeysToTry.length > 0) {
           for (const key of groqKeysToTry) {
             for (const targetM of standardGroqModels) {
@@ -286,10 +294,61 @@ export default async function handler(req: Request) {
 
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
+    let tokensEmitted = 0;
 
     const stream = new ReadableStream({
       async start(controller) {
         let buffer = '';
+
+        const emitContent = (text: string) => {
+          if (!text) return;
+          tokensEmitted++;
+          const payload = JSON.stringify({ message: { content: text } }) + '\n';
+          controller.enqueue(encoder.encode(payload));
+        };
+
+        const processChunkLine = (line: string) => {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith(':')) return;
+          if (trimmed === 'data: [DONE]') {
+            return;
+          }
+
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const parsed = JSON.parse(trimmed.slice(6));
+              if (parsed.error) {
+                const errMsg = parsed.error.message || JSON.stringify(parsed.error);
+                emitContent(`\n[Error de proveedor: ${errMsg}]\n`);
+                return;
+              }
+              const delta = parsed.choices?.[0]?.delta;
+              const content = delta?.content || delta?.reasoning_content || delta?.reasoning || parsed.choices?.[0]?.text || '';
+              if (content) {
+                emitContent(content);
+              }
+            } catch {}
+            return;
+          }
+
+          // Handle raw JSON response (non-SSE fallback)
+          if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (parsed.error) {
+                const errMsg = parsed.error.message || JSON.stringify(parsed.error);
+                emitContent(`\n[Error de proveedor: ${errMsg}]\n`);
+                return;
+              }
+              const content = parsed.choices?.[0]?.message?.content || 
+                              parsed.choices?.[0]?.delta?.content || 
+                              parsed.choices?.[0]?.text || '';
+              if (content) {
+                emitContent(content);
+              }
+            } catch {}
+          }
+        };
 
         while (true) {
           const { done, value } = await reader.read();
@@ -300,25 +359,18 @@ export default async function handler(req: Request) {
           buffer = lines.pop() || '';
 
           for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith(':')) continue;
-            if (trimmed === 'data: [DONE]') {
-              controller.close();
-              return;
-            }
-            if (trimmed.startsWith('data: ')) {
-              try {
-                const parsed = JSON.parse(trimmed.slice(6));
-                const delta = parsed.choices?.[0]?.delta;
-                const deltaContent = delta?.content || '';
-                if (deltaContent) {
-                  const payload = JSON.stringify({ message: { content: deltaContent } }) + '\n';
-                  controller.enqueue(encoder.encode(payload));
-                }
-              } catch {}
-            }
+            processChunkLine(line);
           }
         }
+
+        if (buffer.trim()) {
+          processChunkLine(buffer.trim());
+        }
+
+        if (tokensEmitted === 0) {
+          emitContent('\n[Aviso: El modelo no emitió tokens en este intento. Reintentando automáticamente...]\n');
+        }
+
         controller.close();
       }
     });

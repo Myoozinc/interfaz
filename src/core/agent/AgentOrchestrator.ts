@@ -56,6 +56,7 @@ export class AgentOrchestrator {
       signal?: AbortSignal;
       history?: ChatMessage[];
       mode?: 'chat' | 'builder';
+      model?: string;
     }
   ): Promise<AgentExecutionResult> {
     // Determine target file context
@@ -132,9 +133,9 @@ Responde de forma clara, natural y profesional:`;
     // =========================================================================
     // MODE 2: 🗺️ INTERACTIVE_PLAN / CHAT MODE (Chain of 3 Specialized Agents)
     // =========================================================================
-    // If the user selected 'chat' mode or asked an architectural planning request,
+    // If the user requested an architectural planning request, or chat mode without an explicit build/edit intent,
     // execute the 3-agent chain (Context Gatherer -> Creative Ideator -> Plan Orchestrator)
-    if (options?.mode === 'chat' || intent.type === 'INTERACTIVE_PLAN') {
+    if ((options?.mode === 'chat' && intent.type !== 'FULL_BUILD' && intent.type !== 'SURGICAL_EDIT') || intent.type === 'INTERACTIVE_PLAN') {
       onProgress('🧠 Cadena Multi-Agente NONA\n*(Agente 1: Analizando historial completo del chat...)*', true);
 
       const planResponse = await multiAgentPlanPipeline.executeConversationalPipeline(
@@ -173,6 +174,7 @@ Responde de forma clara, natural y profesional:`;
           history: options?.history,
           attachments: options?.attachments,
           signal: options?.signal,
+          model: options?.model,
         }
       );
 

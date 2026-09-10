@@ -166,12 +166,20 @@ export class OptimalModelRouter {
     // CASO 3: Selección Explícita de Modelo por el Usuario
     // ---------------------------------------------------------------------------------
     if (requestedModel && requestedModel !== 'default' && requestedModel !== 'auto') {
-      const isGroqExclusive = requestedModel.startsWith('groq/') || requestedModel.includes('instant');
+      const isGroqExclusive = requestedModel.startsWith('groq/') || 
+                              requestedModel.includes('instant') || 
+                              requestedModel.includes('llama') ||
+                              requestedModel.includes('qwen');
+
+      const resolvedModel = (requestedModel.includes('qwen') || requestedModel.includes('instant'))
+        ? 'llama-3.3-70b-versatile'
+        : requestedModel;
+
       return {
         server: isGroqExclusive ? 'groq' : 'openrouter',
-        model: requestedModel,
-        rationale: `🎯 Enrutado al modelo específico seleccionado por el usuario: ${requestedModel}.`,
-        maxTokens: 8192,
+        model: resolvedModel,
+        rationale: `🎯 Enrutado al modelo específico seleccionado: ${resolvedModel}.`,
+        maxTokens: isGroqExclusive ? 4000 : 8192,
         temperature: 0.15,
         routeCategory: 'complex_build',
         complexityScore: 5

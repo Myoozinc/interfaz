@@ -199,7 +199,60 @@ export class OllamaProvider implements AIProvider {
     }
 
     if (fullText.trim().length === 0) {
-      throw new Error('El modelo cloud no devolvió contenido.');
+      try {
+        onToken('⚡ Reintentando automáticamente con Groq LPU (~450 t/s)...', '', false);
+        const retryRes = await fetch('/api/agent', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: formattedMessages,
+            openrouterKey: openrouterKey.trim() || undefined,
+            groqKey: groqKey.trim() || undefined,
+            maxTokensRequested: Math.min(options?.maxTokens || 4000, 4000),
+            temperature: options?.temperature,
+            stream: true,
+          }),
+          signal: options?.signal,
+        });
+        if (retryRes.ok && retryRes.body) {
+          const retryReader = retryRes.body.getReader();
+          let retryLineBuffer = '';
+          while (true) {
+            const { done, value } = await retryReader.read();
+            if (done) break;
+            retryLineBuffer += decoder.decode(value, { stream: true });
+            const lines = retryLineBuffer.split('\n');
+            retryLineBuffer = lines.pop() || '';
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              try {
+                const parsed = JSON.parse(trimmed);
+                const msg = parsed.message;
+                if (msg && msg.content) {
+                  fullText += msg.content;
+                  onToken(msg.content, fullText, false);
+                }
+              } catch {}
+            }
+          }
+          if (retryLineBuffer.trim()) {
+            try {
+              const parsed = JSON.parse(retryLineBuffer.trim());
+              const msg = parsed.message;
+              if (msg && msg.content) {
+                fullText += msg.content;
+                onToken(msg.content, fullText, false);
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+
+    if (fullText.trim().length === 0) {
+      throw new Error('El modelo cloud no devolvió contenido. Por favor reintenta o verifica tu conexión.');
     }
 
     return fullText;
