@@ -6,6 +6,8 @@
  * con múltiples archivos modulares sin depender de un servidor externo.
  */
 
+import { transform } from 'sucrase';
+
 export interface BundlerResult {
   srcDoc: string;
   transpiledFilesCount: number;
@@ -15,14 +17,44 @@ export interface BundlerResult {
 
 export class VirtualMultiFileBundler {
   /**
-   * Transpila código TypeScript y JSX simple a JavaScript estándar ejecutable por el navegador.
-   * Remueve anotaciones de tipo de TypeScript y compila elementos JSX a llamadas de createElement
-   * o deja JSX para el runtime de Babel Standalone si está cargado.
+   * Transpila código TypeScript y JSX a JavaScript estándar ejecutable nativamente por el navegador.
+   * Utiliza Sucrase para compilar TSX/TS a React.createElement y remueve tipos en milisegundos.
    */
-  public static transpileTypeScript(code: string): string {
+  public static transpileTypeScript(code: string, filePath = 'file.tsx'): string {
+    if (!code || code.trim().length === 0) return '';
+
+    try {
+      const isJsx = filePath.endsWith('.tsx') || filePath.endsWith('.jsx') || code.includes('<') || code.includes('React');
+      const transforms: ('jsx' | 'typescript')[] = ['typescript'];
+      if (isJsx) {
+        transforms.push('jsx');
+      }
+
+      let transpiled = transform(code, {
+        transforms,
+        jsxRuntime: 'classic',
+        production: true,
+      }).code;
+
+      // Garantizar que React esté disponible en el módulo si se generó React.createElement
+      if (transpiled.includes('React.createElement') && !transpiled.match(/import\s+(?:\*\s+as\s+React|React)\s+from/)) {
+        transpiled = `import React from 'react';\n${transpiled}`;
+      }
+
+      return transpiled;
+    } catch (err: any) {
+      console.warn(`[VirtualMultiFileBundler] Fallback regex transpile para "${filePath}":`, err.message);
+      return this.fallbackRegexTranspile(code);
+    }
+  }
+
+  /**
+   * Fallback de emergencia por expresiones regulares si el compilador encuentra un error sintáctico severo.
+   */
+  public static fallbackRegexTranspile(code: string): string {
     let clean = code;
 
-    // 1. Remover imports de tipos: "import type { ... } from '...';"
+    // 1. Remover imports de tipos
     clean = clean.replace(/import\s+type\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '');
     clean = clean.replace(/export\s+type\s+[\s\S]*?;/g, '');
 
@@ -32,18 +64,16 @@ export class VirtualMultiFileBundler {
     clean = clean.replace(/export\s+type\s+[A-Za-z0-9_]+\s*=\s*[\s\S]*?;/g, '');
     clean = clean.replace(/type\s+[A-Za-z0-9_]+\s*=\s*[\s\S]*?;/g, '');
 
-    // 3. Remover anotaciones de tipos primitivos, React y PascalCase: ": React.FC<...>", ": string", ": number", ": ClassValue[]", ": UserProfile"
+    // 3. Remover anotaciones de tipos primitivos y React
     clean = clean.replace(/:\s*React\.[A-Za-z0-9_]+(?:<[^>]+>)?/g, '');
     clean = clean.replace(/:\s*(?:string|number|boolean|any|void|unknown)(?:\[\])?(?=[\s,=);])/g, '');
     clean = clean.replace(/:\s*[A-Z][A-Za-z0-9_]*(?:<[^>]+>)?(?:\[\])?(?=[\s,=);])/g, '');
 
-    // 4. Remover "as const", "as any", "as string"
+    // 4. Remover as cast y non-null assertion
     clean = clean.replace(/\s+as\s+[A-Za-z0-9_<>[\], ]+/g, '');
-
-    // 5. Remover el operador non-null assertion postfijo: "document.getElementById('root')!", "user!.prop"
     clean = clean.replace(/([a-zA-Z0-9_\)\]])!\s*([.;,\)\]\n\r])/g, '$1$2');
 
-    // 6. Remover tipos genéricos en llamadas comunes de React hooks: useState<User[]>([]), useRef<HTMLDivElement>(null)
+    // 5. Remover genéricos en hooks
     clean = clean.replace(/(useState|useRef|useMemo|useCallback)<[^>]+>\(/g, '$1(');
 
     return clean;
@@ -96,7 +126,7 @@ export class VirtualMultiFileBundler {
       ) {
         try {
           // Transpilar sintaxis TS a JS
-          let processedCode = this.transpileTypeScript(content);
+          let processedCode = this.transpileTypeScript(content, p);
 
           const encoded = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(processedCode);
 
@@ -158,12 +188,12 @@ export class VirtualMultiFileBundler {
 
       const rootEl = document.getElementById('root') || document.getElementById('app') || document.body;
       try {
-        if (typeof EntryComponent === 'function') {
+        const Comp = (EntryComponent && EntryComponent.default) ? EntryComponent.default : EntryComponent;
+        if (typeof Comp === 'function' || (typeof Comp === 'object' && Comp !== null)) {
           const root = ReactDOM.createRoot(rootEl);
-          root.render(React.createElement(EntryComponent));
-        } else if (EntryComponent && typeof EntryComponent.default === 'function') {
-          const root = ReactDOM.createRoot(rootEl);
-          root.render(React.createElement(EntryComponent.default));
+          root.render(React.createElement(Comp));
+        } else {
+          console.warn('[NONA Virtual Runner]: Componente exportado no es invocable directamente:', EntryComponent);
         }
       } catch (err) {
         console.error('[NONA Virtual Runner Error]:', err);

@@ -81,7 +81,30 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     // Whenever filesMap changes, immediately reset WebContainer URL so Virtual Sandbox / HTML srcDoc renders instantly!
     setWebContainerUrl(null);
 
-    if (!webContainerService.isSupported()) return;
+    const isIsolated = typeof window !== 'undefined' && window.crossOriginIsolated === true;
+    const hasSAB = typeof SharedArrayBuffer !== 'undefined';
+
+    if (!webContainerService.isSupported()) {
+      setIsContainerBooting(false);
+      setWebContainerUrl(null);
+      // Log claro y visible en consola de desarrollo (Paso 2 y 3)
+      console.log(
+        `%c[NONA WebContainer]%c crossOriginIsolated: ${isIsolated ? 'true' : 'false'} | SharedArrayBuffer disponible: ${hasSAB ? 'sí' : 'no'} (Fallback silencioso a Virtual Multi-File Bundler activo)`,
+        'background: #6366f1; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
+        'color: #6366f1; font-weight: bold; padding-left: 6px;'
+      );
+      console.info(`[WebContainer Diagnostic] crossOriginIsolated: ${isIsolated} | SharedArrayBuffer disponible: ${hasSAB ? 'sí' : 'no'}`);
+      setConsoleLogs(prev => [
+        ...prev.slice(-99),
+        {
+          type: 'info',
+          message: `[WebContainer Diagnostic]: Entorno no aislado (crossOriginIsolated: ${isIsolated}, SharedArrayBuffer: ${hasSAB ? 'sí' : 'no'}). Vista previa renderizada por Virtual Multi-File Bundler.`,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        }
+      ]);
+      return;
+    }
+
     const isMultiFileReact = Object.keys(filesMap).some(k => k.endsWith('.tsx') || k.endsWith('.ts') || k === 'package.json');
     if (!isMultiFileReact) {
       setIsContainerBooting(false);
@@ -113,9 +136,11 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
         if (isMounted) {
           setIsContainerBooting(false);
           setWebContainerUrl(null);
+          console.warn('[WebContainer Runtime Warning]:', err);
+          // Registrar en la pestaña de consola sin asustar al usuario con un banner de error fatal en la vista previa
           setConsoleLogs(prev => [...prev.slice(-99), {
-            type: 'error',
-            message: `[Vite Error] ${err}`,
+            type: 'warn',
+            message: `[WebContainer]: ${err}. La vista previa continúa activa mediante Virtual Multi-File Bundler.`,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
           }]);
         }
@@ -125,6 +150,11 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       if (isMounted) {
         setIsContainerBooting(false);
         setWebContainerUrl(null);
+        setConsoleLogs(prev => [...prev.slice(-99), {
+          type: 'warn',
+          message: `[WebContainer Fallback]: ${err.message}. La vista previa se renderiza mediante Virtual Multi-File Bundler.`,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        }]);
       }
     });
 

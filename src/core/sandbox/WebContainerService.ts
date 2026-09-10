@@ -6,6 +6,8 @@
  * dentro del navegador sin requerir backend propio.
  */
 
+import { WebContainer, type FileSystemTree } from '@webcontainer/api';
+
 export interface FileNode {
   file: {
     contents: string | Uint8Array;
@@ -18,14 +20,12 @@ export interface DirectoryNode {
   };
 }
 
-export type WebContainerFileSystemTree = {
-  [name: string]: FileNode | DirectoryNode;
-};
+export type WebContainerFileSystemTree = FileSystemTree;
 
 export class WebContainerService {
   private static instance: WebContainerService | null = null;
-  private webcontainerPromise: Promise<any> | null = null;
-  private webcontainer: any = null;
+  private webcontainerPromise: Promise<WebContainer> | null = null;
+  private webcontainer: WebContainer | null = null;
   private currentDevProcess: any = null;
   private isBooting = false;
 
@@ -92,43 +92,40 @@ export class WebContainerService {
   /**
    * Inicializa la instancia única de WebContainer
    */
-  public async boot(): Promise<any> {
+  public async boot(): Promise<WebContainer> {
     if (this.webcontainer) return this.webcontainer;
     if (this.webcontainerPromise) return this.webcontainerPromise;
 
+    const isIsolated = typeof window !== 'undefined' && window.crossOriginIsolated === true;
+    const hasSAB = typeof SharedArrayBuffer !== 'undefined';
+
+    // Log claro y visible en la consola del browser para diagnóstico inmediato (Paso 2)
+    console.log(
+      `%c[NONA WebContainer]%c crossOriginIsolated: ${isIsolated ? 'true' : 'false'} | SharedArrayBuffer disponible: ${hasSAB ? 'sí' : 'no'}`,
+      'background: #3b82f6; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
+      `color: ${isIsolated && hasSAB ? '#10b981' : '#ef4444'}; font-weight: bold; padding-left: 6px;`
+    );
+    console.info(`[WebContainer Diagnostic] crossOriginIsolated: ${isIsolated} | SharedArrayBuffer disponible: ${hasSAB ? 'sí' : 'no'}`);
+
     if (!this.isSupported()) {
-      throw new Error(
-        'WebContainers no está soportado en este contexto. Se requieren los headers Cross-Origin-Opener-Policy: same-origin y Cross-Origin-Embedder-Policy: require-corp.'
-      );
+      const reason = !isIsolated
+        ? 'window.crossOriginIsolated es false (faltan los headers COOP/COEP o un recurso externo bloqueó el aislamiento).'
+        : 'SharedArrayBuffer no está disponible en este navegador.';
+      throw new Error(`WebContainers no está soportado en este contexto: ${reason}`);
     }
 
     this.isBooting = true;
     this.webcontainerPromise = (async () => {
       try {
-        // Carga dinámica del SDK de WebContainers
-        let WebContainerModule: any;
-        try {
-          // Intentar import nativo si está disponible
-          const nativePkg = '@webcontainer/api';
-          WebContainerModule = await import(/* @vite-ignore */ nativePkg);
-        } catch {
-          // Fallback a CDN ESM de WebContainers
-          const cdnPkg = 'https://esm.sh/@webcontainer/api@1.5.1';
-          WebContainerModule = await import(/* @vite-ignore */ cdnPkg);
-        }
-
-        const WebContainer = WebContainerModule.WebContainer || WebContainerModule.default?.WebContainer;
-        if (!WebContainer) {
-          throw new Error('No se pudo encontrar la clase WebContainer en el módulo cargado.');
-        }
-
         this.webcontainer = await WebContainer.boot();
         this.isBooting = false;
+        console.log('%c[NONA WebContainer]%c Instancia boot exitosa y lista.', 'background: #10b981; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px;', 'color: #10b981;');
         return this.webcontainer;
       } catch (err: any) {
         this.isBooting = false;
         this.webcontainerPromise = null;
-        throw new Error(`Fallo al inicializar WebContainer: ${err.message}`);
+        console.error('[WebContainer Boot Error]:', err);
+        throw new Error(`Fallo al inicializar WebContainer: ${err.message || String(err)}`);
       }
     })();
 
