@@ -124,7 +124,7 @@ class ProjectStore {
         {
           id: 'welcome',
           role: 'assistant',
-          content: '¡Hola! Soy **NONA AI**. Pídeme crear cualquier aplicación, juego 3D interactivo, componente o diseño en tiempo real.',
+          content: '¡Hola! Soy **NONA AI**. Pídeme crear cualquier aplicación, interfaz interactiva, componente o diseño en tiempo real.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         }
       ],

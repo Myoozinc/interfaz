@@ -102,7 +102,7 @@ export class VirtualMultiFileBundler {
       }
     }
 
-    // 2. Construir Import Map con paquetes CDN externos estándar (React 18, Lucide, Supabase, etc.)
+    // 2. Construir Import Map con paquetes CDN externos estándar (React 18, Lucide, Supabase, Three, Cannon, Tone, Chart.js, etc.)
     const importMap: Record<string, string> = {
       "react": "https://esm.sh/react@18.3.1?dev",
       "react-dom": "https://esm.sh/react-dom@18.3.1?dev",
@@ -113,7 +113,13 @@ export class VirtualMultiFileBundler {
       "tailwind-merge": "https://esm.sh/tailwind-merge@2.5.5",
       "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
       "canvas-confetti": "https://esm.sh/canvas-confetti@1.9.4",
-      "three": "https://esm.sh/three@0.170.0"
+      "three": "https://esm.sh/three@0.170.0",
+      "three/addons/": "https://esm.sh/three@0.170.0/examples/jsm/",
+      "three/examples/jsm/": "https://esm.sh/three@0.170.0/examples/jsm/",
+      "cannon-es": "https://esm.sh/cannon-es@0.20.0",
+      "tone": "https://esm.sh/tone@14.8.49",
+      "chart.js": "https://esm.sh/chart.js@4.4.7",
+      "chart.js/auto": "https://esm.sh/chart.js@4.4.7/auto"
     };
 
     // 3. Crear Data URIs para todos los módulos JS/TSX/TS del proyecto

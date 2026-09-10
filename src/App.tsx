@@ -251,7 +251,7 @@ export function App() {
       {
         id: 'welcome_' + Date.now(),
         role: 'assistant',
-        content: '¡Lienzo limpio preparado! Pídeme cualquier app, SaaS o juego 3D.',
+        content: '¡Lienzo limpio preparado! Pídeme cualquier aplicación, herramienta o componente interactivo.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }
     ];
