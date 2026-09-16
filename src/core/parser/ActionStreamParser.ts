@@ -195,18 +195,32 @@ export class ActionStreamParser {
 
     // 3. Fallback: Check if cleaned text contains an entire HTML document without markdown fences
     if (Object.keys(files).length === 0) {
+      let rawHtml = '';
       const doctypeIdx = cleaned.indexOf('<!DOCTYPE html>');
       if (doctypeIdx !== -1) {
         const htmlEndIdx = cleaned.lastIndexOf('</html>');
         if (htmlEndIdx !== -1) {
-          files['index.html'] = cleaned.slice(doctypeIdx, htmlEndIdx + 7).trim();
+          rawHtml = cleaned.slice(doctypeIdx, htmlEndIdx + 7).trim();
         } else {
-          files['index.html'] = cleaned.slice(doctypeIdx).trim();
+          rawHtml = cleaned.slice(doctypeIdx).trim();
         }
       } else if (cleaned.includes('<html') && cleaned.includes('</body>')) {
         const startIdx = cleaned.indexOf('<html');
         const endIdx = cleaned.lastIndexOf('</html>');
-        files['index.html'] = cleaned.slice(startIdx, endIdx !== -1 ? endIdx + 7 : undefined).trim();
+        rawHtml = cleaned.slice(startIdx, endIdx !== -1 ? endIdx + 7 : undefined).trim();
+      }
+
+      if (rawHtml) {
+        // Des-escapar si fue extraído de un fragmento de string JSON con caracteres de escape literales (\n, \", etc.)
+        if (rawHtml.includes('\\n') || rawHtml.includes('\\"') || rawHtml.includes('\\\\')) {
+          rawHtml = rawHtml
+            .replace(/\\r\\n/g, '\n')
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
+            .replace(/\\t/g, '\t');
+        }
+        files['index.html'] = rawHtml;
       }
     }
 
@@ -217,6 +231,23 @@ export class ActionStreamParser {
       .replace(/```[\s\S]*?(?:```|$)/g, '')
       .replace(/<\/think>/gi, '')
       .trim();
+
+    // Saneamiento de texto conversacional: NUNCA mostrar volcados de JSON crudo o truncado en el chat
+    if (conversationalText.startsWith('{') || conversationalText.includes('"files"') || conversationalText.includes('"changes"')) {
+      const explMatch = conversationalText.match(/"explanation"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+      if (explMatch && explMatch[1]) {
+        conversationalText = explMatch[1]
+          .replace(/\\r\\n/g, '\n')
+          .replace(/\\n/g, '\n')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+      } else {
+        const count = Object.keys(files).length;
+        conversationalText = count > 0
+          ? `He generado la aplicación con ${count} archivo(s) modulares listos para interactuar en la Vista Previa.`
+          : 'Aplicación procesada con éxito.';
+      }
+    }
 
     return {
       title,

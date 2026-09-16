@@ -291,8 +291,8 @@ INSTRUCCIÓN DEL USUARIO:
 El intento anterior no cumplió con el contrato estructurado: ${lastFailureReason}.
 Por favor devuelve EXCLUSIVAMENTE el objeto JSON válido con la clave "files" (array de { "path": string, "content": string }) y "explanation" (string). Asegúrate de incluir código 100% interactivo y funcional, sin omitir ningún archivo.`;
       } else if (isNewBuildRequest) {
-        attemptUserPrompt += `\n\nFASE 1 (Scaffold y Raíz):
-Genera la arquitectura base de la aplicación (al menos "index.html" y "src/App.tsx"). Diseña "src/App.tsx" completo con layout, navegación y componentes modulares importados desde "./components/NombreComponente".`;
+        attemptUserPrompt += `\n\nFASE 1 (Scaffold y Componente Raíz):
+Genera obligatoriamente la base funcional de la aplicación. En el array "files", incluye obligatoriamente "index.html" y "src/App.tsx" con layout, interactividad completa y estilos Tailwind como los primeros archivos. Si modularizas partes complejas, impórtalas desde "./components/NombreComponente".`;
       } else {
         attemptUserPrompt += `\n\nGenera la aplicación completa ahora respondiendo estrictamente en el formato JSON especificado:`;
       }
@@ -309,7 +309,7 @@ Genera la arquitectura base de la aplicación (al menos "index.html" y "src/App.
         {
           signal: options?.signal,
           model: routingDecision.model,
-          maxTokens: isNewBuildRequest ? 4000 : routingDecision.maxTokens,
+          maxTokens: routingDecision.maxTokens,
           temperature: routingDecision.temperature
         }
       );
@@ -378,7 +378,7 @@ Responde ÚNICAMENTE en formato JSON con la clave "files" (array de { "path": st
               {
                 signal: options?.signal,
                 model: routingDecision.model,
-                maxTokens: 4000,
+                maxTokens: 8000,
                 temperature: routingDecision.temperature
               }
             );
@@ -436,7 +436,7 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
               {
                 signal: options?.signal,
                 model: routingDecision.model,
-                maxTokens: 3000,
+                maxTokens: 4000,
                 temperature: routingDecision.temperature
               }
             );

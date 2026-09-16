@@ -179,7 +179,7 @@ export class OptimalModelRouter {
         server: isGroqExclusive ? 'groq' : 'openrouter',
         model: resolvedModel,
         rationale: `🎯 Enrutado al modelo específico seleccionado: ${resolvedModel}.`,
-        maxTokens: isGroqExclusive ? 4000 : 8192,
+        maxTokens: isGroqExclusive ? 12000 : 8192,
         temperature: 0.15,
         routeCategory: 'complex_build',
         complexityScore: 5
@@ -240,8 +240,8 @@ export class OptimalModelRouter {
       return {
         server: 'groq',
         model: 'llama-3.3-70b-versatile',
-        rationale: `⚡ Enrutado a Groq LPU (Llama 3.3 70B Versatile, 4,000 tokens) para edición multi-archivo en proyecto existente (~${estimatedAffectedFiles} archivos afectados). Generación multi-fase manejada por el orquestador.`,
-        maxTokens: 4000,
+        rationale: `⚡ Enrutado a Groq LPU (Llama 3.3 70B Versatile, 12,000 tokens) para edición multi-archivo en proyecto existente (~${estimatedAffectedFiles} archivos afectados). Generación multi-fase manejada por el orquestador.`,
+        maxTokens: 12000,
         temperature: 0.15,
         routeCategory: 'complex_build',
         complexityScore: 4,
@@ -259,8 +259,8 @@ export class OptimalModelRouter {
     return {
       server: 'groq',
       model: 'llama-3.3-70b-versatile',
-      rationale: `🚀 Enrutado a Groq LPU (Llama 3.3 70B Versatile) para generación inicial multi-archivo React + Vite. Fase 1: scaffold, Fase 2: componentes, Fase 3: soporte (~${estimatedAffectedFiles} archivos previstos).`,
-      maxTokens: 4000,
+      rationale: `🚀 Enrutado a Groq LPU (Llama 3.3 70B Versatile, 12,000 tokens) para generación inicial multi-archivo React + Vite. Fase 1: scaffold, Fase 2: componentes, Fase 3: soporte (~${estimatedAffectedFiles} archivos previstos).`,
+      maxTokens: 12000,
       temperature: 0.15,
       routeCategory: 'complex_build',
       complexityScore: 5,

@@ -140,35 +140,80 @@ export class ProjectJSONParser {
   }
 
   /**
+   * Intenta recuperar un objeto de contrato (Full Build o Incremental) a partir de un JSON truncado por límite de tokens.
+   * Busca hacia atrás las llaves de cierre '}' de los objetos dentro del array ("files" o "changes")
+   * y cierra la estructura sintácticamente para rescatar todos los archivos que ya se completaron.
+   */
+  public static recoverTruncatedJSON(text: string): any | null {
+    const cleaned = this.sanitizeInput(text);
+    const firstBrace = cleaned.indexOf('{');
+    if (firstBrace === -1) return null;
+
+    const base = cleaned.slice(firstBrace);
+    const isFullBuild = base.includes('"files"');
+    const isIncremental = !isFullBuild && base.includes('"changes"');
+    if (!isFullBuild && !isIncremental) return null;
+
+    // Buscar todas las posiciones de '}' desde el final hacia el principio
+    let pos = base.length;
+    while (pos > 0) {
+      pos = base.lastIndexOf('}', pos - 1);
+      if (pos === -1) break;
+
+      const sub = base.slice(0, pos + 1);
+
+      // Intentar cerrar el array de archivos y el objeto principal
+      const candidates = [
+        sub + '\n  ]\n}',
+        sub + '\n}',
+        sub + ']}\n}'
+      ];
+
+      for (const candidate of candidates) {
+        try {
+          const parsed = JSON.parse(candidate);
+          if (parsed && typeof parsed === 'object') {
+            if (Array.isArray(parsed.files) && parsed.files.length > 0) {
+              if (parsed.files[0] && typeof parsed.files[0].path === 'string' && typeof parsed.files[0].content === 'string') {
+                return parsed;
+              }
+            }
+            if (Array.isArray(parsed.changes) && parsed.changes.length > 0) {
+              if (parsed.changes[0] && typeof parsed.changes[0].path === 'string') {
+                return parsed;
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Parsea y valida una respuesta del modelo contra el contrato (Full Build o Incremental)
    */
   public static parse(raw: string): ParseContractResult {
     const rawText = raw || '';
     const jsonCandidate = this.extractJSONString(rawText);
 
-    if (!jsonCandidate) {
-      return {
-        success: false,
-        error: 'No se encontró ningún objeto JSON válido en la respuesta del modelo.',
-        rawText
-      };
+    let parsedObj: any = null;
+    if (jsonCandidate) {
+      try {
+        parsedObj = this.safeParseJSON(jsonCandidate);
+      } catch {}
     }
 
-    let parsedObj: any;
-    try {
-      parsedObj = this.safeParseJSON(jsonCandidate);
-    } catch (parseError: any) {
-      return {
-        success: false,
-        error: `Error de sintaxis al parsear JSON: ${parseError.message}`,
-        rawText
-      };
+    // Si falló el parseo estándar (por ejemplo por truncado de tokens), intentar recuperación progresiva
+    if (!parsedObj || typeof parsedObj !== 'object') {
+      parsedObj = this.recoverTruncatedJSON(rawText);
     }
 
     if (!parsedObj || typeof parsedObj !== 'object' || Array.isArray(parsedObj)) {
       return {
         success: false,
-        error: 'El JSON debe ser un objeto con formato { "files": [...] } o { "changes": [...] }.',
+        error: 'No se encontró ningún objeto JSON válido ni se pudieron recuperar archivos de la respuesta.',
         rawText
       };
     }
