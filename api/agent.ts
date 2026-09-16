@@ -13,25 +13,56 @@ const VERIFIED_FREE_OR_MODELS = [
   'nvidia/nemotron-3.5-lightning:free'
 ];
 
-export default async function handler(req: Request) {
+export default async function handler(req: any, res?: any) {
+  // Support both Node.js Serverless (@vercel/node with res) and Edge/Web Standard (req: Request -> Response)
+  const isNode = Boolean(res && typeof res.status === 'function');
+
   if (req.method !== 'POST') {
+    if (isNode) {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
   }
 
+  const sendResponse = (status: number, data: any) => {
+    if (isNode) {
+      return res.status(status).json(data);
+    }
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
   try {
-    const authHeader = req.headers.get('Authorization');
+    let body: any = {};
+    if (isNode) {
+      body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    } else {
+      try {
+        body = await req.json();
+      } catch {
+        body = {};
+      }
+    }
+
+    const authHeader = isNode 
+      ? (req.headers?.['authorization'] || req.headers?.['Authorization'] || '')
+      : (req.headers?.get ? (req.headers.get('Authorization') || '') : '');
+
     const {
       model,
-      messages,
+      messages = [],
       apiKey,
       openrouterKey,
       groqKey,
       maxTokensRequested,
       temperature
-    } = await req.json();
+    } = body;
 
-    const hasImages = messages.some((m: any) => m.images && m.images.length > 0);
-    const clientBearer = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
+    const safeMessages = Array.isArray(messages) ? messages : [];
+    const hasImages = safeMessages.some((m: any) => m.images && m.images.length > 0);
+    const clientBearer = authHeader ? String(authHeader).replace('Bearer ', '').trim() : '';
 
     const customGroq = (groqKey && groqKey.startsWith('gsk_')) ? groqKey :
                        (apiKey && apiKey.startsWith('gsk_')) ? apiKey :
@@ -75,15 +106,14 @@ export default async function handler(req: Request) {
     const targetTokens = maxTokensRequested || 3000;
     const temp = typeof temperature === 'number' ? temperature : 0.15;
 
-    // Presupuesto de tokens optimizado para Groq LPU (respetando el límite de 6,000 TPM del tier gratuito)
-    // Con la generación multi-fase, cada llamada genera 1,500 - 2,500 tokens.
+    // Presupuesto de tokens optimizado para Groq LPU (techo 16,000 / default 8,000)
     const safeGroqMaxTokens = maxTokensRequested
       ? Math.min(Math.max(maxTokensRequested, 200), 16000)
       : 8000;
 
     const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s timeout para runtime Node.js (maxDuration: 60)
+      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout para conexión inicial con Groq LPU
       try {
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -95,7 +125,7 @@ export default async function handler(req: Request) {
           },
           body: JSON.stringify({
             model: targetModel,
-            messages: formatMessages(messages),
+            messages: formatMessages(safeMessages),
             stream: true,
             temperature: temp,
             max_tokens: tokens,
@@ -112,7 +142,7 @@ export default async function handler(req: Request) {
 
     const executeOpenRouter = async (keyToUse: string, orModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout ágil para conmutar a Groq sin agotar la ventana de Vercel
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout ágil para fallback
       try {
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
@@ -124,7 +154,7 @@ export default async function handler(req: Request) {
           },
           body: JSON.stringify({
             model: orModel,
-            messages: formatMessages(messages),
+            messages: formatMessages(safeMessages),
             stream: true,
             temperature: temp,
             max_tokens: tokens,
@@ -147,7 +177,10 @@ export default async function handler(req: Request) {
       if (orKeyToUse) {
         aiResponse = await executeOpenRouter(orKeyToUse, 'google/gemini-2.5-flash', 2000);
       } else if (groqKeysToTry.length > 0) {
-        aiResponse = await executeGroq(groqKeysToTry[0], 'openai/gpt-oss-120b', 2000);
+        aiResponse = await executeGroq(groqKeysToTry[0], 'llama-3.2-11b-vision-preview', 2000);
+        if (!aiResponse.ok) {
+          aiResponse = await executeGroq(groqKeysToTry[0], 'openai/gpt-oss-120b', 2000);
+        }
       } else {
         throw new Error('Para procesar imágenes se requiere OPENROUTER_API_KEY o GROQ_API_KEY configurada.');
       }
@@ -155,23 +188,29 @@ export default async function handler(req: Request) {
       let resolvedModel = model;
       if (
         !resolvedModel ||
-        resolvedModel.includes('llama') ||
-        resolvedModel.includes('qwen3.8') ||
-        resolvedModel === 'llama-3.3-70b-versatile' ||
-        resolvedModel === 'llama-3.1-8b-instant' ||
-        resolvedModel === 'llama3-70b-8192' ||
-        resolvedModel === 'llama3-8b-8192' ||
-        resolvedModel === 'llama-3.2-3b-preview' ||
-        resolvedModel === 'llama-3.2-11b-vision-preview'
+        resolvedModel === 'qwen/qwen3.8-27b' ||
+        resolvedModel === 'qwen3.8-27b' ||
+        resolvedModel === 'qwen3.8' ||
+        resolvedModel === 'qwen/qwen3.6-27b'
       ) {
-        // Redirigir modelos deprecados o default a Groq LPU OpenAI GPT-OSS 120B
-        resolvedModel = 'openai/gpt-oss-120b';
+        resolvedModel = 'qwen/qwen3.8-27b';
+      } else if (
+        resolvedModel === 'llama-3.3-70b-versatile' ||
+        resolvedModel === 'llama3-70b-8192' ||
+        resolvedModel.includes('llama')
+      ) {
+        resolvedModel = 'llama-3.3-70b-versatile';
+      } else if (
+        resolvedModel === 'llama-3.1-8b-instant' ||
+        resolvedModel === 'llama3-8b-8192'
+      ) {
+        resolvedModel = 'llama-3.1-8b-instant';
       }
 
       const isExplicitGroq = resolvedModel && (
-        resolvedModel.includes('gpt-oss') ||
-        resolvedModel.includes('qwen3.6') ||
+        resolvedModel.includes('qwen') ||
         resolvedModel.includes('llama') ||
+        resolvedModel.includes('gpt-oss') ||
         resolvedModel.includes('mixtral') ||
         resolvedModel.includes('gemma') ||
         resolvedModel.startsWith('groq/')
@@ -186,21 +225,26 @@ export default async function handler(req: Request) {
         !isExplicitGroq
       );
 
-      const standardGroqModels = [
+      // Lista priorizada de modelos activos en Groq
+      const standardGroqModels = Array.from(new Set([
+        resolvedModel,
+        'qwen/qwen3.8-27b',
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant',
         'openai/gpt-oss-120b',
         'openai/gpt-oss-20b',
-        'qwen/qwen3.6-27b',
         'groq/compound'
-      ];
+      ])).filter(Boolean);
 
       if (isOpenRouterPreferred && orKeyToUse) {
-        // TIER 1 (OpenRouter): 1 intento con 4s timeout ágil
+        // TIER 1 (OpenRouter): 1 intento con timeout ágil
         const targetModels = Array.from(new Set([
           resolvedModel,
           'deepseek/deepseek-chat',
           'qwen/qwen-2.5-coder-32b-instruct',
           ...VERIFIED_FREE_OR_MODELS
-        ]));
+        ])).slice(0, 3);
+
         for (const orModel of targetModels) {
           try {
             const openRouterTokens = Math.max(6000, Math.min(targetTokens, 12000));
@@ -238,7 +282,7 @@ export default async function handler(req: Request) {
           }
         }
       } else {
-        // TIER 1 (Fast Low-Latency / Groq LPU preferred): GPT-OSS 120B / Qwen 3.6
+        // TIER 1 (Fast Low-Latency / Groq LPU preferred): Qwen 3.8 / Llama 3.3 / GPT-OSS
         if (groqKeysToTry.length > 0) {
           for (const key of groqKeysToTry) {
             for (const targetM of standardGroqModels) {
@@ -259,15 +303,14 @@ export default async function handler(req: Request) {
           }
         }
 
-        // TIER 2: Fallback to OpenRouter
+        // TIER 2: Fallback to OpenRouter (máximo 3 modelos para evitar agotar el timeout)
         if ((!aiResponse || !aiResponse.ok) && orKeyToUse) {
           const targetModels = [
             resolvedModel || 'deepseek/deepseek-chat',
             'deepseek/deepseek-chat',
-            'qwen/qwen-2.5-coder-32b-instruct',
-            'meta-llama/llama-3.3-70b-instruct',
             ...VERIFIED_FREE_OR_MODELS
-          ];
+          ].slice(0, 3);
+
           for (const orModel of targetModels) {
             try {
               const openRouterTokens = Math.max(6000, Math.min(targetTokens, 12000));
@@ -289,9 +332,9 @@ export default async function handler(req: Request) {
 
     if (!aiResponse || !aiResponse.ok) {
       if (groqKeysToTry.length === 0 && !orKeyToUse) {
-        return new Response(JSON.stringify({
+        return sendResponse(401, {
           error: 'No se detectó ninguna clave de API. Configura GROQ_API_KEY o OPENROUTER_API_KEY en las variables de entorno de Vercel (.env) o ingresa tu API Key en los Ajustes de NONA.'
-        }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+        });
       }
       throw new Error(`Servicio de IA no disponible temporalmente. Detalle: ${lastError}`);
     }
@@ -304,8 +347,92 @@ export default async function handler(req: Request) {
 
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
-    let tokensEmitted = 0;
 
+    // IF NODE.JS SERVERLESS RUNTIME (@vercel/node with res)
+    if (isNode) {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      });
+
+      let buffer = '';
+      let tokensEmitted = 0;
+
+      const emitContentNode = (text: string) => {
+        if (!text) return;
+        tokensEmitted++;
+        const payload = JSON.stringify({ message: { content: text } }) + '\n';
+        res.write(payload);
+      };
+
+      const processChunkLineNode = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith(':')) return;
+        if (trimmed === 'data: [DONE]') return;
+
+        if (trimmed.startsWith('data: ')) {
+          try {
+            const parsed = JSON.parse(trimmed.slice(6));
+            if (parsed.error) {
+              const errMsg = parsed.error.message || JSON.stringify(parsed.error);
+              emitContentNode(`\n[Error de proveedor: ${errMsg}]\n`);
+              return;
+            }
+            const delta = parsed.choices?.[0]?.delta;
+            const content = delta?.content || delta?.reasoning_content || delta?.reasoning || parsed.choices?.[0]?.text || '';
+            if (content) {
+              emitContentNode(content);
+            }
+          } catch {}
+          return;
+        }
+
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed.error) {
+              const errMsg = parsed.error.message || JSON.stringify(parsed.error);
+              emitContentNode(`\n[Error de proveedor: ${errMsg}]\n`);
+              return;
+            }
+            const content = parsed.choices?.[0]?.message?.content || 
+                            parsed.choices?.[0]?.delta?.content || 
+                            parsed.choices?.[0]?.text || '';
+            if (content) {
+              emitContentNode(content);
+            }
+          } catch {}
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          processChunkLineNode(line);
+        }
+      }
+
+      if (buffer.trim()) {
+        processChunkLineNode(buffer.trim());
+      }
+
+      if (tokensEmitted === 0) {
+        emitContentNode('\n[Aviso: El modelo no emitió tokens en este intento. Reintentando automáticamente...]\n');
+      }
+
+      res.end();
+      return;
+    }
+
+    // IF EDGE / WEB STANDARDS RUNTIME (req: Request -> Response)
+    let tokensEmitted = 0;
     const stream = new ReadableStream({
       async start(controller) {
         let buffer = '';
@@ -320,9 +447,7 @@ export default async function handler(req: Request) {
         const processChunkLine = (line: string) => {
           const trimmed = line.trim();
           if (!trimmed || trimmed.startsWith(':')) return;
-          if (trimmed === 'data: [DONE]') {
-            return;
-          }
+          if (trimmed === 'data: [DONE]') return;
 
           if (trimmed.startsWith('data: ')) {
             try {
@@ -341,7 +466,6 @@ export default async function handler(req: Request) {
             return;
           }
 
-          // Handle raw JSON response (non-SSE fallback)
           if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
             try {
               const parsed = JSON.parse(trimmed);
@@ -394,6 +518,14 @@ export default async function handler(req: Request) {
     });
 
   } catch (err: any) {
+    if (isNode) {
+      if (!res.headersSent) {
+        return res.status(500).json({ error: err.message });
+      } else {
+        res.write(JSON.stringify({ error: err.message }) + '\n');
+        return res.end();
+      }
+    }
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 }
