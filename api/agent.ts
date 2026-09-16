@@ -1,13 +1,16 @@
 export const config = {
-  runtime: 'edge',
+  runtime: 'nodejs',
+  maxDuration: 60,
 };
 
 // Verified active 100% FREE models on OpenRouter (when an OpenRouter key is configured)
 const VERIFIED_FREE_OR_MODELS = [
-  'nvidia/nemotron-3.5-lightning:free',
-  'inclusionai/ling-3.0-flash-fin:free',
-  'dots-studio/dots-3-note-preview:free',
-  'liquid/lfm-2.5-2.6b:free'
+  'poolside/laguna-s-2.1:free',
+  'cohere/north-mini-code:free',
+  'nex-agi/nex-n2.5-pro:free',
+  'google/gemma-4-31b-it:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3.5-lightning:free'
 ];
 
 export default async function handler(req: Request) {
@@ -74,13 +77,13 @@ export default async function handler(req: Request) {
 
     // Presupuesto de tokens optimizado para Groq LPU (respetando el límite de 6,000 TPM del tier gratuito)
     // Con la generación multi-fase, cada llamada genera 1,500 - 2,500 tokens.
-    const safeGroqMaxTokens = maxTokensRequested 
-      ? Math.min(Math.max(maxTokensRequested, 200), 4000) 
-      : 3500;
+    const safeGroqMaxTokens = maxTokensRequested
+      ? Math.min(Math.max(maxTokensRequested, 200), 16000)
+      : 8000;
 
     const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout para Groq LPU (~450 t/s)
+      const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s timeout para runtime Node.js (maxDuration: 60)
       try {
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -144,7 +147,7 @@ export default async function handler(req: Request) {
       if (orKeyToUse) {
         aiResponse = await executeOpenRouter(orKeyToUse, 'google/gemini-2.5-flash', 2000);
       } else if (groqKeysToTry.length > 0) {
-        aiResponse = await executeGroq(groqKeysToTry[0], 'llama-3.2-11b-vision-preview', 2000);
+        aiResponse = await executeGroq(groqKeysToTry[0], 'openai/gpt-oss-120b', 2000);
       } else {
         throw new Error('Para procesar imágenes se requiere OPENROUTER_API_KEY o GROQ_API_KEY configurada.');
       }
@@ -152,15 +155,22 @@ export default async function handler(req: Request) {
       let resolvedModel = model;
       if (
         !resolvedModel ||
-        resolvedModel === 'qwen/qwen3.8-27b' ||
-        resolvedModel === 'qwen3.8-27b' ||
-        resolvedModel === 'qwen3.8'
+        resolvedModel.includes('llama') ||
+        resolvedModel.includes('qwen3.8') ||
+        resolvedModel === 'llama-3.3-70b-versatile' ||
+        resolvedModel === 'llama-3.1-8b-instant' ||
+        resolvedModel === 'llama3-70b-8192' ||
+        resolvedModel === 'llama3-8b-8192' ||
+        resolvedModel === 'llama-3.2-3b-preview' ||
+        resolvedModel === 'llama-3.2-11b-vision-preview'
       ) {
-        // Enrutamiento nativo a Groq LPU Llama 3.3 70B (~450 t/s) para latencia instantánea
-        resolvedModel = 'llama-3.3-70b-versatile';
+        // Redirigir modelos deprecados o default a Groq LPU OpenAI GPT-OSS 120B
+        resolvedModel = 'openai/gpt-oss-120b';
       }
 
       const isExplicitGroq = resolvedModel && (
+        resolvedModel.includes('gpt-oss') ||
+        resolvedModel.includes('qwen3.6') ||
         resolvedModel.includes('llama') ||
         resolvedModel.includes('mixtral') ||
         resolvedModel.includes('gemma') ||
@@ -177,10 +187,10 @@ export default async function handler(req: Request) {
       );
 
       const standardGroqModels = [
-        'llama-3.3-70b-versatile',
-        'llama3-70b-8192',
-        'llama3-8b-8192',
-        'llama-3.2-3b-preview'
+        'openai/gpt-oss-120b',
+        'openai/gpt-oss-20b',
+        'qwen/qwen3.6-27b',
+        'groq/compound'
       ];
 
       if (isOpenRouterPreferred && orKeyToUse) {
@@ -228,7 +238,7 @@ export default async function handler(req: Request) {
           }
         }
       } else {
-        // TIER 1 (Fast Low-Latency / Groq LPU preferred): Llama 3.3 70B (~450 tokens/s)
+        // TIER 1 (Fast Low-Latency / Groq LPU preferred): GPT-OSS 120B / Qwen 3.6
         if (groqKeysToTry.length > 0) {
           for (const key of groqKeysToTry) {
             for (const targetM of standardGroqModels) {
