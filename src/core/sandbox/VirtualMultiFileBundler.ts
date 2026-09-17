@@ -92,6 +92,151 @@ export class VirtualMultiFileBundler {
   }
 
   /**
+   * Normaliza una ruta eliminando prefijos './', '/', y resolviendo '.' y '..'.
+   */
+  public static normalizePath(path: string): string {
+    if (!path) return '';
+    const clean = path.replace(/^[./]+/, '');
+    const parts = clean.split('/');
+    const resolved: string[] = [];
+    for (const part of parts) {
+      if (part === '.' || part === '') continue;
+      if (part === '..') {
+        if (resolved.length > 0) resolved.pop();
+      } else {
+        resolved.push(part);
+      }
+    }
+    return resolved.join('/');
+  }
+
+  /**
+   * Busca si una ruta existe en la lista de archivos disponibles,
+   * probando extensiones comunes (.tsx, .ts, .jsx, .js) o /index.*.
+   */
+  public static findExactOrExtMatch(pathCandidate: string, availableFiles: string[]): string {
+    if (availableFiles.includes(pathCandidate)) return pathCandidate;
+
+    const exts = ['.tsx', '.ts', '.jsx', '.js', '.json'];
+    for (const ext of exts) {
+      if (availableFiles.includes(pathCandidate + ext)) {
+        return pathCandidate + ext;
+      }
+    }
+
+    for (const ext of exts) {
+      if (availableFiles.includes(`${pathCandidate}/index${ext}`)) {
+        return `${pathCandidate}/index${ext}`;
+      }
+    }
+
+    if (!pathCandidate.startsWith('src/')) {
+      const withSrc = `src/${pathCandidate}`;
+      if (availableFiles.includes(withSrc)) return withSrc;
+      for (const ext of exts) {
+        if (availableFiles.includes(withSrc + ext)) return withSrc + ext;
+      }
+    }
+
+    if (pathCandidate.startsWith('src/')) {
+      const withoutSrc = pathCandidate.slice(4);
+      if (availableFiles.includes(withoutSrc)) return withoutSrc;
+      for (const ext of exts) {
+        if (availableFiles.includes(withoutSrc + ext)) return withoutSrc + ext;
+      }
+    }
+
+    return pathCandidate;
+  }
+
+  /**
+   * Resuelve la ruta relativa de un import respecto al archivo que lo importa.
+   * Maneja './', '../', y el alias '@/' (típico de Vite/Lovable apuntando a src/).
+   */
+  public static resolveImportPath(importerPath: string, specifier: string, availableFiles: string[]): string {
+    if (specifier.startsWith('@/')) {
+      const target = specifier.slice(2);
+      const hasSrcDir = availableFiles.some(f => f.startsWith('src/'));
+      const candidate = hasSrcDir ? `src/${target}` : target;
+      return this.findExactOrExtMatch(candidate, availableFiles);
+    }
+
+    if (specifier.startsWith('./') || specifier.startsWith('../')) {
+      const importerDir = importerPath.includes('/')
+        ? importerPath.slice(0, importerPath.lastIndexOf('/'))
+        : '';
+      const combined = importerDir ? `${importerDir}/${specifier}` : specifier;
+      const normalized = this.normalizePath(combined);
+      return this.findExactOrExtMatch(normalized, availableFiles);
+    }
+
+    const match = this.findExactOrExtMatch(this.normalizePath(specifier), availableFiles);
+    if (match) return match;
+
+    return specifier;
+  }
+
+  /**
+   * Reescribe los imports relativos y con alias de un módulo a especificadores "bare" canónicos
+   * (ej: 'app/src/components/Toolbar') para permitir que módulos cargados vía Data URI
+   * puedan importar otros módulos sin violar la no-jerarquía de 'data:'.
+   * También neutraliza imports directos de CSS ya inyectados en <style>.
+   */
+  public static rewriteImports(code: string, currentFilePath: string, availableFiles: string[]): string {
+    let result = code;
+
+    // 1. Neutralizar imports de CSS (ya inyectados globalmente en <style>)
+    result = result.replace(/import\s+['"][^'"]+\.css['"];?/g, '/* [inlined-css] */');
+    result = result.replace(/import\s+([A-Za-z0-9_]+)\s+from\s+['"][^'"]+\.css['"];?/g, 'const $1 = {}; /* [inlined-css] */');
+
+    // 2. Reescribir imports/exports estáticos:
+    // import ... from './...' | export ... from './...'
+    result = result.replace(
+      /\b(import|export)\s+([^;]+?)\bfrom\s+(['"])([^'"]+)\3/g,
+      (match, action, clause, quote, specifier) => {
+        if (!specifier.startsWith('.') && !specifier.startsWith('@/') && !availableFiles.includes(specifier)) {
+          return match;
+        }
+
+        const resolved = this.resolveImportPath(currentFilePath, specifier, availableFiles);
+        const canonicalBare = `app/${resolved.replace(/\.(tsx|ts|jsx|js)$/, '')}`;
+        return `${action} ${clause}from ${quote}${canonicalBare}${quote}`;
+      }
+    );
+
+    // 3. Reescribir side-effect imports no CSS (ej: import './polyfills';)
+    result = result.replace(
+      /\bimport\s+(['"])([^'"]+)\1\s*;?/g,
+      (match, quote, specifier) => {
+        if (!specifier.startsWith('.') && !specifier.startsWith('@/')) {
+          return match;
+        }
+        if (specifier.endsWith('.css')) {
+          return '/* [inlined-css] */';
+        }
+        const resolved = this.resolveImportPath(currentFilePath, specifier, availableFiles);
+        const canonicalBare = `app/${resolved.replace(/\.(tsx|ts|jsx|js)$/, '')}`;
+        return `import ${quote}${canonicalBare}${quote};`;
+      }
+    );
+
+    // 4. Reescribir dynamic imports: import('./...')
+    result = result.replace(
+      /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
+      (match, quote, specifier) => {
+        if (!specifier.startsWith('.') && !specifier.startsWith('@/')) {
+          return match;
+        }
+        const resolved = this.resolveImportPath(currentFilePath, specifier, availableFiles);
+        const canonicalBare = `app/${resolved.replace(/\.(tsx|ts|jsx|js)$/, '')}`;
+        return `import(${quote}${canonicalBare}${quote})`;
+      }
+    );
+
+    return result;
+  }
+
+  /**
    * Genera el documento HTML completo (srcDoc) con Import Maps para ejecutar
    * la aplicación React multi-archivo en un iframe seguro.
    */
@@ -125,9 +270,15 @@ export class VirtualMultiFileBundler {
       "tailwind-merge": "https://esm.sh/tailwind-merge@2.5.5",
       "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
       "canvas-confetti": "https://esm.sh/canvas-confetti@1.9.4",
+      "framer-motion": "https://esm.sh/framer-motion@11.11.17?external=react,react-dom",
       "three": "https://esm.sh/three@0.170.0",
       "three/addons/": "https://esm.sh/three@0.170.0/examples/jsm/",
       "three/examples/jsm/": "https://esm.sh/three@0.170.0/examples/jsm/",
+      "three/addons/controls/OrbitControls": "https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js",
+      "three/addons/controls/OrbitControls.js": "https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js",
+      "three/examples/jsm/controls/OrbitControls": "https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js",
+      "three/examples/jsm/controls/OrbitControls.js": "https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js",
+      "three-stdlib": "https://esm.sh/three-stdlib@2.30.0?external=three",
       "cannon-es": "https://esm.sh/cannon-es@0.20.0",
       "tone": "https://esm.sh/tone@14.8.49",
       "chart.js": "https://esm.sh/chart.js@4.4.7",
@@ -135,55 +286,71 @@ export class VirtualMultiFileBundler {
     };
 
     // 3. Crear Data URIs para todos los módulos JS/TSX/TS del proyecto
-    for (const [p, content] of Object.entries(normalizedFiles)) {
-      if (
-        p.endsWith('.tsx') ||
-        p.endsWith('.ts') ||
-        p.endsWith('.jsx') ||
-        p.endsWith('.js')
-      ) {
-        try {
-          // Transpilar sintaxis TS a JS
-          let processedCode = this.transpileTypeScript(content, p);
+    const moduleFileKeys = Object.keys(normalizedFiles).filter(p =>
+      p.endsWith('.tsx') || p.endsWith('.ts') || p.endsWith('.jsx') || p.endsWith('.js')
+    );
 
-          const encoded = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(processedCode);
+    for (const p of moduleFileKeys) {
+      const content = normalizedFiles[p];
+      try {
+        // Transpilar sintaxis TS a JS
+        let processedCode = this.transpileTypeScript(content, p);
 
-          // Registrar todas las variantes de ruta relativa en el import map
-          importMap[`./${p}`] = encoded;
-          importMap[`/${p}`] = encoded;
-          importMap[`${p}`] = encoded;
+        // Reescribir imports relativos a bare specifiers canónicos y neutralizar CSS inlined
+        processedCode = this.rewriteImports(processedCode, p, moduleFileKeys);
 
-          // Si termina en .tsx o .ts, registrar también la variante sin extensión
-          const withoutExt = p.replace(/\.(tsx|ts|jsx|js)$/, '');
-          importMap[`./${withoutExt}`] = encoded;
-          importMap[`/${withoutExt}`] = encoded;
-          importMap[`${withoutExt}`] = encoded;
+        const encoded = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(processedCode);
 
-          // Soporte para alias de arquitectura Lovable / Vite (@/ y subcarpetas)
-          if (p.startsWith('src/')) {
-            const relToSrc = p.slice('src/'.length);
-            const relToSrcNoExt = withoutExt.slice('src/'.length);
+        const withoutExt = p.replace(/\.(tsx|ts|jsx|js)$/, '');
+        const baseName = p.split('/').pop()!;
+        const baseNameWithoutExt = baseName.replace(/\.(tsx|ts|jsx|js)$/, '');
 
-            importMap[`@/${relToSrc}`] = encoded;
-            importMap[`@/${relToSrcNoExt}`] = encoded;
-            importMap[`./${relToSrc}`] = encoded;
-            importMap[`./${relToSrcNoExt}`] = encoded;
-            importMap[`../${relToSrc}`] = encoded;
-            importMap[`../${relToSrcNoExt}`] = encoded;
-            importMap[`${relToSrc}`] = encoded;
-            importMap[`${relToSrcNoExt}`] = encoded;
-          }
+        // Registrar bare specifiers canónicos bajo el espacio de nombres app/
+        // Esto permite que los módulos cargados vía Data URI puedan importar sin error de esquema
+        importMap[`app/${p}`] = encoded;
+        importMap[`app/${withoutExt}`] = encoded;
 
-          // Registrar también por nombre base
-          const baseName = p.split('/').pop()!;
-          const baseNameWithoutExt = baseName.replace(/\.(tsx|ts|jsx|js)$/, '');
-          importMap[`./${baseName}`] = encoded;
-          importMap[`./${baseNameWithoutExt}`] = encoded;
-
-          transpiledCount++;
-        } catch (e: any) {
-          errors.push(`Error empaquetando módulo ${p}: ${e.message}`);
+        if (p.startsWith('src/')) {
+          const relToSrc = p.slice('src/'.length);
+          const relToSrcNoExt = withoutExt.slice('src/'.length);
+          importMap[`app/${relToSrc}`] = encoded;
+          importMap[`app/${relToSrcNoExt}`] = encoded;
         }
+
+        importMap[`app/${baseName}`] = encoded;
+        importMap[`app/${baseNameWithoutExt}`] = encoded;
+
+        // Registrar variantes relativas y estándar para compatibilidad total
+        importMap[`./${p}`] = encoded;
+        importMap[`/${p}`] = encoded;
+        importMap[`${p}`] = encoded;
+
+        importMap[`./${withoutExt}`] = encoded;
+        importMap[`/${withoutExt}`] = encoded;
+        importMap[`${withoutExt}`] = encoded;
+
+        // Soporte para alias de arquitectura Lovable / Vite (@/ y subcarpetas)
+        if (p.startsWith('src/')) {
+          const relToSrc = p.slice('src/'.length);
+          const relToSrcNoExt = withoutExt.slice('src/'.length);
+
+          importMap[`@/${relToSrc}`] = encoded;
+          importMap[`@/${relToSrcNoExt}`] = encoded;
+          importMap[`./${relToSrc}`] = encoded;
+          importMap[`./${relToSrcNoExt}`] = encoded;
+          importMap[`../${relToSrc}`] = encoded;
+          importMap[`../${relToSrcNoExt}`] = encoded;
+          importMap[`${relToSrc}`] = encoded;
+          importMap[`${relToSrcNoExt}`] = encoded;
+        }
+
+        // Registrar también por nombre base
+        importMap[`./${baseName}`] = encoded;
+        importMap[`./${baseNameWithoutExt}`] = encoded;
+
+        transpiledCount++;
+      } catch (e: any) {
+        errors.push(`Error empaquetando módulo ${p}: ${e.message}`);
       }
     }
 
@@ -217,11 +384,34 @@ export class VirtualMultiFileBundler {
       }
     }
 
-    // 5. Generar script de montaje inmune a syntax errors de export default
+    // 5. Generar script de montaje inmune a syntax errors de export default y fallos de resolución de Data URIs
+    const entryBare = 'app/' + entryPoint.replace(/\.(tsx|ts|jsx|js)$/, '');
+    const appBare = (normalizedFiles['src/App.tsx'] || normalizedFiles['src/App.jsx'] || normalizedFiles['src/App.js'])
+      ? 'app/src/App'
+      : entryBare;
+
     const mountScript = hasMain
       ? `
         try {
-          import('./${entryPoint}').catch(err => {
+          import('${entryBare}').then(module => {
+            // Verificación de respaldo: si main.tsx no renderizó en #root tras un instante, intentar montar App directamente
+            setTimeout(() => {
+              const rootEl = document.getElementById('root');
+              if (rootEl && rootEl.childElementCount === 0) {
+                import('${appBare}').then(appMod => {
+                  const Comp = appMod.default || appMod.App || Object.values(appMod).find(v => typeof v === 'function');
+                  if (Comp) {
+                    import('react').then(React => {
+                      import('react-dom/client').then(ReactDOM => {
+                        const root = ReactDOM.createRoot(rootEl);
+                        root.render(React.createElement(Comp));
+                      });
+                    });
+                  }
+                }).catch(() => {});
+              }
+            }, 300);
+          }).catch(err => {
             console.error('[NONA Virtual Runner Error]:', err);
             window.parent.postMessage({
               type: 'SANDBOX_RUNTIME_ERROR',
@@ -241,7 +431,7 @@ export class VirtualMultiFileBundler {
       : `
         import React from 'react';
         import ReactDOM from 'react-dom/client';
-        import * as EntryModule from './${entryPoint}';
+        import * as EntryModule from '${entryBare}';
 
         const rootEl = document.getElementById('root') || document.getElementById('app') || document.body;
         try {
