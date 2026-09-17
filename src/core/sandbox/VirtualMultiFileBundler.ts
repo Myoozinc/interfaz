@@ -116,11 +116,11 @@ export class VirtualMultiFileBundler {
 
     // 2. Construir Import Map con paquetes CDN externos estándar (React 18, Lucide, Supabase, Three, Cannon, Tone, Chart.js, etc.)
     const importMap: Record<string, string> = {
-      "react": "https://esm.sh/react@18.3.1?dev",
-      "react-dom": "https://esm.sh/react-dom@18.3.1?dev",
-      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?dev",
-      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime?dev",
-      "lucide-react": "https://esm.sh/lucide-react@0.469.0",
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom": "https://esm.sh/react-dom@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+      "lucide-react": "https://esm.sh/lucide-react@0.469.0?external=react,react-dom",
       "clsx": "https://esm.sh/clsx@2.1.1",
       "tailwind-merge": "https://esm.sh/tailwind-merge@2.5.5",
       "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
