@@ -96,11 +96,48 @@ REGLAS DE ARQUITECTURA:
       };
     }
 
+    // 0.5. Domain: 3D Creative Studio, Modeling, CAD & Geometry (Spline / Blender / CAD / Geometry Creator)
+    if (
+      matchesPattern(/\b(figura|figuras|geometr[ií]a|geometr[ií]as|modelado|modelar|escena 3d|estudio 3d|diseño 3d|diseno 3d|cad|creador 3d|editor 3d|visualizador 3d|spline|escultura 3d|malla|mallas|mesh|meshes|pol[ií]gono|pol[ií]gonos)\b/i) ||
+      (matchesPattern(/\b(3d|3-d)\b/i) && matchesPattern(/\b(crear|generar|editor|estudio|studio|diseñar|disenar|geometr|forma|figura|herramienta|cubo|esfera|cono|toro)\b/i))
+    ) {
+      return {
+        id: 'agent_3d_studio_master',
+        name: '3D Creative Studio & Geometry CAD Architect',
+        domain: 'Estudio de Modelado 3D, Geometría, Escena & CAD WebGL',
+        icon: 'Box',
+        badgeColor: 'bg-violet-100 text-violet-800 border-violet-200',
+        recommendedLibraries: [
+          'three',
+          'three/addons/controls/OrbitControls',
+          'lucide-react',
+          'clsx',
+          'tailwind-merge'
+        ],
+        guardrails: [
+          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx", "src/components/Toolbar.tsx", "src/components/InspectorPanel.tsx", "src/components/GeometryCanvas.tsx", "src/components/StatusBar.tsx", "src/components/PresetSelector.tsx".',
+          'VIEWPORT THREE.JS PROFESIONAL: Renderizado WebGL con antialias: true, shadowMap activado, OrbitControls con enableDamping = true (dampingFactor = 0.05). Suelo con THREE.GridHelper reflectante sobre plano sutil y luz de estudio de 3 puntos (KeyLight direccional, FillLight suave, RimLight trasera de contra y AmbientLight).',
+          'CATÁLOGO EXTENSO DE PRIMITIVAS 3D: Generar al menos 8 primitivas seleccionables: Cubo (BoxGeometry), Esfera (SphereGeometry), Cilindro (CylinderGeometry), Cono (ConeGeometry), Toro/Donut (TorusGeometry), Dodecaedro (DodecahedronGeometry), Nudo Toroidal (TorusKnotGeometry), Cápsula o Icosaedro.',
+          'PANEL INSPECTOR DE PROPIEDADES EN TIEMPO REAL: Barra lateral o dock flotante con sliders numéricos y lectura viva de: Posición (X, Y, Z), Rotación (X, Y, Z en grados o radianes), Escala (X, Y, Z), selector de color hexadecimal/paleta visual, Rugosidad (Roughness 0-1), Metalicidad (Metalness 0-1), Wireframe toggle, y Opacidad.',
+          'LISTA DE OBJETOS Y JERARQUÍA DE ESCENA: Panel con lista de formas creadas en la escena, indicando el objeto actualmente seleccionado para edición, con botón para duplicar, cambiar nombre o eliminar la figura.',
+          'PRESETS Y ENTORNOS DE ESCENA: Mínimo 4 presets visuales aplicables con 1 clic (ej: "Estudio Minimalista", "Cyberpunk Neón", "Oro & Obsidiana", "Atardecer Pastel") que ajusten luces, fondo y materiales.',
+          'BARRA DE ACCIONES Y CAPTURA: Botón de descarga de captura PNG (renderer.domElement.toDataURL), botón de auto-rotación de escena con control de velocidad, botón para resetear cámara a vista isométrica o frontal, y contador en vivo de vértices/polígonos.',
+          'ESTÉTICA PREMIUM Y GLASSMORPHISM: Interfaz estilo Spline / Linear con bg-slate-950, paneles bg-slate-900/80 backdrop-blur-xl border border-slate-800/80, acentos violeta/índigo, e iconos Lucide en cada herramienta.'
+        ],
+        systemPromptAdditions: `Eres el AGENTE LEAD EN MODELADO 3D, GEOMETRÍA Y ESTUDIOS CREATIVOS de NONA.
+Posees maestría en Three.js, shaders, cálculo de mallas paramétricas, sistemas de luces de estudio y diseño de interfaces CAD/Spline.
+REGLAS DE ARQUITECTURA:
+- Diseña un estudio 3D completo de nivel profesional (estilo Spline / Blender Web), NUNCA un prototipo simplista.
+- Incluye barra de herramientas de geometrías (Cubo, Esfera, Cilindro, Cono, Toro, Dodecaedro, Nudo Toroidal, etc.), panel inspector de propiedades en tiempo real (transformaciones X/Y/Z, color, metalicidad, rugosidad, wireframe), lista de objetos de la escena, barra de estado con contador de polígonos/vértices y presets de atmósfera.
+- Viewport con OrbitControls fluidos con amortiguación, iluminación de 3 puntos y cuadrícula reflectante de suelo.
+- Captura de pantalla PNG de alta resolución descargable directamente por el usuario.`
+      };
+    }
+
     // 1. Domain: 3D Gaming, Racing & WebGL (Cars, Kart, Cyberpunk, 3D Worlds)
     if (
-      matchesPattern(/\b(carrera|carreras|racing|auto|autos|autom[oó]vil|autom[oó]viles|coche|coches|carro|carros|conducir|manejar|drift|kart|karts|veh[ií]culo|veh[ií]culos|three\.?js|webgl|shader|shaders|mundo virtual|fps)\b/i) ||
-      matchesPattern(/\b(3d|3-d)\b/i) ||
-      matchesPattern(/\b(nave espacial|naves espaciales|combate espacial|asteroides|gravedad cero)\b/i)
+      matchesPattern(/\b(carrera|carreras|racing|auto|autos|autom[oó]vil|autom[oó]viles|coche|coches|carro|carros|conducir|manejar|drift|kart|karts|veh[ií]culo|veh[ií]culos|fps|shooter|nave espacial|naves espaciales|combate espacial|asteroides|gravedad cero)\b/i) ||
+      (matchesPattern(/\b(juego|videojuego|mundo virtual)\b/i) && matchesPattern(/\b(3d|3-d)\b/i))
     ) {
       return {
         id: 'agent_threejs_master',
@@ -110,14 +147,15 @@ REGLAS DE ARQUITECTURA:
         badgeColor: 'bg-cyan-100 text-cyan-800 border-cyan-200',
         recommendedLibraries: [
           'three',
+          'three/addons/controls/OrbitControls',
           'cannon-es',
           'lucide-react',
           'clsx',
           'tailwind-merge'
         ],
         guardrails: [
-          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html" y "src/App.tsx" con Tailwind CSS dark mode.',
-          'MODULARIDAD COMPONENCIAL: Dividir la aplicación en componentes (ej: "src/components/RaceCanvas.tsx" para el renderer Three.js y loop 60 FPS, "src/components/SpeedometerHUD.tsx" para velocímetro y odómetro digital, "src/components/TouchControls.tsx" para controles en pantalla).',
+          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx" y componentes modulares en "src/components/*.tsx".',
+          'MODULARIDAD COMPONENCIAL: Dividir la aplicación en componentes (ej: "src/components/RaceCanvas.tsx" para el renderer Three.js y loop 60 FPS, "src/components/SpeedometerHUD.tsx" para velocímetro, turbo y odómetro digital, "src/components/TouchControls.tsx" para controles en pantalla).',
           'PROHIBIDO MODELAR VEHÍCULOS COMO UNA SOLA CAJA: Si es un juego de carreras o vehículos, ensamblar siempre un THREE.Group con chasis, cabina con material reflectante, alerón trasero, faros emisivos y 4 ruedas cilíndricas giratorias.',
           'FÍSICAS Y MOVIMIENTO REAL: Implementar variables de velocidad, aceleración, frenado y fricción. En el bucle de animación, actualizar continuamente la posición y hacer que la cámara siga al jugador suavemente.',
           'CONTROLES DUALES CONTINUOS: Implementar mapa booleano keys = { forward: false, backward: false, left: false, right: false } con eventos keydown/keyup Y botones en pantalla con mousedown/mouseup y touchstart/touchend continuos para que nunca se quede inmóvil.',
@@ -153,18 +191,18 @@ REGLAS DE ARQUITECTURA:
         ],
         guardrails: [
           'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx" y componentes modulares en "src/components/*.tsx".',
-          'MODULARIDAD DE AUDIO: Separar la interfaz en módulos (ej: "src/components/PianoKeyboard.tsx", "src/components/WaveformVisualizer.tsx", "src/components/KnobControl.tsx").',
-          'DESBLOQUEO DE AUDIOCONTEXT: Nunca iniciar el AudioContext antes de una interacción de usuario (click/tap) para evitar el bloqueo del navegador.',
+          'MODULARIDAD DE AUDIO: Separar la interfaz en módulos (ej: "src/components/PianoKeyboard.tsx", "src/components/StepSequencer.tsx", "src/components/WaveformVisualizer.tsx", "src/components/KnobControl.tsx").',
+          'DESBLOQUEO DE AUDIOCONTEXT: Iniciar o resumir el AudioContext de forma segura en la primera interacción de usuario (click/tap) para evitar el bloqueo del navegador.',
           'PROTECCIÓN DE SALIDA: Conectar siempre un GainNode limitador maestro para prevenir distorsión y clipeo en los altavoces.',
-          'ENVOLVENTE ADSR: Implementar Attack, Decay, Sustain, Release suave para evitar chasquidos acústicos.',
-          'VISUALIZADOR EN VIVO: Renderizar un osciloscopio o analizador FFT de ondas en tiempo real sobre un elemento Canvas 2D.',
+          'ENVOLVENTE ADSR & FILTRO: Implementar Attack, Decay, Sustain, Release y perillas de frecuencia de corte (Cutoff) y resonancia suave.',
+          'VISUALIZADOR EN VIVO: Renderizar un osciloscopio o analizador FFT de ondas en tiempo real sobre un elemento Canvas 2D con gradiente brillante neón.',
           'CONTRATO DE SALIDA OBLIGATORIO: Devolver estrictamente el objeto JSON con la clave "files" (array de { "path": string, "content": string }) y "explanation".'
         ],
         systemPromptAdditions: `Eres el AGENTE ESPECIALISTA EN WEB AUDIO Y DSP de NONA.
-Tu código produce sintetizadores de grado profesional, secuenciadores de pasos y analizadores de frecuencia en tiempo real.
+Tu código produce sintetizadores de grado profesional estilo Ableton / Teenage Engineering, secuenciadores de pasos y analizadores de frecuencia en tiempo real.
 REGLAS DE ARQUITECTURA:
-- Construye el proyecto como una aplicación React multi-archivo limpia con Tailwind CSS.
-- Diseña interfaces hápticas, con teclas de piano animadas, perillas de filtro resonante y visualizadores de onda con AnalyserNode.
+- Construye el proyecto como una aplicación React multi-archivo limpia con Tailwind CSS dark mode y glassmorphism.
+- Diseña interfaces táctiles con teclado interactivo, perillas rotatorias de filtro y visualizador de onda fluorescente con AnalyserNode.
 - Responde estrictamente en formato JSON con la clave "files".`
       };
     }
@@ -181,24 +219,25 @@ REGLAS DE ARQUITECTURA:
         badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
         recommendedLibraries: [
           'chart.js',
+          'chart.js/auto',
           'lucide-react',
           'clsx',
           'tailwind-merge',
           '@supabase/supabase-js'
         ],
         guardrails: [
-          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx" con diseño enterprise en Tailwind CSS.',
-          'MODULARIDAD SAAS: Componentes limpios separados (ej: "src/components/KPICards.tsx", "src/components/AnalyticsChart.tsx", "src/components/DataTable.tsx", "src/components/Sidebar.tsx").',
-          'MÉTRICAS DINÁMICAS: Incluir filtros por fecha (Hoy, 7D, 30D, 1A) con actualización de datos simulados o en tiempo real.',
-          'TARJETAS DE KPI: Mostrar porcentajes de variación verde/rojo, iconos vectoriales de Lucide y sparklines.',
-          'TABLA DE DATOS: Búsqueda reactiva, ordenamiento por columnas, estados de paginación y diseño de estado vacío elegante.',
+          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx", "src/components/KPICards.tsx", "src/components/AnalyticsChart.tsx", "src/components/DataTable.tsx", "src/components/Sidebar.tsx", "src/components/TopNav.tsx".',
+          'ESTÉTICA ENTERPRISE LINEAR / STRIPE: Dark mode refinado (bg-slate-950, card bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl), acentos índigo y esmeralda, tipografía monoespaciada para cantidades monetarias y métricas.',
+          'TARJETAS DE KPI CON SPARKLINE: Mínimo 4 métricas principales (Ingresos, Usuarios Activos, Conversión, Churn) con badge porcentual de tendencia (+14.2% / -2.1%), icono vectorial y micro-gráfico de tendencia.',
+          'GRÁFICO INTERACTIVO: Visualización con Chart.js o SVG interactivo con filtro temporal reactivo (7 Días, 30 Días, 1 Año, Todo) y selector de métrica (Ventas, Tráfico, Conversiones).',
+          'TABLA DE DATOS COMPLETA: Búsqueda en vivo por texto, ordenamiento interactivo por columnas, selector de estado (Completado, Pendiente, Cancelado), paginación y modal para crear nuevo registro.',
           'CONTRATO DE SALIDA OBLIGATORIO: Devolver estrictamente el objeto JSON con la clave "files" (array de { "path": string, "content": string }) y "explanation".'
         ],
         systemPromptAdditions: `Eres el AGENTE ESPECIALISTA EN PRODUCTO SAAS Y DASHBOARDS de NONA.
-Creas experiencias web empresariales modernas estilo Stripe, Linear y Vercel.
+Creas experiencias web empresariales modernas de clase mundial estilo Stripe, Linear y Vercel.
 REGLAS DE ARQUITECTURA:
 - Estructura el software en componentes React modulares ("src/App.tsx", "src/components/*.tsx").
-- Utiliza paletas de colores sofisticadas (Slate, Indigo, Emerald), modo oscuro impecable y gráficos interactivos con Chart.js o SVG.
+- Utiliza paletas de colores sofisticadas (Slate, Indigo, Emerald), modo oscuro impecable, navegación lateral colapsable y tablas con filtros reales.
 - Responde estrictamente en formato JSON con la clave "files".`
       };
     }
@@ -220,15 +259,14 @@ REGLAS DE ARQUITECTURA:
           'tailwind-merge'
         ],
         guardrails: [
-          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx" y componentes separados en "src/components/*.tsx".',
-          'MODULARIDAD ARCADE: Separar el juego (ej: "src/components/ArcadeCanvas.tsx" para el loop de juego, "src/components/GameHUD.tsx" para puntuación y vidas, "src/components/GameOverModal.tsx" para Game Over).',
-          'BUCLE DE JUEGO A 60 FPS: requestAnimationFrame con limpieza en cada fotograma mediante ctx.clearRect(0, 0, width, height).',
-          'CONTROLES Y PERSISTENCIA: Manejar teclas presionadas en un set/objeto para permitir movimientos diagonales fluidos, y High Score persistido en localStorage.',
-          'EFECTOS Y FEEDBACK: Partículas en colisiones, vibración visual de pantalla y pantalla de Game Over con botón de reinicio instantáneo.',
+          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx", "src/components/ArcadeCanvas.tsx", "src/components/GameHUD.tsx", "src/components/GameOverModal.tsx", "src/components/TouchControls.tsx".',
+          'BUCLE DE JUEGO A 60 FPS: requestAnimationFrame con delta-time, actualización de físicas continuas y renderizado limpio en Canvas 2D.',
+          'SISTEMA DE PARTÍCULAS Y JUICE: Explosiones de partículas de colores al romper bloques o eliminar enemigos, sacudida de pantalla (screen shake) y efectos visuales de feedback.',
+          'CONTROLES DUALES Y PERSISTENCIA: Manejo fluido de teclado (WASD / Flechas) + controles táctiles en pantalla para móviles. Récord histórico (High Score) guardado en localStorage.',
           'CONTRATO DE SALIDA OBLIGATORIO: Devolver estrictamente el objeto JSON con la clave "files" (array de { "path": string, "content": string }) y "explanation".'
         ],
         systemPromptAdditions: `Eres el AGENTE ESPECIALISTA EN JUEGOS 2D Y ARCADE de NONA.
-Generas bucles de juego impecables a 60 FPS en HTML5 Canvas con detección de colisiones, interfaz reactiva y efectos de partículas.
+Generas bucles de juego impecables a 60 FPS en HTML5 Canvas con detección de colisiones, interfaz reactiva, pantalla de Game Over y efectos de partículas.
 REGLAS DE ARQUITECTURA:
 - Estructura en archivos modulares React ("src/App.tsx", "src/components/*.tsx").
 - Controles multi-dispositivo (teclas físicas WASD/flechas y botones táctiles en pantalla).
@@ -255,15 +293,14 @@ REGLAS DE ARQUITECTURA:
           '@supabase/supabase-js'
         ],
         guardrails: [
-          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html" y "src/App.tsx" con Tailwind CSS premium.',
-          'MODULARIDAD E-COMMERCE: Separar en componentes modulares (ej: "src/components/ProductGrid.tsx", "src/components/ProductCard.tsx", "src/components/CartDrawer.tsx", "src/components/CheckoutModal.tsx").',
-          'ESTADO REACTIVO DEL CARRITO: Carrito de compra reactivo con badge de contador en el botón superior, incremento/decremento de cantidades y cálculo de subtotales.',
-          'MODAL DE CHECKOUT: Modal interactivo con validación de campos, simulación de pasarela de pago y confirmación festiva con confetti.',
-          'FILTROS Y BÚSQUEDA: Filtros por categoría y barra de búsqueda instantánea.',
+          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx", "src/components/ProductGrid.tsx", "src/components/ProductCard.tsx", "src/components/CartDrawer.tsx", "src/components/CheckoutModal.tsx", "src/components/CategoryFilter.tsx".',
+          'EXPERIENCIA STOREFRONT APPLE/SHOPIFY: Banner hero con gradiente y llamada a la acción, rejilla de productos con imágenes estéticas, badges de descuento ("-25%", "Top Seller"), selector de variantes (color/talla) y calificación con estrellas.',
+          'CARRITO LATERAL DESLIZABLE (DRAWER): Panel lateral con animación fluida, listado de artículos, botones de +/- cantidad, eliminación, campo de cupón de descuento y cálculo automático de subtotal, envío e impuestos.',
+          'CHECKOUT MODAL CON CONFETTI: Flujo de pago simulado en 2 pasos (datos de envío y tarjeta mock) con validación reactiva y explosión de confetti con canvas-confetti al confirmar.',
           'CONTRATO DE SALIDA OBLIGATORIO: Devolver estrictamente el objeto JSON con la clave "files" (array de { "path": string, "content": string }) y "explanation".'
         ],
         systemPromptAdditions: `Eres el AGENTE ESPECIALISTA EN E-COMMERCE de NONA.
-Diseñas tiendas en línea estilo Apple Store y Shopify con tarjetas de producto con zoom hover, selector de variantes, carrito lateral deslizable y pasarela de pago simulada.
+Diseñas tiendas en línea premium estilo Apple Store y Shopify con tarjetas de producto con zoom hover, selector de variantes, carrito lateral deslizable y pasarela de pago interactiva.
 REGLAS DE ARQUITECTURA:
 - Estructura modular en archivos React ("src/App.tsx", "src/components/*.tsx").
 - Responde estrictamente en formato JSON con la clave "files".`
@@ -285,17 +322,17 @@ REGLAS DE ARQUITECTURA:
         '@supabase/supabase-js'
       ],
       guardrails: [
-        'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html" y "src/App.tsx" como componente raíz React interactivo con Tailwind CSS.',
-        'MODULARIDAD LIMPIA: Separar la interfaz en componentes reutilizables en "src/components/*.tsx" (ej: Display, Controls, History, Toolbar, Settings).',
-        'LÓGICA 100% OPERATIVA: Toda la interactividad solicitada (cálculos matemáticos, historial de operaciones, atajos de teclado, animaciones hápticas) debe funcionar al 100% sin botones inertes.',
-        'DISEÑO VISUAL DE ALTA FIDELIDAD: Paletas modernas de Tailwind (Slate/Zinc/Indigo), tipografía nítida monoespaciada para valores numéricos, sombras sutiles y accesibilidad.',
+        'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx", "src/components/Header.tsx", "src/components/Workspace.tsx", "src/components/ControlPanel.tsx", "src/components/HistoryDrawer.tsx", "src/components/SettingsModal.tsx".',
+        'DISEÑO MULTI-PANEL DE ALTA DENSIDAD: Prohibido prototipos de un solo botón. Diseñar una aplicación completa con cabecera de herramientas, panel de configuración/filtros, visor principal, historial o registro de acciones y barra de estado inferior.',
+        'INTERACTIVIDAD Y ATENCIÓN AL DETALLE: Lógica 100% operativa, teclado funcional con atajos (Enter, Esc, Delete, etc.), retroalimentación háptica visual (active:scale-95), estados de carga y presets prediseñados.',
+        'ESTÉTICA PREMIUM LINEAR / VERCEL: Dark mode slate con glassmorphism (bg-slate-900/80 backdrop-blur-xl border border-slate-800/80), tipografía nítida con etiquetas en mayúsculas espaciadas e iconos vectoriales de Lucide en cada control.',
         'CONTRATO DE SALIDA OBLIGATORIO: Devolver estrictamente el objeto JSON con la clave "files" (array de { "path": string, "content": string }) y "explanation". Prohibido código en un solo HTML monolítico o scripts de CDN.'
       ],
       systemPromptAdditions: `Eres el LEAD SOFTWARE ARCHITECT de NONA.
-Diseñas software moderno, modular, limpio, 100% interactivo y visualmente atractivo.
+Diseñas software moderno, modular, profundo, 100% interactivo y visualmente deslumbrante (estándar Linear, Vercel, Figma).
 REGLAS DE ARQUITECTURA:
 - Estructura la aplicación como un proyecto React modular multi-archivo ("index.html", "src/App.tsx", "src/components/*.tsx").
-- Todas las interacciones deben responder inmediatamente al usuario con transiciones suaves y atajos de teclado donde aplique.
+- Crea interfaces ricas y densas con múltiples controles, presets, panel de ajustes e historial.
 - Responde estrictamente en formato JSON con la clave "files".`
     };
   }

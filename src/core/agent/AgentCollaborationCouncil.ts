@@ -225,8 +225,25 @@ export class AgentCollaborationCouncil {
   const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || 'mock-anon-key-nona';
 - Proporciona en comentarios SQL al inicio de "src/lib/supabase.ts" el script DDL (CREATE TABLE ...).` : '';
 
-    const specialistSystemPrompt = `Eres ${expertAgent.name}, arquitecto de software senior para NONA (Estándar Lovable / bolt.new / v0).
-Tu objetivo es generar una aplicación COMPLETA, PROFESIONAL, MULTI-ARCHIVO Y 100% FUNCIONAL.
+    const specialistSystemPrompt = `Eres ${expertAgent.name}, arquitecto de software senior para NONA (Estándar de calidad Linear / Vercel / Figma / Spline).
+Tu objetivo es generar una aplicación COMPLETA, PROFESIONAL, MULTI-ARCHIVO Y DE ALTA COMPLEJIDAD.
+
+ESTÁNDAR ANTI-TOY & COMPLEJIDAD OBLIGATORIA:
+- PROHIBIDO generar prototipos mínimos, juguetes o componentes vacíos de 1 o 2 botones.
+- Cada aplicación debe parecer un producto digital real de producción:
+  1. ÁREA DE TRABAJO PRINCIPAL: Visualizador, canvas, tablero o editor interactivo amplio y protagonista.
+  2. BARRA LATERAL / DOCK INSPECTOR: Panel flotante o lateral con pestañas organizadas (Herramientas, Propiedades, Presets, Ajustes), con controles deslizantes numéricos reactivos, toggles, selects y color pickers.
+  3. PRESETS LISTOS PARA USAR: Mínimo 3 a 5 presets temáticos listos para probar con un solo clic.
+  4. BARRA DE ESTADO / HUD: Lectura en vivo de métricas relevantes (ej: contador de elementos, polígonos, FPS, estado activo, zoom o coordenadas).
+  5. BARRA DE ACCIONES: Botón para exportar/descargar imagen PNG o JSON, resetear estado y pantalla completa.
+  6. ATAJOS DE TECLADO: Listener keydown activo con leyenda o modal de ayuda de teclado.
+
+SISTEMA DE DISEÑO VISUAL (ESTÉTICA LINEAR / VERCEL):
+- Superficies: Fondo profundo bg-slate-950 con tarjetas bg-slate-900/80, bordes finos border border-slate-800/80 o border-white/10, y glassmorphism (backdrop-blur-xl).
+- Acentos y Gradientes: Botones primarios y badges con gradientes vibrantes (indigo, violeta, cyan, esmeralda, ámbar), sombras con color (shadow-lg shadow-indigo-500/20).
+- Iconografía: Usar iconos vectoriales de 'lucide-react' en ABSOLUTAMENTE TODOS los botones, tarjetas, inputs y pestañas.
+- Micro-interacciones: Efectos táctiles y transiciones suaves (active:scale-95 hover:brightness-110 transition-all duration-150).
+- Tipografía y Datos: Jerarquía limpia con títulos nítidos, subtítulos text-slate-400 text-xs, etiquetas en mayúsculas espaciadas (text-[10px] font-bold uppercase tracking-wider text-slate-400) y números en tipografía monoespaciada (font-mono).
 
 ${expertAgent.systemPromptAdditions}
 
@@ -235,12 +252,12 @@ ${expertAgent.guardrails.map(g => '- ' + g).join('\n')}
 
 LIBRERÍAS DISPONIBLES:
 ${expertAgent.recommendedLibraries.map(lib => `- ${lib}`).join('\n')}
-${baasLibraryText}- lucide-react (Iconos vectoriales)
+${baasLibraryText}- lucide-react (Iconos vectoriales en todos los controles)
 - clsx & tailwind-merge (Estilos dinámicos)
 
 ARQUITECTURA Y ESTILO:
 - Estructura: "index.html", "src/App.tsx", "src/components/*.tsx", "src/lib/utils.ts", "src/index.css".
-- Estilos Tailwind: Dark mode moderno (bg-slate-950/900, text-slate-100), bordes sutiles y acentos nítidos.${baasPromptSection}
+- Estilos Tailwind: Dark mode moderno (bg-slate-950/900, text-slate-100), glassmorphism y acentos nítidos.${baasPromptSection}
 
 CONTRATO OBLIGATORIO DE SALIDA (JSON ESTRUCTURADO):
 Responde ÚNICAMENTE con un objeto JSON válido. NINGÚN texto antes o después del JSON. NINGÚN bloque markdown. NINGÚN archivo llamado script_N.js.
@@ -291,8 +308,14 @@ INSTRUCCIÓN DEL USUARIO:
 El intento anterior no cumplió con el contrato estructurado: ${lastFailureReason}.
 Por favor devuelve EXCLUSIVAMENTE el objeto JSON válido con la clave "files" (array de { "path": string, "content": string }) y "explanation" (string). Asegúrate de incluir código 100% interactivo y funcional, sin omitir ningún archivo.`;
       } else if (isNewBuildRequest) {
-        attemptUserPrompt += `\n\nFASE 1 (Scaffold y Componente Raíz):
-Genera obligatoriamente la base funcional de la aplicación. En el array "files", incluye obligatoriamente "index.html" y "src/App.tsx" con layout, interactividad completa y estilos Tailwind como los primeros archivos. Si modularizas partes complejas, impórtalas desde "./components/NombreComponente".`;
+        attemptUserPrompt += `\n\nFASE 1 (Scaffold y Arquitectura de Alta Complejidad):
+Genera una aplicación COMPLETA, PROFESIONAL Y DE ALTA COMPLEJIDAD (estándar Linear / Vercel / Spline). PROHIBIDO generar prototipos vacíos o simplistas.
+En el array "files", incluye obligatoriamente "index.html" y "src/App.tsx" con un layout rico multi-panel:
+1. Barra superior o Header con título, presets rápidos y botones de acción (exportar, reset, atajos).
+2. Área central con el espacio de trabajo / visualizador principal.
+3. Panel lateral o flotante inspector de controles detallados con sliders numéricos en tiempo real, toggles, selects y color pickers.
+4. Barra de estado inferior con métricas activas (FPS, contador de objetos, estado).
+Modulariza los componentes clave importándolos desde "./components/NombreComponente".`;
       } else {
         attemptUserPrompt += `\n\nGenera la aplicación completa ahora respondiendo estrictamente en el formato JSON especificado:`;
       }
@@ -356,8 +379,8 @@ Genera obligatoriamente la base funcional de la aplicación. En el array "files"
           onProgress(`🧩 [${expertAgent.name}]: Sintetizando componentes modulares (Fase 2: ${missingComponents.map(p => p.split('/').pop()).join(', ')})...`, true);
           agentEvents.emit('agent.thinking', `🧩 Fase 2: Implementando componentes requeridos: ${missingComponents.join(', ')}`);
 
-          const phase2Prompt = `FASE 2 (Componentes Reutilizables):
-Implementa el código COMPLETO y 100% interactivo para los siguientes componentes requeridos por src/App.tsx:
+          const phase2Prompt = `FASE 2 (Síntesis de Componentes Modulares de Alta Calidad):
+Implementa el código COMPLETO, PROFUNDO Y 100% INTERACTIVO para los siguientes componentes requeridos por src/App.tsx:
 ${missingComponents.map(p => `- "${p}"`).join('\n')}
 
 CONTEXTO DE src/App.tsx:
@@ -365,7 +388,13 @@ CONTEXTO DE src/App.tsx:
 ${candidateFiles['src/App.tsx']}
 \`\`\`
 
-Responde ÚNICAMENTE en formato JSON con la clave "files" (array de { "path": string, "content": string }) conteniendo estos componentes con sus tipos, interactividad y estilos Tailwind.`;
+REQUISITOS DE CADA COMPONENTE:
+- Prohibido código esqueleto o botones sin funcionalidad.
+- Cada botón o pestaña debe incluir iconos vectoriales de 'lucide-react'.
+- Controles interactivos con sliders con lectura de valor numérico en vivo, switches y presets.
+- Estilos visuales consistentes con Tailwind CSS: dark mode elegante, bordes sutiles, micro-interacciones (active:scale-95 transition-all).
+
+Responde ÚNICAMENTE en formato JSON con la clave "files" (array de { "path": string, "content": string }) conteniendo estos componentes con sus tipos TypeScript e interactividad completa.`;
 
           try {
             let phase2Raw = '';
