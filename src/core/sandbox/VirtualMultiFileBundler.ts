@@ -37,7 +37,9 @@ export class VirtualMultiFileBundler {
       }).code;
 
       // Garantizar que React esté disponible en el módulo si se generó React.createElement
-      if (transpiled.includes('React.createElement') && !transpiled.match(/import\s+(?:\*\s+as\s+React|React)\s+from/)) {
+      // y NO fue importado ni declarado previamente en el módulo.
+      const hasReactDeclaration = /(?:^|\n)\s*(?:import\s+[^;]*?\bReact\b[^;]*?from|(?:const|let|var|function|class)\s+React\b)/m.test(transpiled);
+      if (transpiled.includes('React.createElement') && !hasReactDeclaration) {
         transpiled = `import React from 'react';\n${transpiled}`;
       }
 
@@ -176,40 +178,50 @@ export class VirtualMultiFileBundler {
     }
 
     // 4. Identificar el punto de entrada
-    let entryPoint = 'src/main.tsx';
-    if (!normalizedFiles['src/main.tsx'] && !normalizedFiles['src/main.jsx']) {
-      if (normalizedFiles['src/App.tsx'] || normalizedFiles['src/App.jsx']) {
-        entryPoint = 'src/App.tsx';
-      } else {
-        const anyTsx = Object.keys(normalizedFiles).find(k => k.endsWith('.tsx') || k.endsWith('.jsx'));
-        if (anyTsx) entryPoint = anyTsx;
-      }
+    const hasMain = Boolean(normalizedFiles['src/main.tsx'] || normalizedFiles['src/main.jsx']);
+    let entryPoint = hasMain ? (normalizedFiles['src/main.tsx'] ? 'src/main.tsx' : 'src/main.jsx') : 'src/App.tsx';
+    if (!hasMain && !normalizedFiles['src/App.tsx'] && !normalizedFiles['src/App.jsx']) {
+      const anyTsx = Object.keys(normalizedFiles).find(k => k.endsWith('.tsx') || k.endsWith('.jsx'));
+      if (anyTsx) entryPoint = anyTsx;
     }
 
     // 5. Generar script de montaje
-    const mountScript = `
-      import React from 'react';
-      import ReactDOM from 'react-dom/client';
-      import EntryComponent from './${entryPoint}';
-
-      const rootEl = document.getElementById('root') || document.getElementById('app') || document.body;
-      try {
-        const Comp = (EntryComponent && EntryComponent.default) ? EntryComponent.default : EntryComponent;
-        if (typeof Comp === 'function' || (typeof Comp === 'object' && Comp !== null)) {
-          const root = ReactDOM.createRoot(rootEl);
-          root.render(React.createElement(Comp));
-        } else {
-          console.warn('[NONA Virtual Runner]: Componente exportado no es invocable directamente:', EntryComponent);
+    const mountScript = hasMain
+      ? `
+        try {
+          import('./${entryPoint}');
+        } catch (err) {
+          console.error('[NONA Virtual Runner Error]:', err);
+          window.parent.postMessage({
+            type: 'SANDBOX_RUNTIME_ERROR',
+            level: 'error',
+            msg: String(err && err.message ? err.message : err)
+          }, '*');
         }
-      } catch (err) {
-        console.error('[NONA Virtual Runner Error]:', err);
-        window.parent.postMessage({
-          type: 'SANDBOX_RUNTIME_ERROR',
-          level: 'error',
-          msg: String(err && err.message ? err.message : err)
-        }, '*');
-      }
-    `;
+      `
+      : `
+        import React from 'react';
+        import ReactDOM from 'react-dom/client';
+        import EntryComponent from './${entryPoint}';
+
+        const rootEl = document.getElementById('root') || document.getElementById('app') || document.body;
+        try {
+          const Comp = (EntryComponent && EntryComponent.default) ? EntryComponent.default : EntryComponent;
+          if (typeof Comp === 'function' || (Comp && typeof Comp === 'object' && Comp.$$typeof)) {
+            const root = ReactDOM.createRoot(rootEl);
+            root.render(React.createElement(Comp));
+          } else {
+            console.warn('[NONA Virtual Runner]: Componente exportado no es invocable directamente:', EntryComponent);
+          }
+        } catch (err) {
+          console.error('[NONA Virtual Runner Error]:', err);
+          window.parent.postMessage({
+            type: 'SANDBOX_RUNTIME_ERROR',
+            level: 'error',
+            msg: String(err && err.message ? err.message : err)
+          }, '*');
+        }
+      `;
 
     // 6. Scripts de captura de logs y errores
     const captureScripts = `
