@@ -43,6 +43,16 @@ export class VirtualMultiFileBundler {
         transpiled = `import React from 'react';\n${transpiled}`;
       }
 
+      // Garantizar que cualquier módulo importado por defecto no rompa la ejecución ESM
+      // si sólo definió exports nombrados (ej: export function Toolbar o export const MyComponent)
+      if (!transpiled.includes('export default') && (transpiled.includes('export ') || transpiled.includes('exports.'))) {
+        const namedMatch = transpiled.match(/export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z0-9_]+)/);
+        if (namedMatch) {
+          const exportName = namedMatch[1];
+          transpiled = `${transpiled}\nexport default ${exportName};\n`;
+        }
+      }
+
       return transpiled;
     } catch (err: any) {
       console.warn(`[VirtualMultiFileBundler] Fallback regex transpile para "${filePath}":`, err.message);
@@ -177,19 +187,48 @@ export class VirtualMultiFileBundler {
       }
     }
 
-    // 4. Identificar el punto de entrada
-    const hasMain = Boolean(normalizedFiles['src/main.tsx'] || normalizedFiles['src/main.jsx']);
-    let entryPoint = hasMain ? (normalizedFiles['src/main.tsx'] ? 'src/main.tsx' : 'src/main.jsx') : 'src/App.tsx';
-    if (!hasMain && !normalizedFiles['src/App.tsx'] && !normalizedFiles['src/App.jsx']) {
-      const anyTsx = Object.keys(normalizedFiles).find(k => k.endsWith('.tsx') || k.endsWith('.jsx'));
-      if (anyTsx) entryPoint = anyTsx;
+    // 4. Identificar el punto de entrada con priorización robusta
+    const hasMain = Boolean(normalizedFiles['src/main.tsx'] || normalizedFiles['src/main.jsx'] || normalizedFiles['src/main.js']);
+    let entryPoint = hasMain 
+      ? (normalizedFiles['src/main.tsx'] ? 'src/main.tsx' : normalizedFiles['src/main.jsx'] ? 'src/main.jsx' : 'src/main.js') 
+      : 'src/App.tsx';
+
+    if (!hasMain && !normalizedFiles['src/App.tsx'] && !normalizedFiles['src/App.jsx'] && !normalizedFiles['src/App.js']) {
+      // Prioridad 1: cualquier archivo con App en el nombre o que defina App
+      const appKey = Object.keys(normalizedFiles).find(k => 
+        (k.endsWith('.tsx') || k.endsWith('.jsx')) && 
+        (/\bApp\b/i.test(k) || (normalizedFiles[k] && /\bfunction App\b/.test(normalizedFiles[k])))
+      );
+      if (appKey) {
+        entryPoint = appKey;
+      } else {
+        // Prioridad 2: primer archivo que exporte un componente por defecto
+        const defExportKey = Object.keys(normalizedFiles).find(k => 
+          (k.endsWith('.tsx') || k.endsWith('.jsx')) && 
+          normalizedFiles[k] && normalizedFiles[k].includes('export default')
+        );
+        if (defExportKey) {
+          entryPoint = defExportKey;
+        } else {
+          // Prioridad 3: cualquier TSX / JSX en el proyecto
+          const anyTsx = Object.keys(normalizedFiles).find(k => k.endsWith('.tsx') || k.endsWith('.jsx'));
+          if (anyTsx) entryPoint = anyTsx;
+        }
+      }
     }
 
-    // 5. Generar script de montaje
+    // 5. Generar script de montaje inmune a syntax errors de export default
     const mountScript = hasMain
       ? `
         try {
-          import('./${entryPoint}');
+          import('./${entryPoint}').catch(err => {
+            console.error('[NONA Virtual Runner Error]:', err);
+            window.parent.postMessage({
+              type: 'SANDBOX_RUNTIME_ERROR',
+              level: 'error',
+              msg: String(err && err.message ? err.message : err)
+            }, '*');
+          });
         } catch (err) {
           console.error('[NONA Virtual Runner Error]:', err);
           window.parent.postMessage({
@@ -202,16 +241,22 @@ export class VirtualMultiFileBundler {
       : `
         import React from 'react';
         import ReactDOM from 'react-dom/client';
-        import EntryComponent from './${entryPoint}';
+        import * as EntryModule from './${entryPoint}';
 
         const rootEl = document.getElementById('root') || document.getElementById('app') || document.body;
         try {
-          const Comp = (EntryComponent && EntryComponent.default) ? EntryComponent.default : EntryComponent;
+          let Comp = EntryModule.default;
+          if (!Comp || (typeof Comp !== 'function' && !(Comp && Comp.$$typeof))) {
+            Comp = EntryModule.App ||
+                   EntryModule.Main ||
+                   Object.values(EntryModule).find(v => typeof v === 'function' || (v && typeof v === 'object' && v.$$typeof)) ||
+                   EntryModule;
+          }
           if (typeof Comp === 'function' || (Comp && typeof Comp === 'object' && Comp.$$typeof)) {
             const root = ReactDOM.createRoot(rootEl);
             root.render(React.createElement(Comp));
           } else {
-            console.warn('[NONA Virtual Runner]: Componente exportado no es invocable directamente:', EntryComponent);
+            console.warn('[NONA Virtual Runner]: Componente exportado no es invocable directamente:', Comp);
           }
         } catch (err) {
           console.error('[NONA Virtual Runner Error]:', err);

@@ -151,44 +151,123 @@ export class ActionStreamParser {
     }
 
     // 2. If no files were found via XML, try Multi-File Markdown Blocks:
-    // e.g. ```html filename="index.html" ... ``` or ```js filename="src/app.js" (supports unclosed fences)
+    // e.g. ```tsx src/App.tsx, ```tsx filename="src/App.tsx", // Toolbar.tsx, etc.
     if (Object.keys(files).length === 0) {
-      const codeBlockRegex = /```([a-zA-Z0-9_-]+)?(?:\s+(?:filename|file|path)=["']?([^\s"'\n]+)["']?)?\s*\n([\s\S]*?)(?:```|$)/gi;
+      const codeBlockRegex = /```([^\n]*)\n([\s\S]*?)(?:```|$)/gi;
       let blockMatch: RegExpExecArray | null;
       let blockCount = 0;
 
       while ((blockMatch = codeBlockRegex.exec(cleaned)) !== null) {
         blockCount++;
-        const lang = (blockMatch[1] || '').toLowerCase();
-        let explicitFile = blockMatch[2];
-        let code = blockMatch[3].trim();
+        const infoStr = (blockMatch[1] || '').trim();
+        let code = blockMatch[2].trim();
+        let explicitFile: string | undefined;
 
-        // Check if line 1 has a comment like: // file: src/index.js or <!-- file: index.html -->
-        if (!explicitFile) {
-          const firstLine = code.split('\n')[0].trim();
-          const commentFileMatch = firstLine.match(/^(?:\/\/\s*|<!--\s*|\/\*\s*)(?:filename|file|path):\s*([^\s*>-]+)/i);
-          if (commentFileMatch) {
-            explicitFile = commentFileMatch[1];
-            // Remove the filename comment line from the actual code
-            code = code.split('\n').slice(1).join('\n').trim();
+        // A. Extraer nombre de archivo del header del bloque (ej: ```tsx filename="src/App.tsx", ```tsx:src/App.tsx, ```tsx [src/App.tsx], ```tsx src/App.tsx)
+        const attrMatch = infoStr.match(/(?:filename|file|path|title)=["']?([^\s"'>]+)["']?/i);
+        if (attrMatch) {
+          explicitFile = attrMatch[1];
+        } else {
+          // Detectar formato: ```tsx src/App.tsx o ```tsx:src/App.tsx o ```tsx [src/App.tsx]
+          const colonOrSpaceMatch = infoStr.match(/(?:^|[a-z0-9_-]+[:\s]+)(?:\[)?([a-zA-Z0-9_./-]+\.(?:tsx|ts|jsx|js|html|css|json))(?:\])?/i);
+          if (colonOrSpaceMatch) {
+            explicitFile = colonOrSpaceMatch[1];
           }
         }
 
+        // B. Extraer lenguaje primario
+        const lang = (infoStr.split(/[\s:="']/)[0] || '').toLowerCase();
+
+        // C. Check if lines 1-3 have a comment like: // src/App.tsx, // Toolbar.tsx, <!-- index.html -->
+        if (!explicitFile) {
+          const lines = code.split('\n');
+          for (let i = 0; i < Math.min(3, lines.length); i++) {
+            const line = lines[i].trim();
+            // Comentario con palabra clave: // filename: src/App.tsx
+            const kwMatch = line.match(/^(?:\/\/\s*|<!--\s*|\/\*\s*|#\s*)(?:filename|file|path|component):\s*([a-zA-Z0-9_./-]+\.(?:tsx|ts|jsx|js|html|css|json))/i);
+            if (kwMatch) {
+              explicitFile = kwMatch[1];
+              // Remover la línea de comentario del código
+              code = lines.filter((_, idx) => idx !== i).join('\n').trim();
+              break;
+            }
+            // Comentario directo con ruta/nombre de archivo: // src/components/Toolbar.tsx o // Toolbar.tsx
+            const directFileMatch = line.match(/^(?:\/\/\s*|<!--\s*|\/\*\s*|#\s*)([a-zA-Z0-9_./-]+\.(?:tsx|ts|jsx|js|html|css|json))(?:\s*\*\/|\s*-->)?$/i);
+            if (directFileMatch) {
+              explicitFile = directFileMatch[1];
+              code = lines.filter((_, idx) => idx !== i).join('\n').trim();
+              break;
+            }
+          }
+        }
+
+        // D. Check preceding text (within 150 chars) for headers: e.g. ### src/App.tsx or **Toolbar.tsx**
+        if (!explicitFile) {
+          const blockStartIdx = blockMatch.index;
+          const preceedingText = cleaned.slice(Math.max(0, blockStartIdx - 150), blockStartIdx);
+          const headerMatch = preceedingText.match(/(?:###|\*\*|`|Archivo:|File:)\s*([a-zA-Z0-9_./-]+\.(?:tsx|ts|jsx|js|html|css|json))/i);
+          if (headerMatch) {
+            explicitFile = headerMatch[1];
+          }
+        }
+
+        // E. Inferir ruta por contenido del código si no se especificó nombre
+        const isJsOrTs = lang === 'js' || lang === 'javascript' || lang === 'ts' || lang === 'typescript' || lang === 'tsx' || lang === 'jsx' || (!lang && (code.includes('import ') || code.includes('export ')));
+        const isHtml = lang === 'html' || code.includes('<!DOCTYPE html>') || code.includes('<html');
+        const isCss = lang === 'css';
+
         if (explicitFile) {
-          const filePath = ActionStreamParser.normalizeFilePath(explicitFile);
+          let filePath = ActionStreamParser.normalizeFilePath(explicitFile);
+          // Si el nombre es solo un componente (ej: "Toolbar.tsx"), ubicarlo en src/components o src/
+          if (!filePath.includes('/')) {
+            filePath = filePath === 'index.html' ? 'index.html'
+              : filePath === 'App.tsx' || filePath === 'App.jsx' ? `src/${filePath}`
+              : filePath === 'styles.css' || filePath === 'index.css' ? `src/${filePath}`
+              : `src/components/${filePath}`;
+          }
           files[filePath] = code;
-        } else if (blockCount === 1 && (lang === 'html' || code.includes('<!DOCTYPE html>') || code.includes('<html'))) {
+        } else if (isHtml) {
           files['index.html'] = code;
-        } else if (lang === 'css') {
-          files['styles.css'] = code;
-        } else if (lang === 'js' || lang === 'javascript' || lang === 'ts' || lang === 'typescript') {
-          // Assign meaningful file paths: first unnamed JS block becomes src/App.tsx,
-          // subsequent unnamed blocks become src/components/ModuleN.tsx.
-          // This avoids src/script_N.js which fails QA validation and ESM checks.
-          const tsxPath = blockCount === 1
-            ? (files['src/App.tsx'] ? `src/components/Module${blockCount}.tsx` : 'src/App.tsx')
-            : `src/components/Module${blockCount}.tsx`;
-          files[tsxPath] = code;
+        } else if (isCss) {
+          files['src/index.css'] = code;
+        } else if (isJsOrTs) {
+          // Detectar si el código define el componente App
+          const hasAppDef = /(?:function|const|class)\s+App\b/.test(code) || /export\s+default\s+function\s+App\b/.test(code);
+          if (hasAppDef && !files['src/App.tsx']) {
+            files['src/App.tsx'] = code;
+          } else {
+            // Detectar nombre del componente exportado
+            const compExportMatch = code.match(/export\s+(?:default\s+)?(?:function|class|const)\s+([A-Z][A-Za-z0-9_]+)/);
+            if (compExportMatch) {
+              const compName = compExportMatch[1];
+              if (compName === 'App' && !files['src/App.tsx']) {
+                files['src/App.tsx'] = code;
+              } else {
+                const compPath = `src/components/${compName}.tsx`;
+                if (!files[compPath]) {
+                  files[compPath] = code;
+                } else {
+                  files[`src/components/${compName}_${blockCount}.tsx`] = code;
+                }
+              }
+            } else if (!files['src/App.tsx']) {
+              // Si aún no tenemos App.tsx, el primer archivo JS/TSX se asigna a src/App.tsx
+              files['src/App.tsx'] = code;
+            } else {
+              files[`src/components/Module${blockCount}.tsx`] = code;
+            }
+          }
+        }
+      }
+
+      // F. Saneamiento de exports por defecto: si un módulo React no tiene "export default", sintetizarlo
+      for (const [filePath, content] of Object.entries(files)) {
+        if ((filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) && !content.includes('export default')) {
+          const namedExportMatch = content.match(/export\s+(?:async\s+)?(?:function|class|const)\s+([A-Za-z0-9_]+)/);
+          if (namedExportMatch) {
+            const expName = namedExportMatch[1];
+            files[filePath] = `${content}\n\nexport default ${expName};\n`;
+          }
         }
       }
     }

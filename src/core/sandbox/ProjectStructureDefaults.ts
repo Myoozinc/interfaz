@@ -22,11 +22,18 @@ export const DEFAULT_PACKAGE_JSON = JSON.stringify({
     "lucide-react": "^0.469.0",
     clsx: "^2.1.1",
     "tailwind-merge": "^2.5.5",
-    "@supabase/supabase-js": "^2.47.10"
+    "@supabase/supabase-js": "^2.47.10",
+    "three": "^0.170.0",
+    "@types/three": "^0.170.0",
+    "canvas-confetti": "^1.9.4",
+    "cannon-es": "^0.20.0",
+    "tone": "^14.8.49",
+    "chart.js": "^4.4.7"
   },
   devDependencies: {
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@types/canvas-confetti": "^1.9.0",
     "@vitejs/plugin-react": "^4.3.4",
     autoprefixer: "^10.4.20",
     postcss: "^8.4.49",
@@ -315,15 +322,50 @@ export function ensureCompleteViteProject(
     result['src/index.css'] = DEFAULT_INDEX_CSS;
   }
   if (!result['src/App.tsx'] && !result['src/App.jsx'] && !result['src/App.js']) {
-    // Check if there is any other main component or root (excluding main entrypoint)
-    const hasComponent = Object.keys(result).some(
+    // Buscar si hay algún componente existente en src/ para envolverlo
+    const otherComponent = Object.keys(result).find(
       k => k.startsWith('src/') && 
       (k.endsWith('.tsx') || k.endsWith('.jsx')) && 
       !k.startsWith('src/main.')
     );
-    if (!hasComponent) {
+    if (otherComponent) {
+      const relPath = otherComponent.replace(/^src\//, './').replace(/\.(tsx|jsx)$/, '');
+      result['src/App.tsx'] = `import React from 'react';\nimport Component from '${relPath}';\n\nexport default function App() {\n  return <Component />;\n}\n`;
+    } else {
       result['src/App.tsx'] = DEFAULT_APP_TSX;
     }
+  }
+
+  // Asegurar que dependencias críticas usadas en el código estén presentes en package.json
+  if (result['package.json']) {
+    try {
+      const pkg = JSON.parse(result['package.json']);
+      pkg.dependencies = pkg.dependencies || {};
+      const allCode = Object.values(result).join('\n');
+      
+      const libraryMap: Record<string, string> = {
+        'three': '^0.170.0',
+        'cannon-es': '^0.20.0',
+        'tone': '^14.8.49',
+        'chart.js': '^4.4.7',
+        'canvas-confetti': '^1.9.4',
+        'lucide-react': '^0.469.0',
+        'clsx': '^2.1.1',
+        'tailwind-merge': '^2.5.5',
+        '@supabase/supabase-js': '^2.47.10'
+      };
+
+      let modified = false;
+      for (const [lib, ver] of Object.entries(libraryMap)) {
+        if ((allCode.includes(`'${lib}'`) || allCode.includes(`"${lib}"`) || allCode.includes(`'${lib}/`) || allCode.includes(`"${lib}/`)) && !pkg.dependencies[lib]) {
+          pkg.dependencies[lib] = ver;
+          modified = true;
+        }
+      }
+      if (modified) {
+        result['package.json'] = JSON.stringify(pkg, null, 2);
+      }
+    } catch {}
   }
 
   // Soporte de BaaS (Supabase): si alguna parte del código lo importa o si se solicita explícitamente

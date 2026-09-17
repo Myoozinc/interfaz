@@ -41,6 +41,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   const [consoleLogs, setConsoleLogs] = useState<{ type: 'log' | 'warn' | 'error' | 'info'; message: string; time: string }[]>([]);
   const [webContainerUrl, setWebContainerUrl] = useState<string | null>(null);
   const [isContainerBooting, setIsContainerBooting] = useState(false);
+  const [sandboxMode, setSandboxMode] = useState<'auto' | 'virtual'>('auto');
 
   const filesMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -533,6 +534,10 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     }
   };
 
+  const isUsingWebContainer = sandboxMode === 'auto' && Boolean(webContainerUrl);
+  const activeIframeSrc = isUsingWebContainer ? webContainerUrl! : undefined;
+  const activeIframeSrcDoc = !isUsingWebContainer ? srcDoc : undefined;
+
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden select-none font-sans">
       
@@ -573,20 +578,32 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
           </button>
 
           {isContainerBooting ? (
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold animate-pulse">
+            <button
+              onClick={() => setSandboxMode('virtual')}
+              title="Haz clic para alternar inmediatamente a Virtual Multi-File Sandbox"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-[11px] font-bold transition-all cursor-pointer animate-pulse"
+            >
               <Server className="w-3.5 h-3.5 text-amber-600 animate-spin" />
-              <span>Iniciando WebContainer...</span>
-            </div>
-          ) : webContainerUrl ? (
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+              <span>Iniciando WebContainer... (Clic para Instantáneo)</span>
+            </button>
+          ) : isUsingWebContainer ? (
+            <button
+              onClick={() => setSandboxMode('virtual')}
+              title="Servidor Vite en vivo activo. Haz clic para cambiar a compilador Virtual Instantáneo"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+            >
               <Server className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-              <span>WebContainer (Vite Live)</span>
-            </div>
+              <span>WebContainer (Vite Live) ⇄ Virtual</span>
+            </button>
           ) : (
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold">
+            <button
+              onClick={() => setSandboxMode('auto')}
+              title={webContainerUrl ? "Compilador Virtual activo. Haz clic para cambiar a Vite Live" : "Compilador Virtual Multi-File Sandbox activo"}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+            >
               <Zap className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Virtual Multi-File Sandbox</span>
-            </div>
+              <span>Virtual Sandbox {webContainerUrl ? '⇄ Vite' : ''}</span>
+            </button>
           )}
         </div>
 
@@ -690,12 +707,14 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
               </div>
               
               <iframe
-                key={`${iframeKey}_${webContainerUrl ? 'wc_' + webContainerUrl : 'doc'}`}
+                key={`${iframeKey}_${isUsingWebContainer ? 'wc_' + webContainerUrl : 'doc'}`}
                 title="Live Sandbox Mobile"
-                src={webContainerUrl || undefined}
-                srcDoc={!webContainerUrl ? srcDoc : undefined}
+                src={activeIframeSrc}
+                srcDoc={activeIframeSrcDoc}
                 className="w-full h-full border-none bg-white flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
+                // @ts-ignore
+                credentialless="true"
               />
             </div>
           ) : (
@@ -704,12 +723,14 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
               className="h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 flex flex-col"
             >
               <iframe
-                key={`${iframeKey}_${webContainerUrl ? 'wc_' + webContainerUrl : 'doc'}`}
+                key={`${iframeKey}_${isUsingWebContainer ? 'wc_' + webContainerUrl : 'doc'}`}
                 title="Live Sandbox"
-                src={webContainerUrl || undefined}
-                srcDoc={!webContainerUrl ? srcDoc : undefined}
+                src={activeIframeSrc}
+                srcDoc={activeIframeSrcDoc}
                 className="w-full h-full border-none bg-white flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
+                // @ts-ignore
+                credentialless="true"
               />
             </div>
           )

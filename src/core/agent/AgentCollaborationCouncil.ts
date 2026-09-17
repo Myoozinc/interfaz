@@ -517,8 +517,11 @@ Por favor, intenta reformular tu solicitud o especificar con más detalle la est
 
     // Ensure basic index.html wrapper if only modular JS/TS exists
     if (!files['index.html']) {
-      const mainScript = Object.keys(files).find(k => k.endsWith('.js') || k.endsWith('.ts') || k.endsWith('.tsx'));
-      const mainCss = Object.keys(files).find(k => k.endsWith('.css'));
+      const mainScript = Object.keys(files).find(k => k === 'src/main.tsx' || k === 'src/main.jsx' || k === 'src/main.js') ||
+        Object.keys(files).find(k => k === 'src/App.tsx' || k === 'src/App.jsx' || k === 'src/App.js') ||
+        Object.keys(files).find(k => k.endsWith('.tsx') || k.endsWith('.jsx')) ||
+        Object.keys(files).find(k => k.endsWith('.js') || k.endsWith('.ts'));
+      const mainCss = Object.keys(files).find(k => k === 'src/index.css' || k === 'styles.css' || k.endsWith('.css'));
       files['index.html'] = `<!DOCTYPE html>
 <html lang="es">
 <head>
