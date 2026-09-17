@@ -58,6 +58,7 @@ export const ChatPanel = ({
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [isCopiedAll, setIsCopiedAll] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -116,6 +117,21 @@ export const ChatPanel = ({
     navigator.clipboard.writeText(text);
     setCopiedMsgId(id);
     setTimeout(() => setCopiedMsgId(null), 2000);
+  };
+
+  const handleCopyAllChat = () => {
+    if (messages.length === 0) return;
+    const formatted = messages.map(msg => {
+      const roleLabel = msg.role === 'user' ? '👤 Usuario' : '🤖 NONA AI Engine';
+      const time = msg.timestamp ? ` (${msg.timestamp})` : '';
+      const domain = msg.activeAgentDomain ? ` [${msg.activeAgentDomain}]` : '';
+      return `### ${roleLabel}${domain}${time}:\n${msg.content}\n`;
+    }).join('\n---\n\n');
+
+    const fullExport = `# Historial de Conversación — NONA AI Factory\nFecha: ${new Date().toLocaleString()}\nTotal de mensajes: ${messages.length}\n\n---\n\n${formatted}`;
+    navigator.clipboard.writeText(fullExport);
+    setIsCopiedAll(true);
+    setTimeout(() => setIsCopiedAll(false), 2000);
   };
 
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
@@ -292,6 +308,30 @@ export const ChatPanel = ({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {messages.length > 0 && (
+            <button
+              onClick={handleCopyAllChat}
+              title="Copiar toda la conversación al portapapeles"
+              className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                isCopiedAll
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                  : 'text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 border-slate-200'
+              }`}
+            >
+              {isCopiedAll ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  <span>¡Chat Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3 text-slate-500" />
+                  <span>Copiar Chat</span>
+                </>
+              )}
+            </button>
+          )}
+
           {onNewProject && (
             <button
               onClick={onNewProject}
@@ -489,24 +529,39 @@ export const ChatPanel = ({
               </div>
 
               {/* Message Action Toolbar */}
-              <div className={`mt-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${
-                isUser ? 'mr-1' : 'ml-1'
+              <div className={`mt-1.5 flex items-center gap-1.5 ${
+                isUser ? 'justify-end mr-1' : 'justify-start ml-1'
               }`}>
                 <button
                   onClick={() => handleCopyMessage(msg.id, msg.content)}
-                  title="Copiar mensaje"
-                  className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                  title={isUser ? "Copiar tu pregunta o prompt" : "Copiar respuesta de NONA"}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all cursor-pointer border shadow-2xs ${
+                    copiedMsgId === msg.id
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'text-slate-500 hover:text-slate-800 bg-white/90 hover:bg-slate-100 border-slate-200/80'
+                  }`}
                 >
-                  {copiedMsgId === msg.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  {copiedMsgId === msg.id ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span>¡Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 text-slate-400" />
+                      <span>{isUser ? 'Copiar pregunta' : 'Copiar respuesta'}</span>
+                    </>
+                  )}
                 </button>
 
                 {isUser && (
                   <button
                     onClick={() => setInputPrompt(msg.content)}
-                    title="Editar y reenviar"
-                    className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                    title="Editar prompt y volver a enviar"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold text-slate-500 hover:text-indigo-600 bg-white/90 hover:bg-indigo-50 border border-slate-200/80 transition-all cursor-pointer shadow-2xs"
                   >
-                    <Edit3 className="w-3 h-3" />
+                    <Edit3 className="w-3 h-3 text-slate-400" />
+                    <span>Editar</span>
                   </button>
                 )}
               </div>

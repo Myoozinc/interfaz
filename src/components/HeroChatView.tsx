@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { 
   Sparkles, 
   Gamepad2, 
@@ -8,6 +8,7 @@ import {
   Columns, 
   Play, 
   Check, 
+  Copy,
   RefreshCw, 
   PlusCircle, 
   Brain, 
@@ -68,6 +69,30 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, thinkingText, isConversing]);
+
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const [isCopiedAll, setIsCopiedAll] = useState(false);
+
+  const handleCopyMessage = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedMsgId(id);
+    setTimeout(() => setCopiedMsgId(null), 2000);
+  };
+
+  const handleCopyAllChat = () => {
+    if (messages.length === 0) return;
+    const formatted = messages.map(msg => {
+      const roleLabel = msg.role === 'user' ? '👤 Usuario' : '🤖 NONA AI Engine';
+      const time = msg.timestamp ? ` (${msg.timestamp})` : '';
+      const domain = msg.activeAgentDomain ? ` [${msg.activeAgentDomain}]` : '';
+      return `### ${roleLabel}${domain}${time}:\n${msg.content}\n`;
+    }).join('\n---\n\n');
+
+    const fullExport = `# Historial de Conversación — NONA AI Factory\nFecha: ${new Date().toLocaleString()}\nTotal de mensajes: ${messages.length}\n\n---\n\n${formatted}`;
+    navigator.clipboard.writeText(fullExport);
+    setIsCopiedAll(true);
+    setTimeout(() => setIsCopiedAll(false), 2000);
+  };
 
   const quickActions = [
     {
@@ -231,6 +256,30 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button
+              onClick={handleCopyAllChat}
+              title="Copiar toda la conversación al portapapeles"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs ${
+                isCopiedAll
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                  : 'text-slate-600 hover:text-indigo-600 bg-white hover:bg-indigo-50 border-slate-200/80'
+              }`}
+            >
+              {isCopiedAll ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>¡Chat Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Copiar Chat</span>
+                </>
+              )}
+            </button>
+          )}
+
           {onNewCleanProject && (
             <button
               onClick={onNewCleanProject}
@@ -413,6 +462,33 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                     </button>
                   </div>
                 )}
+              </div>
+
+              {/* Message Action Toolbar */}
+              <div className={`mt-1.5 flex items-center gap-1.5 ${
+                isUser ? 'self-end mr-1' : 'self-start ml-1'
+              }`}>
+                <button
+                  onClick={() => handleCopyMessage(msg.id, msg.content)}
+                  title={isUser ? "Copiar tu pregunta o prompt" : "Copiar respuesta de NONA"}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all cursor-pointer border shadow-2xs ${
+                    copiedMsgId === msg.id
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 border-slate-200/80'
+                  }`}
+                >
+                  {copiedMsgId === msg.id ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span>¡Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 text-slate-400" />
+                      <span>{isUser ? 'Copiar pregunta' : 'Copiar respuesta'}</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           );

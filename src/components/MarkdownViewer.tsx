@@ -1,9 +1,46 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Copy, Check } from 'lucide-react';
 
 interface MarkdownViewerProps {
   content: string;
   className?: string;
 }
+
+const CodeBlock: React.FC<{ lang: string; code: string }> = ({ lang, code }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="my-2.5 rounded-xl bg-slate-900 text-slate-100 overflow-hidden text-xs font-mono shadow-xs border border-slate-800">
+      <div className="px-3 py-1.5 bg-slate-800/80 border-b border-slate-700/80 flex items-center justify-between text-[10px] text-slate-400 font-sans">
+        <span className="uppercase tracking-wider font-semibold">{lang || 'código'}</span>
+        <button
+          onClick={handleCopy}
+          title="Copiar fragmento de código"
+          className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors cursor-pointer py-0.5 px-2 rounded-md hover:bg-slate-700/60"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3 h-3 text-emerald-400" />
+              <span className="text-emerald-400 font-medium">¡Copiado!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3 h-3" />
+              <span>Copiar</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="p-3 overflow-x-auto select-text font-mono leading-normal text-emerald-400">{code}</pre>
+    </div>
+  );
+};
 
 export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content, className = '' }) => {
   if (!content) return null;
@@ -18,16 +55,7 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content, classNa
           const lines = part.slice(3, -3).trim().split('\n');
           const lang = lines[0]?.match(/^[a-z0-9_-]+$/i) ? lines[0] : '';
           const code = lang ? lines.slice(1).join('\n') : lines.join('\n');
-          return (
-            <div key={index} className="my-2.5 rounded-xl bg-slate-900 text-slate-100 overflow-hidden text-xs font-mono shadow-xs">
-              {lang && (
-                <div className="px-3 py-1 bg-slate-800/80 border-b border-slate-700 text-[10px] text-slate-400 font-sans uppercase tracking-wider font-semibold">
-                  {lang}
-                </div>
-              )}
-              <pre className="p-3 overflow-x-auto select-text font-mono leading-normal text-emerald-400">{code}</pre>
-            </div>
-          );
+          return <CodeBlock key={index} lang={lang} code={code} />;
         }
 
         // Render normal markdown blocks (headings, lists, blockquotes, paragraphs)
