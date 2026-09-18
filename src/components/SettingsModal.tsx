@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   X, 
-  Settings, 
   Cpu, 
   Globe, 
   RefreshCw, 
@@ -9,7 +8,13 @@ import {
   AlertCircle, 
   ExternalLink,
   Key,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  ChevronDown,
+  ChevronRight,
+  Zap,
+  Layers,
+  Server
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -29,6 +34,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [groqKey, setGroqKey] = useState(() => {
     return localStorage.getItem('nona_groq_key') || '';
   });
+  const [showDevKeys, setShowDevKeys] = useState(false);
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -39,9 +45,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (openRouterKey.trim()) {
       localStorage.setItem('nona_openrouter_key', openRouterKey.trim());
       localStorage.setItem('nona_cloud_api_key', openRouterKey.trim());
+    } else {
+      localStorage.removeItem('nona_openrouter_key');
+      localStorage.removeItem('nona_cloud_api_key');
     }
     if (groqKey.trim()) {
       localStorage.setItem('nona_groq_key', groqKey.trim());
+    } else {
+      localStorage.removeItem('nona_groq_key');
     }
     onClose();
   };
@@ -57,7 +68,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       ? 'https://api.groq.com/openai/v1/chat/completions'
       : 'https://openrouter.ai/api/v1/chat/completions';
 
-    const model = 'qwen/qwen3.8-27b';
+    const model = isGroq ? 'qwen/qwen3.8-27b' : 'qwen/qwen3.8-27b';
 
     try {
       const res = await fetch(endpoint, {
@@ -78,11 +89,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setTestResult({ 
           ok: true, 
           message: isGroq 
-            ? 'Qwen 3.8 27B en Groq Cloud Conectado (LPUs)' 
-            : 'Qwen 3.8 27B en OpenRouter Conectado (12,000 Tokens Sin Límites)' 
+            ? 'Conexión exitosa con Groq LPUs' 
+            : 'Conexión exitosa con OpenRouter AI' 
         });
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         setTestResult({ ok: false, message: `Error: ${err.error?.message || res.statusText}` });
       }
     } catch {
@@ -100,11 +111,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-              <Settings className="w-4 h-4" />
+              <Cpu className="w-4 h-4" />
             </div>
-            <h2 className="text-sm font-extrabold text-slate-900">
-              Ajustes del Motor IA Cloud (Qwen 3.8)
-            </h2>
+            <div>
+              <h2 className="text-sm font-extrabold text-slate-900">
+                Centro de Inteligencia Cloud
+              </h2>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Infraestructura multi-proveedor autónoma y pre-conectada
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -116,101 +132,136 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
           
-          {/* Active Cloud Model Card */}
-          <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-2">
+          {/* Active Cloud Status Card (Zero-Key Experience) */}
+          <div className="bg-gradient-to-br from-emerald-50 via-teal-50/50 to-indigo-50/30 p-4 rounded-2xl border border-emerald-200/80 space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-indigo-950 flex items-center gap-1.5">
-                <Cpu className="w-4 h-4 text-indigo-600" />
-                Motor IA Cloud Primario
+              <span className="font-bold text-emerald-950 flex items-center gap-1.5 text-xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                NONA Cloud Gateway: Pre-conectado
               </span>
-              <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">
-                Qwen 3.8 (12,000 Tokens)
+              <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                ONLINE
               </span>
             </div>
-            <p className="text-[11px] text-indigo-900/80 font-medium">
-              Pipeline multi-agente autónomo con <strong>Qwen 3.8 (27B)</strong> en la nube. 0% de cómputo en tu Mac.
+
+            <p className="text-[11px] text-emerald-950/80 font-medium leading-relaxed">
+              No necesitas configurar ninguna clave API. NONA opera sobre una red distribuida de servidores cloud con conmutación por error automática (failover) y balanceo inteligente.
             </p>
-          </div>
 
-          {/* OpenRouter API Key Input */}
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-600" />
-                OpenRouter API Key (Recomendado para 3D & SaaS)
-              </span>
-              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-200">
-                Sin Límites TPM
-              </span>
-            </div>
+            {/* Providers Grid */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="bg-white/80 backdrop-blur-xs p-2.5 rounded-xl border border-emerald-100 flex items-center gap-2">
+                <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <div>
+                  <div className="font-bold text-slate-800 text-[11px]">Groq LPUs</div>
+                  <div className="text-[10px] text-slate-500">Qwen 3.8 / Llama 3.3 (Ultra rápido)</div>
+                </div>
+              </div>
 
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">
-                Clave de OpenRouter (`sk-or-...`):
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={openRouterKey}
-                  onChange={(e) => setOpenRouterKey(e.target.value)}
-                  placeholder="sk-or-v1-..."
-                  className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 font-mono"
-                />
-                <button
-                  onClick={handleTestKey}
-                  disabled={testing || !openRouterKey.trim()}
-                  className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                >
-                  {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Probar'}
-                </button>
+              <div className="bg-white/80 backdrop-blur-xs p-2.5 rounded-xl border border-emerald-100 flex items-center gap-2">
+                <Layers className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                <div>
+                  <div className="font-bold text-slate-800 text-[11px]">SambaNova Cloud</div>
+                  <div className="text-[10px] text-slate-500">16,000 tokens de contexto</div>
+                </div>
+              </div>
+
+              <div className="bg-white/80 backdrop-blur-xs p-2.5 rounded-xl border border-emerald-100 flex items-center gap-2">
+                <Cpu className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                <div>
+                  <div className="font-bold text-slate-800 text-[11px]">Cerebras Cloud</div>
+                  <div className="text-[10px] text-slate-500">Inferencia a escala de oblea</div>
+                </div>
+              </div>
+
+              <div className="bg-white/80 backdrop-blur-xs p-2.5 rounded-xl border border-emerald-100 flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                <div>
+                  <div className="font-bold text-slate-800 text-[11px]">Google & OpenRouter</div>
+                  <div className="text-[10px] text-slate-500">Visión UI y respaldo 24/7</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Groq API Key Input */}
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                <Key className="w-4 h-4 text-slate-600" />
-                Groq API Key (Motor Secundario de Alta Velocidad)
+          {/* Collapsible Developer Override Section */}
+          <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
+            <button
+              onClick={() => setShowDevKeys(!showDevKeys)}
+              className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-100/70 transition-colors cursor-pointer"
+            >
+              <span className="font-bold text-slate-800 flex items-center gap-2 text-xs">
+                <Key className="w-3.5 h-3.5 text-slate-500" />
+                Opciones Avanzadas de Desarrollador (Opcional)
               </span>
-              <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold border border-slate-200">
-                Groq LPUs
-              </span>
-            </div>
+              {showDevKeys ? (
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              )}
+            </button>
 
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">
-                Clave de Groq (`gsk_...`):
-              </label>
-              <input
-                type="password"
-                value={groqKey}
-                onChange={(e) => setGroqKey(e.target.value)}
-                placeholder="gsk_..."
-                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 font-mono"
-              />
-            </div>
+            {showDevKeys && (
+              <div className="p-4 pt-1 space-y-3 border-t border-slate-200/80 bg-white">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Solo necesario si deseas forzar el uso de tus propias cuentas privadas de API en lugar de la infraestructura en la nube administrada por NONA.
+                </p>
 
-            {testResult && (
-              <div className={`p-2.5 rounded-xl border flex items-center gap-2 ${
-                testResult.ok 
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-                  : 'bg-amber-50 border-amber-200 text-amber-800'
-              }`}>
-                {testResult.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />}
-                <span className="text-[11px] leading-tight font-medium">{testResult.message}</span>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                    OpenRouter API Key (`sk-or-...`):
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={openRouterKey}
+                      onChange={(e) => setOpenRouterKey(e.target.value)}
+                      placeholder="sk-or-v1-..."
+                      className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 font-mono"
+                    />
+                    <button
+                      onClick={handleTestKey}
+                      disabled={testing || !openRouterKey.trim()}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer text-[11px]"
+                    >
+                      {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Probar'}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                    Groq API Key (`gsk_...`):
+                  </label>
+                  <input
+                    type="password"
+                    value={groqKey}
+                    onChange={(e) => setGroqKey(e.target.value)}
+                    placeholder="gsk_..."
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 font-mono"
+                  />
+                </div>
+
+                {testResult && (
+                  <div className={`p-2.5 rounded-xl border flex items-center gap-2 ${
+                    testResult.ok 
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                      : 'bg-amber-50 border-amber-200 text-amber-800'
+                  }`}>
+                    {testResult.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />}
+                    <span className="text-[11px] leading-tight font-medium">{testResult.message}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* GitHub & Vercel Sync Info */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2.5 shadow-2xs">
-            <span className="font-bold text-slate-900 flex items-center gap-1.5">
-              <svg className="w-4 h-4 fill-current text-slate-900" viewBox="0 0 24 24">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-              </svg>
-              Repositorio GitHub
+            <span className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+              <Server className="w-3.5 h-3.5 text-slate-700" />
+              Infraestructura & Despliegue
             </span>
 
             <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-[11px]">
@@ -221,31 +272,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 rel="noopener noreferrer"
                 className="text-indigo-600 hover:underline flex items-center gap-1 font-semibold"
               >
-                Abrir <ExternalLink className="w-3 h-3" />
+                GitHub <ExternalLink className="w-3 h-3" />
               </a>
             </div>
-          </div>
 
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 shadow-2xs">
-            <span className="font-bold text-slate-900 flex items-center gap-1.5">
-              <Globe className="w-4 h-4 text-indigo-600" />
-              Despliegue Vercel
-            </span>
-            <p className="text-[11px] text-slate-600 font-medium">
-              Sincronizado automáticamente con tu cuenta de Vercel.
-            </p>
+            <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-[11px]">
+              <span className="text-slate-600 flex items-center gap-1.5 font-medium">
+                <Globe className="w-3.5 h-3.5 text-indigo-500" />
+                Vercel Serverless Gateway
+              </span>
+              <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Sincronizado
+              </span>
+            </div>
           </div>
 
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
           <button
-            onClick={handleSaveApiKey}
-            className="px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-semibold shadow-2xs transition-all cursor-pointer"
+            onClick={onClose}
+            className="px-4 py-1.5 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-semibold transition-all cursor-pointer text-xs"
           >
-            Guardar y Cerrar
+            Cerrar
           </button>
+          {showDevKeys && (
+            <button
+              onClick={handleSaveApiKey}
+              className="px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-semibold shadow-2xs transition-all cursor-pointer text-xs"
+            >
+              Guardar Claves
+            </button>
+          )}
         </div>
 
       </div>

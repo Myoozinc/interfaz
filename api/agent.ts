@@ -78,6 +78,21 @@ export default async function handler(req: any, res?: any) {
       ...(process.env.GROQ_API_KEYS ? process.env.GROQ_API_KEYS.split(',') : [])
     ].map(k => k.trim()).filter(Boolean);
 
+    const envSambaNovaKeys: string[] = [
+      process.env.SAMBANOVA_API_KEY || '',
+      ...(process.env.SAMBANOVA_API_KEYS ? process.env.SAMBANOVA_API_KEYS.split(',') : [])
+    ].map(k => k.trim()).filter(Boolean);
+
+    const envCerebrasKeys: string[] = [
+      process.env.CEREBRAS_API_KEY || '',
+      ...(process.env.CEREBRAS_API_KEYS ? process.env.CEREBRAS_API_KEYS.split(',') : [])
+    ].map(k => k.trim()).filter(Boolean);
+
+    const envGeminiKeys: string[] = [
+      process.env.GEMINI_API_KEY || '',
+      ...(process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(',') : [])
+    ].map(k => k.trim()).filter(Boolean);
+
     const envOrKey = (process.env.OPENROUTER_API_KEY || '').trim();
 
     const groqKeysToTry = customGroq ? [customGroq, ...envGroqKeys] : envGroqKeys;
@@ -106,7 +121,7 @@ export default async function handler(req: any, res?: any) {
     const targetTokens = maxTokensRequested || 3000;
     const temp = typeof temperature === 'number' ? temperature : 0.15;
 
-    // Presupuesto de tokens optimizado para Groq LPU (techo 16,000 / default 8,000)
+    // Presupuesto de tokens optimizado para Groq LPU y nubes open source (techo 16,000 / default 8,000)
     const safeGroqMaxTokens = maxTokensRequested
       ? Math.min(Math.max(maxTokensRequested, 200), 16000)
       : 8000;
@@ -140,9 +155,94 @@ export default async function handler(req: any, res?: any) {
       }
     };
 
+    const executeSambaNova = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      try {
+        const res = await fetch('https://api.sambanova.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${keyToUse}`,
+            'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
+            'X-Title': 'NONA AI Software Factory',
+          },
+          body: JSON.stringify({
+            model: targetModel || 'Meta-Llama-3.3-70B-Instruct',
+            messages: formatMessages(safeMessages),
+            stream: true,
+            temperature: temp,
+            max_tokens: Math.min(tokens, 8192),
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return res;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    };
+
+    const executeCerebras = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      try {
+        const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${keyToUse}`,
+            'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
+            'X-Title': 'NONA AI Software Factory',
+          },
+          body: JSON.stringify({
+            model: targetModel || 'llama3.3-70b',
+            messages: formatMessages(safeMessages),
+            stream: true,
+            temperature: temp,
+            max_tokens: Math.min(tokens, 8192),
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return res;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    };
+
+    const executeGemini = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      try {
+        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${keyToUse}`,
+          },
+          body: JSON.stringify({
+            model: targetModel || 'gemini-2.5-flash',
+            messages: formatMessages(safeMessages),
+            stream: true,
+            temperature: temp,
+            max_tokens: tokens,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return res;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    };
+
     const executeOpenRouter = async (keyToUse: string, orModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout ágil para fallback
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
       try {
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
@@ -172,17 +272,41 @@ export default async function handler(req: any, res?: any) {
     let aiResponse: Response | null = null;
     let lastError = '';
 
+    // =========================================================================
+    // SMART ROUTING & MULTI-PROVIDER FAILOVER
+    // =========================================================================
+
     if (hasImages) {
-      // Vision model: Prefer OpenRouter gemini-2.5-flash or Groq vision
-      if (orKeyToUse) {
-        aiResponse = await executeOpenRouter(orKeyToUse, 'google/gemini-2.5-flash', 2000);
-      } else if (groqKeysToTry.length > 0) {
-        aiResponse = await executeGroq(groqKeysToTry[0], 'llama-3.2-11b-vision-preview', 2000);
-        if (!aiResponse.ok) {
-          aiResponse = await executeGroq(groqKeysToTry[0], 'openai/gpt-oss-120b', 2000);
+      // 1. Tarea Multimodal / Visión: Priorizar Gemini 2.5 Flash -> OpenRouter -> Groq Vision
+      if (envGeminiKeys.length > 0) {
+        for (const gemKey of envGeminiKeys) {
+          try {
+            const res = await executeGemini(gemKey, 'gemini-2.5-flash', 4000);
+            if (res.ok) { aiResponse = res; break; }
+          } catch (e: any) {
+            lastError = `Gemini Vision error: ${e.message}`;
+          }
         }
-      } else {
-        throw new Error('Para procesar imágenes se requiere OPENROUTER_API_KEY o GROQ_API_KEY configurada.');
+      }
+
+      if ((!aiResponse || !aiResponse.ok) && orKeyToUse) {
+        try {
+          const res = await executeOpenRouter(orKeyToUse, 'google/gemini-2.5-flash', 4000);
+          if (res.ok) aiResponse = res;
+        } catch (e: any) {
+          lastError += ` | OpenRouter Vision: ${e.message}`;
+        }
+      }
+
+      if ((!aiResponse || !aiResponse.ok) && groqKeysToTry.length > 0) {
+        for (const key of groqKeysToTry) {
+          try {
+            const res = await executeGroq(key, 'llama-3.2-11b-vision-preview', 2000);
+            if (res.ok) { aiResponse = res; break; }
+          } catch (e: any) {
+            lastError += ` | Groq Vision: ${e.message}`;
+          }
+        }
       }
     } else {
       let resolvedModel = model;
@@ -207,43 +331,86 @@ export default async function handler(req: any, res?: any) {
         resolvedModel = 'llama-3.1-8b-instant';
       }
 
-      const isExplicitGroq = resolvedModel && (
-        resolvedModel.includes('qwen') ||
-        resolvedModel.includes('llama') ||
-        resolvedModel.includes('gpt-oss') ||
-        resolvedModel.includes('mixtral') ||
-        resolvedModel.includes('gemma') ||
-        resolvedModel.startsWith('groq/')
-      );
-
-      // OpenRouter solo se prioriza si el usuario configuró explícitamente su clave personalizada
-      const isOpenRouterPreferred = Boolean(
-        customOr &&
-        resolvedModel &&
-        resolvedModel.includes('/') &&
-        !resolvedModel.startsWith('groq/') &&
-        !isExplicitGroq
-      );
-
-      // Lista priorizada de modelos activos en Groq
       const standardGroqModels = Array.from(new Set([
         resolvedModel,
-        'qwen/qwen3.8-27b',
         'llama-3.3-70b-versatile',
+        'qwen/qwen3.8-27b',
         'llama-3.1-8b-instant',
         'openai/gpt-oss-120b',
         'openai/gpt-oss-20b',
         'groq/compound'
       ])).filter(Boolean);
 
-      if (isOpenRouterPreferred && orKeyToUse) {
-        // TIER 1 (OpenRouter): 1 intento con timeout ágil
-        const targetModels = Array.from(new Set([
-          resolvedModel,
+      // TIER 1: Groq LPU (Ultra-rápido ~450 tokens/s con pooling de keys)
+      if (groqKeysToTry.length > 0) {
+        for (const key of groqKeysToTry) {
+          for (const targetM of standardGroqModels) {
+            try {
+              const res = await executeGroq(key, targetM, safeGroqMaxTokens);
+              if (res.ok) {
+                aiResponse = res;
+                break;
+              } else {
+                const errTxt = await res.text().catch(() => '');
+                lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
+              }
+            } catch (e: any) {
+              lastError = `Groq (${targetM}) error: ${e.message}`;
+            }
+          }
+          if (aiResponse && aiResponse.ok) break;
+        }
+      }
+
+      // TIER 2: SambaNova Cloud (Llama 3.3 70B & Qwen 2.5 72B en chips SN40L)
+      if ((!aiResponse || !aiResponse.ok) && envSambaNovaKeys.length > 0) {
+        const sambaModels = ['Meta-Llama-3.3-70B-Instruct', 'Qwen2.5-72B-Instruct'];
+        for (const key of envSambaNovaKeys) {
+          for (const sModel of sambaModels) {
+            try {
+              const res = await executeSambaNova(key, sModel, safeGroqMaxTokens);
+              if (res.ok) {
+                aiResponse = res;
+                break;
+              } else {
+                const errTxt = await res.text().catch(() => '');
+                lastError += ` | SambaNova (${sModel}): ${errTxt.slice(0, 100)}`;
+              }
+            } catch (e: any) {
+              lastError += ` | SambaNova (${sModel}) error: ${e.message}`;
+            }
+          }
+          if (aiResponse && aiResponse.ok) break;
+        }
+      }
+
+      // TIER 3: Cerebras Cloud (Llama 3.3 70B a 1,800 tokens/s)
+      if ((!aiResponse || !aiResponse.ok) && envCerebrasKeys.length > 0) {
+        for (const key of envCerebrasKeys) {
+          try {
+            const res = await executeCerebras(key, 'llama3.3-70b', safeGroqMaxTokens);
+            if (res.ok) {
+              aiResponse = res;
+              break;
+            } else {
+              const errTxt = await res.text().catch(() => '');
+              lastError += ` | Cerebras: ${errTxt.slice(0, 100)}`;
+            }
+          } catch (e: any) {
+            lastError += ` | Cerebras error: ${e.message}`;
+          }
+          if (aiResponse && aiResponse.ok) break;
+        }
+      }
+
+      // TIER 4: OpenRouter Cloud (DeepSeek-V3, Qwen 2.5 Coder, modelos abiertos)
+      if ((!aiResponse || !aiResponse.ok) && orKeyToUse) {
+        const targetModels = [
+          resolvedModel || 'deepseek/deepseek-chat',
           'deepseek/deepseek-chat',
           'qwen/qwen-2.5-coder-32b-instruct',
           ...VERIFIED_FREE_OR_MODELS
-        ])).slice(0, 3);
+        ].slice(0, 3);
 
         for (const orModel of targetModels) {
           try {
@@ -254,89 +421,22 @@ export default async function handler(req: any, res?: any) {
               break;
             } else {
               const errText = await res.text().catch(() => '');
-              lastError = `OpenRouter (${orModel}): ${errText.slice(0, 100)}`;
+              lastError += ` | OpenRouter (${orModel}): ${errText.slice(0, 100)}`;
             }
           } catch (e: any) {
-            lastError = `OpenRouter (${orModel}) Exception: ${e.message}`;
-          }
-        }
-
-        // Si OpenRouter falla o expira, Fallback instantáneo a Groq LPU
-        if ((!aiResponse || !aiResponse.ok) && groqKeysToTry.length > 0) {
-          for (const key of groqKeysToTry) {
-            for (const targetM of standardGroqModels) {
-              try {
-                const res = await executeGroq(key, targetM, safeGroqMaxTokens);
-                if (res.ok) {
-                  aiResponse = res;
-                  break;
-                } else {
-                  const errTxt = await res.text().catch(() => '');
-                  lastError += ` | Groq (${targetM}): ${errTxt.slice(0, 100)}`;
-                }
-              } catch (e: any) {
-                lastError += ` | Groq (${targetM}) error: ${e.message}`;
-              }
-            }
-            if (aiResponse && aiResponse.ok) break;
-          }
-        }
-      } else {
-        // TIER 1 (Fast Low-Latency / Groq LPU preferred): Qwen 3.8 / Llama 3.3 / GPT-OSS
-        if (groqKeysToTry.length > 0) {
-          for (const key of groqKeysToTry) {
-            for (const targetM of standardGroqModels) {
-              try {
-                const res = await executeGroq(key, targetM, safeGroqMaxTokens);
-                if (res.ok) {
-                  aiResponse = res;
-                  break;
-                } else {
-                  const errTxt = await res.text().catch(() => '');
-                  lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
-                }
-              } catch (e: any) {
-                lastError = `Groq (${targetM}) error: ${e.message}`;
-              }
-            }
-            if (aiResponse && aiResponse.ok) break;
-          }
-        }
-
-        // TIER 2: Fallback to OpenRouter (máximo 3 modelos para evitar agotar el timeout)
-        if ((!aiResponse || !aiResponse.ok) && orKeyToUse) {
-          const targetModels = [
-            resolvedModel || 'deepseek/deepseek-chat',
-            'deepseek/deepseek-chat',
-            ...VERIFIED_FREE_OR_MODELS
-          ].slice(0, 3);
-
-          for (const orModel of targetModels) {
-            try {
-              const openRouterTokens = Math.max(6000, Math.min(targetTokens, 12000));
-              const res = await executeOpenRouter(orKeyToUse, orModel, openRouterTokens);
-              if (res.ok) {
-                aiResponse = res;
-                break;
-              } else {
-                const errText = await res.text().catch(() => '');
-                lastError = `OpenRouter (${orModel}): ${errText.slice(0, 100)}`;
-              }
-            } catch (e: any) {
-              lastError = `OpenRouter (${orModel}) Exception: ${e.message}`;
-            }
+            lastError += ` | OpenRouter (${orModel}) Exception: ${e.message}`;
           }
         }
       }
     }
 
     if (!aiResponse || !aiResponse.ok) {
-      if (groqKeysToTry.length === 0 && !orKeyToUse) {
+      if (groqKeysToTry.length === 0 && !orKeyToUse && envSambaNovaKeys.length === 0 && envCerebrasKeys.length === 0) {
         return sendResponse(401, {
-          error: 'No se detectó ninguna clave de API. Configura GROQ_API_KEY o OPENROUTER_API_KEY en las variables de entorno de Vercel (.env) o ingresa tu API Key en los Ajustes de NONA.'
+          error: 'NONA Cloud Gateway: Inferencia cloud no configurada. Agrega GROQ_API_KEY en las variables de entorno de tu proyecto en Vercel para activar el motor multi-IA automático sin pedir llaves a los usuarios.'
         });
       }
-      throw new Error(`Servicio de IA no disponible temporalmente. Detalle: ${lastError}`);
+      throw new Error(`Servicio de IA temporalmente saturado en todos los proveedores. Detalle: ${lastError}`);
     }
 
     // =====================================================================

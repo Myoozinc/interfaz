@@ -137,9 +137,9 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-1.5 sm:gap-2">
         
         {/* Model Indicator Pill */}
-        <div className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/70 text-[11px] font-medium text-slate-600">
+        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/70 text-[11px] font-medium text-slate-700 shadow-2xs">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>⚡ Qwen 3.8 (Groq LPU)</span>
+          <span>⚡ NONA Cloud Engine (Multi-IA)</span>
         </div>
 
         {/* 🌟 Signature "Open IDE / Modo Chat" Button (Antigravity & Ollama Desktop style) */}
