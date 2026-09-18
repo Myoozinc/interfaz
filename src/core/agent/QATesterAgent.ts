@@ -44,6 +44,23 @@ export class QATesterAgent {
       normalizedFiles[clean] = content;
     }
 
+    // Normalización del componente raíz principal (App.tsx):
+    // Si el modelo colocó App en src/components/App.tsx o en la raíz App.tsx, normalizar a src/App.tsx
+    if (!normalizedFiles['src/App.tsx']) {
+      if (normalizedFiles['src/components/App.tsx']) {
+        normalizedFiles['src/App.tsx'] = normalizedFiles['src/components/App.tsx'];
+        delete normalizedFiles['src/components/App.tsx'];
+      } else if (normalizedFiles['App.tsx']) {
+        normalizedFiles['src/App.tsx'] = normalizedFiles['App.tsx'];
+        delete normalizedFiles['App.tsx'];
+      } else if (normalizedFiles['src/App.jsx']) {
+        normalizedFiles['src/App.tsx'] = normalizedFiles['src/App.jsx'];
+      } else if (normalizedFiles['App.jsx']) {
+        normalizedFiles['src/App.tsx'] = normalizedFiles['App.jsx'];
+        delete normalizedFiles['App.jsx'];
+      }
+    }
+
     const fileKeys = Object.keys(normalizedFiles);
 
     if (fileKeys.length === 0) {
@@ -119,6 +136,30 @@ export class QATesterAgent {
         while ((match = importRegex.exec(content)) !== null) {
           const specifier = match[1];
 
+          // 1. Auto-satisfacer imports de hojas de estilo CSS:
+          // VirtualMultiFileBundler inyecta todo el CSS en <style> en el HTML y sustituye
+          // los imports JS de .css con comentarios inocuos (/* [inlined-css] */).
+          // Un import como './index.css' en un subcomponente nunca debe provocar fallo fatal de QA.
+          if (specifier.endsWith('.css')) {
+            const resolvedCssPath = this.resolveRelativePath(fileDir, specifier);
+            if (!(resolvedCssPath in normalizedFiles)) {
+              normalizedFiles[resolvedCssPath] = normalizedFiles['src/index.css'] || '/* [auto-css] */';
+            }
+            continue;
+          }
+
+          // 2. Soporte tolerante para utilidades (clsx, twMerge, cn) en lib/utils o utils
+          if (specifier.includes('lib/utils') || specifier.includes('utils')) {
+            const resolvedUtilsPath = this.resolveRelativePath(fileDir, specifier);
+            const existingUtils = normalizedFiles['src/lib/utils.ts'] || normalizedFiles['src/utils.ts'] || normalizedFiles['src/lib/utils.js'];
+            if (existingUtils) {
+              if (!(resolvedUtilsPath in normalizedFiles) && !(resolvedUtilsPath + '.ts' in normalizedFiles)) {
+                normalizedFiles[`${resolvedUtilsPath}.ts`] = existingUtils;
+              }
+              continue;
+            }
+          }
+
           // Resolver ruta relativa con respecto al directorio del archivo importador
           const resolvedPath = this.resolveRelativePath(fileDir, specifier);
 
@@ -136,7 +177,44 @@ export class QATesterAgent {
             `${resolvedPath}/index.js`,
           ];
 
-          const exists = candidatePaths.some(candidate => candidate in normalizedFiles);
+          let exists = candidatePaths.some(candidate => candidate in normalizedFiles);
+
+          // Si no se encontró en la ruta directa calculada:
+          if (!exists) {
+            // A. Probar relativo a 'src/' si el specifier empezaba por ./ (ej: import Header from './components/Header')
+            if (specifier.startsWith('./')) {
+              const fromSrcPath = `src/${specifier.slice(2)}`;
+              const fromSrcCandidates = [
+                fromSrcPath,
+                `${fromSrcPath}.tsx`,
+                `${fromSrcPath}.ts`,
+                `${fromSrcPath}.jsx`,
+                `${fromSrcPath}.js`,
+              ];
+              const matchFromSrc = fromSrcCandidates.find(c => c in normalizedFiles);
+              if (matchFromSrc) {
+                exists = true;
+                normalizedFiles[`${resolvedPath}.tsx`] = normalizedFiles[matchFromSrc];
+              }
+            }
+
+            // B. Búsqueda por nombre base de componente:
+            // VirtualMultiFileBundler registra 'app/${baseName}' y './${baseName}' en el Import Map,
+            // por lo que si el componente existe en el proyecto con el mismo nombre, el navegador lo resuelve con éxito.
+            if (!exists) {
+              const baseName = specifier.split('/').pop()?.replace(/\.(tsx|ts|jsx|js)$/, '');
+              if (baseName && baseName !== 'index') {
+                const matchedFile = Object.keys(normalizedFiles).find(k => {
+                  const kBase = k.split('/').pop()?.replace(/\.(tsx|ts|jsx|js)$/, '');
+                  return kBase === baseName;
+                });
+                if (matchedFile) {
+                  exists = true;
+                  normalizedFiles[`${resolvedPath}.tsx`] = normalizedFiles[matchedFile];
+                }
+              }
+            }
+          }
 
           if (!exists) {
             const err = `El archivo "${filePath}" importa "${specifier}", pero no se encontró ningún archivo correspondiente en el proyecto.`;
