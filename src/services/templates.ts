@@ -1,20 +1,35 @@
 import type { ProjectTemplate } from '../types';
 import { MARIO_KART_GAME_HTML } from './marioKartTemplate';
 import { AIR_COMBAT_GAME_HTML } from './airCombatTemplate';
+import { THREE_D_STUDIO_HTML } from './templates3DStudio';
+import { SAAS_ANALYTICS_HTML } from './templatesSaaS';
+import { ECOMMERCE_STORE_HTML } from './templatesEcommerce';
+import { SYNTHWAVE_DAW_HTML } from './templatesDaw';
+import { KANBAN_HTML } from './templatesKanban';
+import { MOBILE_IOS_HTML } from './templatesMobile';
 
-export { MARIO_KART_GAME_HTML, AIR_COMBAT_GAME_HTML };
+export { 
+  MARIO_KART_GAME_HTML, 
+  AIR_COMBAT_GAME_HTML, 
+  THREE_D_STUDIO_HTML, 
+  SAAS_ANALYTICS_HTML, 
+  ECOMMERCE_STORE_HTML, 
+  SYNTHWAVE_DAW_HTML, 
+  KANBAN_HTML, 
+  MOBILE_IOS_HTML 
+};
 
 export const STARTER_TEMPLATES: ProjectTemplate[] = [
   // =========================================================================
-  // 0. ⚡ MODERN REACT + VITE STUDIO (Estándar Lovable / bolt.new / v0)
+  // 0. ⚡ MODERN REACT + VITE MODULAR STUDIO
   // =========================================================================
   {
     id: 'nona-react-vite-studio',
     name: '⚡ Modern React + Vite Studio',
-    description: 'Estructura multi-archivo estándar de Vite con React, TypeScript y Tailwind CSS lista para crear componentes modulares.',
+    description: 'Arquitectura multi-archivo React 18 con TypeScript, Tailwind CSS y componentes modulares (Header, StatCards, ActivityFeed).',
     icon: 'Code2',
     category: 'React & Vite',
-    tags: ['React 18', 'TypeScript', 'Tailwind CSS', 'Vite', 'Multi-Archivo'],
+    tags: ['React 18', 'TypeScript', 'Tailwind CSS', 'Vite', 'Componentes'],
     badge: 'Recomendado',
     files: [
       {
@@ -22,35 +37,287 @@ export const STARTER_TEMPLATES: ProjectTemplate[] = [
         name: 'src/App.tsx',
         language: 'typescript',
         content: `import React, { useState } from 'react';
-import { Sparkles, Play } from 'lucide-react';
+import { Header } from './components/Header';
+import { StatCard } from './components/StatCard';
+import { ActivityFeed } from './components/ActivityFeed';
+import { Users, DollarSign, Activity, Zap, RefreshCw } from 'lucide-react';
 
 export default function App() {
-  const [count, setCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'settings'>('overview');
+  const [count, setCount] = useState(1284);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setCount(prev => prev + Math.floor(Math.random() * 50) + 10);
+      setIsRefreshing(false);
+    }, 600);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6">
-      <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center space-y-6 shadow-2xl backdrop-blur-sm">
-        <div className="w-16 h-16 mx-auto bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
-          <Sparkles className="w-8 h-8 text-white" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">NONA React Studio</h1>
-          <p className="text-slate-400 text-sm mt-2">Proyecto multi-archivo React + Vite + TypeScript.</p>
-        </div>
-        <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
-          <span className="text-sm font-medium text-slate-300">Contador Interactivo:</span>
-          <button onClick={() => setCount(c => c + 1)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow-md transition-all active:scale-95 cursor-pointer">
-            <Play className="w-4 h-4 fill-white" />
-            {count} clics
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased">
+      <Header />
+      <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+        {/* Navigation Tabs */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={\`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer \${
+                activeTab === 'overview'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }\`}
+            >
+              Vista General
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={\`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer \${
+                activeTab === 'analytics'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }\`}
+            >
+              Métricas
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={\`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer \${
+                activeTab === 'settings'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }\`}
+            >
+              Configuración
+            </button>
+          </div>
+
+          <button
+            onClick={handleRefresh}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
+          >
+            <RefreshCw className={\`w-3.5 h-3.5 \${isRefreshing ? 'animate-spin text-indigo-400' : ''}\`} />
+            <span>Actualizar Datos</span>
           </button>
         </div>
-      </div>
+
+        {/* Key Metrics Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title="Usuarios Activos"
+            value={count.toLocaleString()}
+            change="+14.2%"
+            isPositive={true}
+            icon={Users}
+            accentColor="indigo"
+          />
+          <StatCard
+            title="Ingresos Recurrentes (MRR)"
+            value="$42,850"
+            change="+28.4%"
+            isPositive={true}
+            icon={DollarSign}
+            accentColor="emerald"
+          />
+          <StatCard
+            title="Tasa de Conversión"
+            value="3.84%"
+            change="-0.6%"
+            isPositive={false}
+            icon={Activity}
+            accentColor="amber"
+          />
+          <StatCard
+            title="Eventos por Segundo"
+            value="98.2k/s"
+            change="+41.5%"
+            isPositive={true}
+            icon={Zap}
+            accentColor="cyan"
+          />
+        </div>
+
+        {/* Modular Interactive Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-slate-900/60 border border-slate-800/80 p-6 rounded-3xl shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-white">Rendimiento de la Plataforma</h3>
+                <p className="text-xs text-slate-400">Tráfico y respuesta de microservicios en vivo</p>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                100% Operativo
+              </span>
+            </div>
+            <div className="h-48 bg-slate-950/70 rounded-2xl border border-slate-800/60 flex items-center justify-center relative overflow-hidden group">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                  <Zap className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-white">Componentes Modulares React 18</h4>
+                <p className="text-xs text-slate-400 max-w-sm">Edita los archivos src/components/Header.tsx o StatCard.tsx para ver la recarga en caliente en tiempo real.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Activity Feed */}
+          <div className="bg-slate-900/60 border border-slate-800/80 p-6 rounded-3xl shadow-xl">
+            <ActivityFeed />
+          </div>
+        </div>
+      </main>
     </div>
   );
 }`
       },
       {
         id: '2',
+        name: 'src/components/Header.tsx',
+        language: 'typescript',
+        content: `import React from 'react';
+import { Sparkles, Bell, Search } from 'lucide-react';
+
+export const Header: React.FC = () => {
+  return (
+    <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-6 py-3.5 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+          <Sparkles className="w-4 h-4" />
+        </div>
+        <div>
+          <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+            NONA Studio Pro
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Vite + React 18</span>
+          </h1>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="relative hidden sm:block">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Buscar..."
+            className="bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-indigo-500 transition-colors w-48"
+          />
+        </div>
+        <button className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-colors cursor-pointer">
+          <Bell className="w-3.5 h-3.5" />
+        </button>
+        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center justify-center border border-indigo-400/30 shadow-md">
+          NO
+        </div>
+      </div>
+    </header>
+  );
+};`
+      },
+      {
+        id: '3',
+        name: 'src/components/StatCard.tsx',
+        language: 'typescript',
+        content: `import React from 'react';
+import { LucideIcon } from 'lucide-react';
+
+interface StatCardProps {
+  title: string;
+  value: string;
+  change: string;
+  isPositive: boolean;
+  icon: LucideIcon;
+  accentColor: 'indigo' | 'emerald' | 'amber' | 'cyan';
+}
+
+const colorMap = {
+  indigo: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+  emerald: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  amber: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+  cyan: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+};
+
+export const StatCard: React.FC<StatCardProps> = ({
+  title,
+  value,
+  change,
+  isPositive,
+  icon: Icon,
+  accentColor
+}) => {
+  return (
+    <div className="bg-slate-900/70 border border-slate-800/80 p-5 rounded-2xl shadow-xl flex flex-col justify-between hover:border-slate-700 transition-colors">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-400">{title}</span>
+        <div className={\`p-2 rounded-xl border \${colorMap[accentColor]}\`}>
+          <Icon className="w-4 h-4" />
+        </div>
+      </div>
+      <div className="mt-4 flex items-baseline justify-between">
+        <span className="text-2xl font-black text-white tracking-tight">{value}</span>
+        <span className={\`text-xs font-bold \${isPositive ? 'text-emerald-400' : 'text-rose-400'}\`}>
+          {change}
+        </span>
+      </div>
+    </div>
+  );
+};`
+      },
+      {
+        id: '4',
+        name: 'src/components/ActivityFeed.tsx',
+        language: 'typescript',
+        content: `import React from 'react';
+import { CheckCircle2, Clock, UserPlus, AlertCircle } from 'lucide-react';
+
+const activities = [
+  { id: 1, text: 'Nuevo cliente Enterprise suscrito', time: 'Hace 5m', icon: UserPlus, color: 'text-emerald-400' },
+  { id: 2, text: 'Despliegue exitoso en producción', time: 'Hace 18m', icon: CheckCircle2, color: 'text-indigo-400' },
+  { id: 3, text: 'Alerta de latencia resuelta en Edge', time: 'Hace 42m', icon: AlertCircle, color: 'text-amber-400' },
+  { id: 4, text: 'Backup automático completado', time: 'Hace 2h', icon: Clock, color: 'text-slate-400' },
+];
+
+export const ActivityFeed: React.FC = () => {
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+        Actividad Reciente
+      </h3>
+      <div className="space-y-3">
+        {activities.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div key={item.id} className="flex items-start gap-3 p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/50">
+              <Icon className={\`w-4 h-4 mt-0.5 shrink-0 \${item.color}\`} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-slate-200 truncate">{item.text}</p>
+                <span className="text-[10px] text-slate-500">{item.time}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};`
+      },
+      {
+        id: '5',
+        name: 'src/main.tsx',
+        language: 'typescript',
+        content: `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);`
+      },
+      {
+        id: '6',
         name: 'src/index.css',
         language: 'css',
         content: `@tailwind base;
@@ -63,7 +330,7 @@ body {
 }`
       },
       {
-        id: '3',
+        id: '7',
         name: 'index.html',
         language: 'html',
         content: `<!DOCTYPE html>
@@ -81,16 +348,36 @@ body {
 </html>`
       },
       {
-        id: '4',
+        id: '8',
         name: 'package.json',
         language: 'json',
         content: `{\n  "name": "nona-app",\n  "private": true,\n  "version": "0.1.0",\n  "type": "module",\n  "scripts": {\n    "dev": "vite",\n    "build": "tsc && vite build"\n  },\n  "dependencies": {\n    "react": "^18.3.1",\n    "react-dom": "^18.3.1",\n    "lucide-react": "^0.469.0"\n  },\n  "devDependencies": {\n    "@vitejs/plugin-react": "^4.3.4",\n    "tailwindcss": "^3.4.17",\n    "typescript": "^5.6.3",\n    "vite": "^6.0.7"\n  }\n}`
       },
       {
-        id: '5',
+        id: '9',
         name: 'vite.config.ts',
         language: 'typescript',
         content: `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()]\n});`
+      }
+    ]
+  },
+  // =========================================================================
+  // 1. 📐 3D GEOMETRY STUDIO PRO (Three.js WebGL CAD & Modeling)
+  // =========================================================================
+  {
+    id: '3d-geometry-studio-pro',
+    name: '📐 3D Geometry Studio Pro',
+    description: 'Modelador 3D interactivo con Three.js: añade formas geométricas (cubo, esfera, toroide, cilindro, plano), manipula materiales, presets de iluminación y exporta capturas en alta definición.',
+    icon: 'Box',
+    category: 'Estudio 3D & WebGL',
+    tags: ['Three.js', 'WebGL', 'Modelado 3D', 'OrbitControls', 'Shaders'],
+    badge: 'Pro 3D',
+    files: [
+      {
+        id: '1',
+        name: 'index.html',
+        language: 'html',
+        content: THREE_D_STUDIO_HTML
       }
     ]
   },
@@ -692,320 +979,22 @@ body {
   },
 
   // =========================================================================
-  // 4. 🎹 SYNTHWAVE WEB DAW & STEP SEQUENCER (Tone.js & Web Audio API)
+  // 4. 🎹 SYNTHWAVE DAW STUDIO 2026 (Web Audio API & Sequencer)
   // =========================================================================
   {
     id: 'synthwave-web-daw',
-    name: '🎹 SynthWave Web DAW & Sequencer',
-    description: 'Estación de producción musical y secuenciador por pasos con sintetizador polifónico, osciloscopio en tiempo real y efectos de audio',
+    name: '🎹 SynthWave DAW Studio 2026',
+    description: 'Estación de producción musical y secuenciador de ritmos de 16 pasos con síntesis analógica polifónica nativa, visualizador FFT en tiempo real y presets de audio.',
     icon: 'Music',
     category: 'Música & Audio',
-    tags: ['Web Audio API', 'Osciloscopio', 'Secuenciador', 'Sintetizador'],
-    badge: 'Pro',
+    tags: ['Web Audio API', 'Osciloscopio', 'Secuenciador 16-Step', 'Sintetizador', 'Presets'],
+    badge: 'Pro DAW',
     files: [
       {
         id: '1',
         name: 'index.html',
         language: 'html',
-        content: `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SynthWave Web DAW Studio</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <style>
-    .step-active { background-color: #06b6d4 !important; box-shadow: 0 0 12px #06b6d4; }
-    .step-current { border: 2px solid #ec4899 !important; }
-    .key:active { transform: translateY(2px); background-color: #22d3ee; }
-  </style>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6 font-sans select-none">
-  <div class="max-w-5xl mx-auto space-y-6">
-
-    <header class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-5 rounded-3xl shadow-2xl backdrop-blur-md">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
-          <i data-lucide="music-2" class="w-5 h-5"></i>
-        </div>
-        <div>
-          <h1 class="text-base font-black tracking-wider text-cyan-400 uppercase">SYNTHWAVE STUDIO 2026</h1>
-          <p class="text-xs text-slate-400">Secuenciador de Pasos 16-Step & Síntesis Analógica</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3">
-        <button id="btn-play" onclick="togglePlay()" class="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:opacity-90 font-bold rounded-2xl flex items-center gap-2 text-xs shadow-lg shadow-cyan-500/30 transition-all cursor-pointer">
-          <i id="play-icon" data-lucide="play" class="w-4 h-4"></i> <span id="play-text">REPRODUCIR</span>
-        </button>
-        <button onclick="clearSteps()" class="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors cursor-pointer" title="Limpiar Secuenciador">
-          <i data-lucide="trash-2" class="w-4 h-4"></i>
-        </button>
-        <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-mono">
-          <span class="text-slate-400">BPM:</span>
-          <input type="range" id="tempo-slider" min="70" max="150" value="120" oninput="updateTempo(this.value)" class="w-20 accent-cyan-400 cursor-pointer">
-          <span id="tempo-val" class="font-bold text-cyan-400 w-8">120</span>
-        </div>
-      </div>
-    </header>
-
-    <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-4 shadow-xl">
-      <div class="flex justify-between items-center mb-2 px-2">
-        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-          <i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-400"></i> Osciloscopio en Tiempo Real
-        </span>
-        <span class="text-[10px] text-cyan-400 font-mono">Web Audio API • 44.1 kHz</span>
-      </div>
-      <canvas id="scope-canvas" class="w-full h-28 bg-slate-950 rounded-2xl border border-slate-800/80"></canvas>
-    </div>
-
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-2">
-          <i data-lucide="disc" class="w-4 h-4 text-pink-400"></i> Matriz Rítmica (16 Pasos)
-        </h2>
-        <span class="text-[10px] text-slate-500 font-mono">Haz clic en los pads para activar notas</span>
-      </div>
-
-      <div class="space-y-2.5 overflow-x-auto pb-2" id="sequencer-rows"></div>
-    </div>
-
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-2">
-          <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i> Teclado Sintetizador Analógico
-        </h2>
-        <div class="flex items-center gap-2">
-          <span class="text-[11px] text-slate-400">Onda:</span>
-          <select id="wave-type" class="bg-slate-950 border border-slate-800 rounded-xl px-2 py-1 text-xs text-cyan-300 outline-none">
-            <option value="sawtooth">Sawtooth (Sintético)</option>
-            <option value="sine">Sine (Suave)</option>
-            <option value="square">Square (8-bit Retro)</option>
-            <option value="triangle">Triangle (Cálido)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="flex justify-center gap-1.5 sm:gap-2 pt-2">
-        <button onmousedown="playKey(261.63)" class="key px-3 sm:px-5 py-8 bg-slate-800 border border-slate-700 rounded-xl font-bold text-xs hover:border-cyan-400 transition-all cursor-pointer">Do</button>
-        <button onmousedown="playKey(293.66)" class="key px-3 sm:px-5 py-8 bg-slate-800 border border-slate-700 rounded-xl font-bold text-xs hover:border-cyan-400 transition-all cursor-pointer">Re</button>
-        <button onmousedown="playKey(329.63)" class="key px-3 sm:px-5 py-8 bg-slate-800 border border-slate-700 rounded-xl font-bold text-xs hover:border-cyan-400 transition-all cursor-pointer">Mi</button>
-        <button onmousedown="playKey(349.23)" class="key px-3 sm:px-5 py-8 bg-slate-800 border border-slate-700 rounded-xl font-bold text-xs hover:border-cyan-400 transition-all cursor-pointer">Fa</button>
-        <button onmousedown="playKey(392.00)" class="key px-3 sm:px-5 py-8 bg-slate-800 border border-slate-700 rounded-xl font-bold text-xs hover:border-cyan-400 transition-all cursor-pointer">Sol</button>
-        <button onmousedown="playKey(440.00)" class="key px-3 sm:px-5 py-8 bg-slate-800 border border-slate-700 rounded-xl font-bold text-xs hover:border-cyan-400 transition-all cursor-pointer">La</button>
-        <button onmousedown="playKey(493.88)" class="key px-3 sm:px-5 py-8 bg-slate-800 border border-slate-700 rounded-xl font-bold text-xs hover:border-cyan-400 transition-all cursor-pointer">Si</button>
-        <button onmousedown="playKey(523.25)" class="key px-3 sm:px-5 py-8 bg-cyan-600/30 border border-cyan-400 rounded-xl font-bold text-xs hover:bg-cyan-500 transition-all cursor-pointer">Do^</button>
-      </div>
-    </div>
-
-  </div>
-
-  <script>
-    let audioCtx = null, analyser = null, isPlaying = false, currentStep = 0, bpm = 120, timerId = null;
-
-    const tracks = [
-      { name: 'Sintetizador Lead', color: 'cyan', steps: [1,0,0,0, 1,0,0,0, 1,0,1,0, 0,0,1,0], freq: 440 },
-      { name: 'Línea de Bajo', color: 'pink', steps: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,0,1,0], freq: 110 },
-      { name: 'Caja / Snare', color: 'amber', steps: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], isNoise: true },
-      { name: 'Bombo / Kick', color: 'emerald', steps: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], isKick: true }
-    ];
-
-    function initAudio() {
-      if (audioCtx) return;
-      const AudioClass = window.AudioContext || window.webkitAudioContext;
-      audioCtx = new AudioClass();
-
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.connect(audioCtx.destination);
-      drawOscilloscope();
-    }
-
-    function renderSequencerUI() {
-      const container = document.getElementById('sequencer-rows');
-      container.innerHTML = '';
-
-      tracks.forEach((track, tIdx) => {
-        const row = document.createElement('div');
-        row.className = 'flex items-center gap-2 min-w-[650px]';
-
-        const label = document.createElement('div');
-        label.className = 'w-32 text-xs font-bold text-slate-300 shrink-0';
-        label.innerText = track.name;
-        row.appendChild(label);
-
-        const stepsWrapper = document.createElement('div');
-        stepsWrapper.className = 'grid grid-cols-16 gap-1.5 flex-1';
-
-        for (let i = 0; i < 16; i++) {
-          const btn = document.createElement('button');
-          btn.id = 'step-' + tIdx + '-' + i;
-          btn.className = 'h-8 rounded-lg border border-slate-800 transition-all cursor-pointer ' + 
-            (track.steps[i] ? 'step-active' : 'bg-slate-950/70 hover:bg-slate-800');
-          btn.onclick = () => {
-            track.steps[i] = track.steps[i] ? 0 : 1;
-            renderSequencerUI();
-          };
-          stepsWrapper.appendChild(btn);
-        }
-
-        row.appendChild(stepsWrapper);
-        container.appendChild(row);
-      });
-    }
-
-    function playSound(track) {
-      if (!audioCtx) return;
-      const now = audioCtx.currentTime;
-
-      if (track.isKick) {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.frequency.setValueAtTime(140, now);
-        osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.3);
-        gain.gain.setValueAtTime(1, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-        osc.connect(gain);
-        gain.connect(analyser);
-        osc.start(now);
-        osc.stop(now + 0.3);
-      } else if (track.isNoise) {
-        const bufferSize = audioCtx.sampleRate * 0.15;
-        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = buffer;
-        const gain = audioCtx.createGain();
-        gain.gain.setValueAtTime(0.8, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-        noise.connect(gain);
-        gain.connect(analyser);
-        noise.start(now);
-      } else {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = document.getElementById('wave-type').value;
-        osc.frequency.setValueAtTime(track.freq, now);
-        gain.gain.setValueAtTime(0.25, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-        osc.connect(gain);
-        gain.connect(analyser);
-        osc.start(now);
-        osc.stop(now + 0.25);
-      }
-    }
-
-    function playKey(freq) {
-      initAudio();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const now = audioCtx.currentTime;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = document.getElementById('wave-type').value;
-      osc.frequency.setValueAtTime(freq, now);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-      osc.connect(gain);
-      gain.connect(analyser);
-      osc.start(now);
-      osc.stop(now + 0.6);
-    }
-
-    function stepLoop() {
-      document.querySelectorAll('.step-current').forEach(el => el.classList.remove('step-current'));
-
-      tracks.forEach((track, tIdx) => {
-        const btn = document.getElementById('step-' + tIdx + '-' + currentStep);
-        if (btn) btn.classList.add('step-current');
-        if (track.steps[currentStep]) {
-          playSound(track);
-        }
-      });
-
-      currentStep = (currentStep + 1) % 16;
-      const interval = (60 / bpm / 4) * 1000;
-      timerId = setTimeout(stepLoop, interval);
-    }
-
-    function togglePlay() {
-      initAudio();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-
-      isPlaying = !isPlaying;
-      const playText = document.getElementById('play-text');
-      const playIcon = document.getElementById('play-icon');
-
-      if (isPlaying) {
-        currentStep = 0;
-        stepLoop();
-        playText.innerText = 'PAUSAR';
-        playIcon.setAttribute('data-lucide', 'pause');
-      } else {
-        clearTimeout(timerId);
-        document.querySelectorAll('.step-current').forEach(el => el.classList.remove('step-current'));
-        playText.innerText = 'REPRODUCIR';
-        playIcon.setAttribute('data-lucide', 'play');
-      }
-      lucide.createIcons();
-    }
-
-    function clearSteps() {
-      tracks.forEach(t => t.steps.fill(0));
-      renderSequencerUI();
-    }
-
-    function updateTempo(val) {
-      bpm = parseInt(val, 10);
-      document.getElementById('tempo-val').innerText = bpm;
-    }
-
-    function drawOscilloscope() {
-      requestAnimationFrame(drawOscilloscope);
-      if (!analyser) return;
-
-      const canvas = document.getElementById('scope-canvas');
-      const ctx = canvas.getContext('2d');
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      analyser.getByteTimeDomainData(dataArray);
-
-      ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#22d3ee';
-      ctx.beginPath();
-
-      const sliceWidth = canvas.width / bufferLength;
-      let x = 0;
-
-      for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0;
-        const y = (v * canvas.height) / 2;
-
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-
-        x += sliceWidth;
-      }
-
-      ctx.lineTo(canvas.width, canvas.height / 2);
-      ctx.stroke();
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
-      renderSequencerUI();
-      const canvas = document.getElementById('scope-canvas');
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = 112;
-    });
-  </script>
-</body>
-</html>`
+        content: SYNTHWAVE_DAW_HTML
       }
     ]
   },
@@ -1403,300 +1392,90 @@ body {
   },
 
   // =========================================================================
-  // 5. 📊 SAAS ENTERPRISE METRICS & CRM ANALYTICS (FinTech Dashboard)
+  // 5. 📊 SAAS ENTERPRISE ANALYTICS & CRM DASHBOARD
   // =========================================================================
   {
     id: 'analytics-dashboard-pro',
-    name: '📊 Dashboard SaaS & CRM Enterprise',
-    description: 'Panel de control interactivo con gráficos en tiempo real (Chart.js), métricas MRR, transacciones y filtros',
+    name: '📊 SaaS Enterprise Analytics & CRM',
+    description: 'Dashboard ejecutivo B2B interactivo con gráficos Chart.js en tiempo real, KPIs financieros (MRR, LTV, CAC), tabla transaccional filtrable y exportación a CSV.',
     icon: 'BarChart3',
     category: 'SaaS / Dashboards',
-    tags: ['Chart.js', 'FinTech', 'SaaS', 'Tailwind CSS'],
+    tags: ['Chart.js', 'FinTech', 'SaaS', 'Tailwind CSS', 'Export CSV'],
     badge: 'Enterprise',
     files: [
       {
         id: '1',
         name: 'index.html',
         language: 'html',
-        content: `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AURA SaaS Analytics</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-</head>
-<body class="bg-slate-950 text-white min-h-screen p-6 font-sans">
-  <div class="max-w-7xl mx-auto space-y-6">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 p-6 rounded-3xl border border-slate-800">
-      <div>
-        <h1 class="text-2xl font-bold text-white">Métricas de Crecimiento Global</h1>
-        <p class="text-xs text-slate-400">Datos en tiempo real sincronizados</p>
-      </div>
-      <button onclick="refreshData()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/30">
-        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Actualizar KPIs
-      </button>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-      <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800">
-        <span class="text-xs text-slate-400 font-semibold">Ingresos Mensuales Recurrentes (MRR)</span>
-        <div class="mt-2 flex items-baseline justify-between">
-          <span id="mrr" class="text-3xl font-black text-white">$64,250</span>
-          <span class="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg">+22.4%</span>
-        </div>
-      </div>
-      <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800">
-        <span class="text-xs text-slate-400 font-semibold">Usuarios Activos (MAU)</span>
-        <div class="mt-2 flex items-baseline justify-between">
-          <span id="mau" class="text-3xl font-black text-white">12,480</span>
-          <span class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-lg">+14.1%</span>
-        </div>
-      </div>
-      <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800">
-        <span class="text-xs text-slate-400 font-semibold">Tasa de Conversión</span>
-        <div class="mt-2 flex items-baseline justify-between">
-          <span id="cr" class="text-3xl font-black text-white">5.82%</span>
-          <span class="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg">+1.2%</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800">
-      <h3 class="text-sm font-bold text-slate-300 mb-4">Crecimiento de Facturación (Últimos 6 Meses)</h3>
-      <div class="h-64">
-        <canvas id="revChart"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    let chart;
-    function initChart() {
-      const ctx = document.getElementById('revChart').getContext('2d');
-      chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
-          datasets: [{
-            label: 'Ingresos ($ USD)',
-            data: [32000, 39000, 44000, 49000, 56000, 64250],
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-            fill: true,
-            tension: 0.4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
-            x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
-          }
-        }
-      });
-    }
-
-    function refreshData() {
-      const newMRR = 60000 + Math.floor(Math.random() * 15000);
-      document.getElementById('mrr').innerText = '$' + newMRR.toLocaleString();
-      chart.data.datasets[0].data[5] = newMRR;
-      chart.update();
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
-      initChart();
-    });
-  </script>
-</body>
-</html>`
+        content: SAAS_ANALYTICS_HTML
       }
     ]
   },
 
   // =========================================================================
-  // 6. 🛍️ LUXURY MODERN E-COMMERCE STORE
+  // 6. 🛍️ LUMEN PRO TECH STOREFRONT (Modern E-Commerce)
   // =========================================================================
   {
     id: 'ecommerce-store-pro',
-    name: '🛍️ E-Commerce Cyberpunk Store',
-    description: 'Tienda moderna con catálogo de gadgets, carrito deslizante reactivo, cálculo de totales y checkout modal',
+    name: '🛍️ LUMEN Pro Tech Storefront',
+    description: 'Tienda de tecnología premium estilo Apple con catálogo interactivo, filtrado por categorías, carrito lateral deslizante, cupón de descuento y pasarela de pago simulada.',
     icon: 'ShoppingBag',
     category: 'E-Commerce',
-    tags: ['E-Commerce', 'Carrito', 'Checkout', 'Tailwind CSS'],
+    tags: ['E-Commerce', 'Carrito Deslizante', 'Checkout', 'Cupones', 'Tailwind CSS'],
     badge: 'Popular',
     files: [
       {
         id: '1',
         name: 'index.html',
         language: 'html',
-        content: `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AURA — Tienda Oficial</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
-  <header class="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-6 py-4 flex justify-between items-center">
-    <span class="font-extrabold text-xl text-white">AURA<span class="text-indigo-400">.</span>store</span>
-    <button onclick="toggleCart()" class="relative p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer">
-      <i data-lucide="shopping-cart" class="w-5 h-5"></i>
-      <span id="cartCount" class="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">0</span>
-    </button>
-  </header>
-
-  <main class="max-w-7xl mx-auto px-6 py-12 flex-1">
-    <div id="productGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-  </main>
-
-  <div id="cartModal" class="fixed inset-0 z-50 bg-black/60 hidden flex justify-end">
-    <div class="bg-slate-900 w-full max-w-md h-full flex flex-col p-6 shadow-2xl border-l border-slate-800">
-      <div class="flex justify-between items-center pb-4 border-b border-slate-800">
-        <h2 class="font-bold text-lg text-white">Tu Carrito</h2>
-        <button onclick="toggleCart()" class="p-2 text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
-      <div id="cartItems" class="flex-1 overflow-y-auto py-4 space-y-3"></div>
-      <div class="border-t border-slate-800 pt-4 space-y-4">
-        <div class="flex justify-between font-bold">
-          <span>Total:</span>
-          <span id="cartTotal" class="text-xl text-indigo-400">$0.00</span>
-        </div>
-        <button onclick="alert('¡Compra simulada completada con éxito!')" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl text-white cursor-pointer">Pagar Ahora</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const products = [
-      { id: 1, name: 'Neural Headset Pro', price: 299, desc: 'Interfaz de audio neural con cancelación activa 8K', icon: 'headphones' },
-      { id: 2, name: 'Quantum Watch Ultra', price: 199, desc: 'Monitor biométrico con batería holográfica de 30 días', icon: 'watch' },
-      { id: 3, name: 'HoloLens Cyber Goggles', price: 449, desc: 'Visor de realidad aumentada con visión nocturna', icon: 'glasses' }
-    ];
-    let cart = [];
-
-    function renderProducts() {
-      const grid = document.getElementById('productGrid');
-      grid.innerHTML = products.map(p => \`
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between shadow-xl">
-          <div>
-            <div class="w-12 h-12 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center mb-4"><i data-lucide="\${p.icon}" class="w-6 h-6"></i></div>
-            <h3 class="text-lg font-bold text-white">\${p.name}</h3>
-            <p class="text-xs text-slate-400 mt-2">\${p.desc}</p>
-          </div>
-          <div class="mt-6 flex items-center justify-between">
-            <span class="text-xl font-extrabold text-white">$\${p.price}</span>
-            <button onclick="addToCart(\${p.id})" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold text-white cursor-pointer">Añadir</button>
-          </div>
-        </div>
-      \`).join('');
-      lucide.createIcons();
-    }
-
-    function addToCart(id) {
-      const item = products.find(p => p.id === id);
-      cart.push(item);
-      updateCartUI();
-    }
-
-    function toggleCart() {
-      document.getElementById('cartModal').classList.toggle('hidden');
-    }
-
-    function updateCartUI() {
-      document.getElementById('cartCount').innerText = cart.length;
-      document.getElementById('cartItems').innerHTML = cart.map((item, idx) => \`
-        <div class="flex justify-between items-center bg-slate-950 p-3 rounded-2xl border border-slate-800">
-          <div><h4 class="text-xs font-bold text-white">\${item.name}</h4><span class="text-xs text-indigo-400">$\${item.price}</span></div>
-          <button onclick="removeFromCart(\${idx})" class="text-rose-400 text-xs">Quitar</button>
-        </div>
-      \`).join('');
-      const total = cart.reduce((acc, i) => acc + i.price, 0);
-      document.getElementById('cartTotal').innerText = '$' + total.toFixed(2);
-    }
-
-    function removeFromCart(idx) {
-      cart.splice(idx, 1);
-      updateCartUI();
-    }
-
-    document.addEventListener('DOMContentLoaded', renderProducts);
-  </script>
-</body>
-</html>`
+        content: ECOMMERCE_STORE_HTML
       }
     ]
   },
 
   // =========================================================================
-  // 7. 📱 FITPULSE MOBILE FITNESS APP (iOS Mockup)
+  // 7. 📋 LINEARFLOW KANBAN PRO (Agile Project Management)
   // =========================================================================
   {
-    id: 'mobile-fitness-ios',
-    name: '📱 FitPulse iOS Fitness App',
-    description: 'Aplicación móvil de salud con marco iPhone 15, Dynamic Island interactiva, anillos de calorías y temporizador',
-    icon: 'Smartphone',
-    category: 'Móvil iOS',
-    tags: ['Mobile UI', 'iOS Frame', 'Fitness', 'Salud'],
-    badge: 'Mobile',
+    id: 'linear-kanban-flow',
+    name: '📋 LinearFlow - Tablero Ágil & Kanban',
+    description: 'Gestor de proyectos moderno estilo Linear con arrastrar y soltar (Drag & Drop), creación de tareas modales, filtros por prioridad y cálculo dinámico de métricas de sprint.',
+    icon: 'Kanban',
+    category: 'Productividad',
+    tags: ['Kanban', 'Drag & Drop', 'Gestión Ágil', 'Linear Style', 'Productividad'],
+    badge: 'Nuevo',
     files: [
       {
         id: '1',
         name: 'index.html',
         language: 'html',
-        content: `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PulseFit iOS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-</head>
-<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center p-4">
-  <div class="w-[360px] h-[680px] bg-slate-900 border-4 border-slate-800 rounded-[45px] shadow-2xl flex flex-col overflow-hidden relative">
-    <div class="absolute top-2.5 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-50 flex items-center justify-between px-2">
-      <div class="w-2.5 h-2.5 rounded-full bg-slate-950"></div>
-      <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-    </div>
-    <div class="flex-1 overflow-y-auto p-5 pt-12 space-y-5">
-      <h2 class="text-xl font-extrabold text-white">Tu Actividad</h2>
-      <div class="bg-indigo-600/30 border border-indigo-500/40 p-4 rounded-3xl flex justify-between items-center">
-        <div>
-          <span class="text-xs text-indigo-300">Calorías Quemadas</span>
-          <div class="text-2xl font-black text-white mt-1">680 / 800 kcal</div>
-        </div>
-        <div class="w-14 h-14 rounded-full border-4 border-indigo-500 flex items-center justify-center font-bold">85%</div>
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div class="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700">
-          <span class="text-[10px] text-slate-400 block">Ritmo Cardíaco</span>
-          <span class="text-lg font-bold text-white">74 BPM</span>
-        </div>
-        <div class="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700">
-          <span class="text-[10px] text-slate-400 block">Pasos</span>
-          <span class="text-lg font-bold text-white">8,420</span>
-        </div>
-      </div>
-      <button onclick="alert('¡Entrenamiento iniciado!')" class="w-full py-3 bg-indigo-600 font-bold rounded-2xl cursor-pointer">Iniciar Cardio HIIT</button>
-    </div>
-  </div>
-  <script>document.addEventListener('DOMContentLoaded', () => lucide.createIcons());</script>
-</body>
-</html>`
+        content: KANBAN_HTML
       }
     ]
   },
 
   // =========================================================================
-  // 8. 🐾 TAMAGOTCHI VIRTUAL PET PRO
+  // 8. 📱 PULSE IOS HEALTH & FITNESS (Apple-Style Mobile App)
+  // =========================================================================
+  {
+    id: 'mobile-fitness-ios',
+    name: '📱 Pulse iOS - Salud & Fitness Hub',
+    description: 'App de salud móvil con marco iPhone 15 Pro, Dynamic Island interactiva, anillos concéntricos de actividad estilo Apple Watch, monitor de ritmo cardíaco y registro de hidratación.',
+    icon: 'Smartphone',
+    category: 'Móvil iOS',
+    tags: ['iOS 18', 'iPhone 15 Frame', 'Activity Rings', 'Fitness', 'Apple Watch Style'],
+    badge: 'Mobile Pro',
+    files: [
+      {
+        id: '1',
+        name: 'index.html',
+        language: 'html',
+        content: MOBILE_IOS_HTML
+      }
+    ]
+  },
+  // =========================================================================
+  // 9. 🐾 TAMAGOTCHI VIRTUAL PET PRO
   // =========================================================================
   {
     id: 'tamagotchi-pro',

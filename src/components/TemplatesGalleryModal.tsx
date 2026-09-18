@@ -11,7 +11,11 @@ import {
   HeartHandshake, 
   Search, 
   ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  Box,
+  Kanban,
+  Code2,
+  Plane
 } from 'lucide-react';
 import { STARTER_TEMPLATES } from '../services/templates';
 import type { ProjectTemplate } from '../types';
@@ -24,11 +28,15 @@ interface TemplatesGalleryModalProps {
 
 const CATEGORIES = [
   'Todos',
+  'React & Vite',
+  'Estudio 3D & WebGL',
   'Videojuegos 3D',
+  'Combate Aéreo 3D',
   'Música & Audio',
   'Arcade 2D',
   'SaaS / Dashboards',
   'E-Commerce',
+  'Productividad',
   'Móvil iOS',
   'Juegos & Mascotas'
 ];
@@ -54,11 +62,15 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({
 
   const getIcon = (iconName: string) => {
     switch (iconName) {
+      case 'Code2': return <Code2 className="w-6 h-6" />;
+      case 'Box': return <Box className="w-6 h-6" />;
       case 'Gamepad2': return <Gamepad2 className="w-6 h-6" />;
+      case 'Plane': return <Plane className="w-6 h-6" />;
       case 'Music': return <Music className="w-6 h-6" />;
       case 'Rocket': return <Rocket className="w-6 h-6" />;
       case 'BarChart3': return <BarChart3 className="w-6 h-6" />;
       case 'ShoppingBag': return <ShoppingBag className="w-6 h-6" />;
+      case 'Kanban': return <Kanban className="w-6 h-6" />;
       case 'Smartphone': return <Smartphone className="w-6 h-6" />;
       case 'HeartHandshake': return <HeartHandshake className="w-6 h-6" />;
       default: return <Sparkles className="w-6 h-6" />;

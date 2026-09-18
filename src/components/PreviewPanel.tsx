@@ -62,6 +62,16 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     return map;
   }, [files, htmlCode]);
 
+  const filesHash = useMemo(() => {
+    let hash = 0;
+    const str = Object.entries(filesMap).map(([k, v]) => `${k}:${v.length}`).join('|');
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return String(hash);
+  }, [filesMap]);
+
   const htmlFile = useMemo(() => {
     if (htmlCode) return htmlCode;
     if (filesMap['index.html']) return filesMap['index.html'];
@@ -380,11 +390,14 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     const lifecyclePolyfillScript = `
       <script>
         (function() {
-          // Guaranteed lifecycle execution in srcdoc iframes
+          // Guaranteed lifecycle execution in srcdoc iframes (with duplicate prevention)
+          let _domReadyFired = false;
+          let _loadFired = false;
           const _origAddEventListener = window.addEventListener;
           window.addEventListener = function(type, listener, options) {
             _origAddEventListener.call(window, type, listener, options);
-            if (type === 'load' && (document.readyState === 'complete')) {
+            if (type === 'load' && document.readyState === 'complete' && !_loadFired) {
+              _loadFired = true;
               setTimeout(function() {
                 try {
                   if (typeof listener === 'function') listener(new Event('load'));
@@ -392,7 +405,8 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
                 } catch(e) { console.error(e); }
               }, 10);
             }
-            if (type === 'DOMContentLoaded' && (document.readyState === 'complete' || document.readyState === 'interactive')) {
+            if (type === 'DOMContentLoaded' && (document.readyState === 'complete' || document.readyState === 'interactive') && !_domReadyFired) {
+              _domReadyFired = true;
               setTimeout(function() {
                 try {
                   if (typeof listener === 'function') listener(new Event('DOMContentLoaded'));
@@ -402,13 +416,17 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
             }
           };
 
+          window.addEventListener('DOMContentLoaded', function() { _domReadyFired = true; }, { once: true });
+          window.addEventListener('load', function() { _loadFired = true; }, { once: true });
+
           let _customOnload = null;
           try {
             Object.defineProperty(window, 'onload', {
               get: function() { return _customOnload; },
               set: function(fn) {
                 _customOnload = fn;
-                if (typeof fn === 'function' && document.readyState === 'complete') {
+                if (typeof fn === 'function' && document.readyState === 'complete' && !_loadFired) {
+                  _loadFired = true;
                   setTimeout(function() {
                     try { fn(new Event('load')); } catch(e) { console.error(e); }
                   }, 10);
@@ -707,14 +725,14 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
               </div>
               
               <iframe
-                key={`${iframeKey}_${isUsingWebContainer ? 'wc_' + webContainerUrl : 'doc'}`}
+                key={`${iframeKey}_${filesHash}_${isUsingWebContainer ? 'wc_' + webContainerUrl : 'doc'}`}
                 title="Live Sandbox Mobile"
                 src={activeIframeSrc}
                 srcDoc={activeIframeSrcDoc}
                 className="w-full h-full border-none bg-white flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
                 // @ts-ignore
-                credentialless="true"
+                credentialless={isUsingWebContainer ? "true" : undefined}
               />
             </div>
           ) : (
@@ -723,14 +741,14 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
               className="h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 flex flex-col"
             >
               <iframe
-                key={`${iframeKey}_${isUsingWebContainer ? 'wc_' + webContainerUrl : 'doc'}`}
+                key={`${iframeKey}_${filesHash}_${isUsingWebContainer ? 'wc_' + webContainerUrl : 'doc'}`}
                 title="Live Sandbox"
                 src={activeIframeSrc}
                 srcDoc={activeIframeSrcDoc}
                 className="w-full h-full border-none bg-white flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
                 // @ts-ignore
-                credentialless="true"
+                credentialless={isUsingWebContainer ? "true" : undefined}
               />
             </div>
           )

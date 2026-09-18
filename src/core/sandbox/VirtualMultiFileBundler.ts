@@ -189,6 +189,22 @@ export class VirtualMultiFileBundler {
     result = result.replace(/import\s+['"][^'"]+\.css['"];?/g, '/* [inlined-css] */');
     result = result.replace(/import\s+([A-Za-z0-9_]+)\s+from\s+['"][^'"]+\.css['"];?/g, 'const $1 = {}; /* [inlined-css] */');
 
+    // 1b. Transformar imports nombrados de lucide-react para que nunca fallen si la IA inventa un icono
+    result = result.replace(
+      /import\s+\{([^}]+)\}\s+from\s+['"]lucide-react['"];?/g,
+      (_match, namesStr) => {
+        const names = namesStr.split(',').map((n: string) => n.trim()).filter(Boolean);
+        const decls = names.map((n: string) => {
+          if (n.includes(' as ')) {
+            const [orig, alias] = n.split(' as ').map((s: string) => s.trim());
+            return `const ${alias} = LucideModule.Lucide[${JSON.stringify(orig)}];`;
+          }
+          return `const ${n} = LucideModule.Lucide[${JSON.stringify(n)}];`;
+        }).join(' ');
+        return `import * as LucideModule from 'lucide-react'; ${decls}`;
+      }
+    );
+
     // 2. Reescribir imports/exports estáticos:
     // import ... from './...' | export ... from './...'
     result = result.replace(
@@ -259,28 +275,200 @@ export class VirtualMultiFileBundler {
       }
     }
 
-    // 2. Construir Import Map con paquetes CDN externos estándar (React 18, Lucide, Supabase, Three, Cannon, Tone, Chart.js, etc.)
+    // 2. Construir Shims Locales Resilientes para React, ReactDOM, Three, Tone y Lucide
+    const reactShimCode = `
+      const R = window.React || {};
+      export default R;
+      export const {
+        useState, useEffect, useContext, useReducer, useCallback, useMemo,
+        useRef, useImperativeHandle, useLayoutEffect, useDebugValue,
+        useDeferredValue, useTransition, useId, useInsertionEffect,
+        useSyncExternalStore, createElement, createRef, Component,
+        PureComponent, createContext, forwardRef, lazy, memo, Fragment,
+        Children, cloneElement, isValidElement, version, startTransition
+      } = R;
+    `;
+    const reactShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(reactShimCode);
+
+    const reactDomShimCode = `
+      const RDOM = window.ReactDOM || {};
+      export default RDOM;
+      export const {
+        render, hydrate, unmountComponentAtNode, findDOMNode,
+        createPortal, version
+      } = RDOM;
+    `;
+    const reactDomShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(reactDomShimCode);
+
+    const reactDomClientShimCode = `
+      const RDOM = window.ReactDOM || {};
+      export const createRoot = RDOM.createRoot || function(container) {
+        return {
+          render(element) { RDOM.render(element, container); },
+          unmount() { RDOM.unmountComponentAtNode(container); }
+        };
+      };
+      export const hydrateRoot = RDOM.hydrateRoot || function(container, element) {
+        return {
+          render(el) { RDOM.hydrate(el, container); },
+          unmount() { RDOM.unmountComponentAtNode(container); }
+        };
+      };
+      export default { createRoot, hydrateRoot };
+    `;
+    const reactDomClientShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(reactDomClientShimCode);
+
+    const reactJsxRuntimeShimCode = `
+      const R = window.React || {};
+      export const jsx = (type, props, key) => R.createElement(type, key !== undefined ? { ...props, key } : props);
+      export const jsxs = jsx;
+      export const Fragment = R.Fragment || 'Fragment';
+    `;
+    const reactJsxRuntimeShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(reactJsxRuntimeShimCode);
+
+    const threeShimCode = `
+      const T = window.THREE || {};
+      export default T;
+      export const {
+        Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer,
+        BoxGeometry, SphereGeometry, CylinderGeometry, ConeGeometry,
+        TorusGeometry, PlaneGeometry, RingGeometry, DodecahedronGeometry,
+        BufferGeometry, Float32BufferAttribute, BufferAttribute,
+        MeshStandardMaterial, MeshBasicMaterial, MeshPhysicalMaterial,
+        MeshLambertMaterial, MeshDepthMaterial, PointsMaterial,
+        Mesh, Points, Line, Group, Color, Vector2, Vector3, Vector4,
+        Matrix3, Matrix4, Quaternion, Euler, Raycaster, Clock,
+        DirectionalLight, AmbientLight, PointLight, SpotLight, HemisphereLight,
+        TextureLoader, PCFSoftShadowMap, Fog, FogExp2, AdditiveBlending
+      } = T;
+    `;
+    const threeShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(threeShimCode);
+
+    const orbitControlsShimCode = `
+      const OC = (window.THREE && window.THREE.OrbitControls) || window.OrbitControls || function(cam, dom) {
+        this.update = function() {};
+        this.dispose = function() {};
+      };
+      export const OrbitControls = OC;
+      export default OC;
+    `;
+    const orbitControlsShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(orbitControlsShimCode);
+
+    const clsxShimCode = `
+      export function clsx(...inputs) {
+        const classes = [];
+        for (const input of inputs) {
+          if (!input) continue;
+          if (typeof input === 'string' || typeof input === 'number') {
+            classes.push(input);
+          } else if (Array.isArray(input)) {
+            const inner = clsx(...input);
+            if (inner) classes.push(inner);
+          } else if (typeof input === 'object') {
+            for (const [k, v] of Object.entries(input)) {
+              if (v) classes.push(k);
+            }
+          }
+        }
+        return classes.join(' ');
+      }
+      export default clsx;
+    `;
+    const clsxShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(clsxShimCode);
+
+    const twMergeShimCode = `
+      import clsx from 'clsx';
+      export function twMerge(...inputs) {
+        return clsx(...inputs);
+      }
+      export default twMerge;
+    `;
+    const twMergeShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(twMergeShimCode);
+
+    const confettiShimCode = `
+      const c = window.confetti || function() { console.log('🎉 Confetti'); };
+      export default c;
+      export const confetti = c;
+    `;
+    const confettiShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(confettiShimCode);
+
+    const toneShimCode = `
+      const T = window.Tone || {};
+      export default T;
+    `;
+    const toneShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(toneShimCode);
+
+    const lucideReactShimCode = `
+      const R = window.React || {};
+      
+      export function createLucideIcon(iconName) {
+        return function DynamicIcon(props) {
+          const p = props || {};
+          const size = p.size || p.width || 20;
+          const color = p.color || 'currentColor';
+          const strokeWidth = p.strokeWidth || 2;
+          const className = p.className || '';
+          const lucideGlobal = window.lucide;
+          
+          if (lucideGlobal && lucideGlobal.icons) {
+            const kebab = iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+            const iconDef = lucideGlobal.icons[kebab] || lucideGlobal.icons[iconName.toLowerCase()] || lucideGlobal.icons[iconName];
+            if (iconDef && typeof iconDef.toSvg === 'function') {
+              return R.createElement('span', {
+                className: 'inline-flex items-center justify-center ' + className,
+                dangerouslySetInnerHTML: { __html: iconDef.toSvg({ width: size, height: size, color, 'stroke-width': strokeWidth, class: className }) }
+              });
+            }
+          }
+          
+          return R.createElement('svg', {
+            xmlns: 'http://www.w3.org/2000/svg',
+            width: size,
+            height: size,
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            stroke: color,
+            strokeWidth: strokeWidth,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+            className: 'lucide-icon ' + className,
+            ...p
+          }, R.createElement('polygon', { points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2' }));
+        };
+      }
+
+      const iconCache = {};
+      export const Lucide = new Proxy({}, {
+        get(_, prop) {
+          if (typeof prop !== 'string') return undefined;
+          if (!iconCache[prop]) iconCache[prop] = createLucideIcon(prop);
+          return iconCache[prop];
+        }
+      });
+      export default Lucide;
+    `;
+    const lucideReactShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(lucideReactShimCode);
+
+    // 2b. Construir Import Map con resolución local y paquetes externos
     const importMap: Record<string, string> = {
-      "react": "https://esm.sh/react@18.3.1",
-      "react-dom": "https://esm.sh/react-dom@18.3.1",
-      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
-      "lucide-react": "https://esm.sh/lucide-react@0.469.0?external=react,react-dom",
-      "clsx": "https://esm.sh/clsx@2.1.1",
-      "tailwind-merge": "https://esm.sh/tailwind-merge@2.5.5",
+      "react": reactShimUri,
+      "react-dom": reactDomShimUri,
+      "react-dom/client": reactDomClientShimUri,
+      "react/jsx-runtime": reactJsxRuntimeShimUri,
+      "lucide-react": lucideReactShimUri,
+      "clsx": clsxShimUri,
+      "tailwind-merge": twMergeShimUri,
+      "three": threeShimUri,
+      "three/addons/controls/OrbitControls": orbitControlsShimUri,
+      "three/addons/controls/OrbitControls.js": orbitControlsShimUri,
+      "three/examples/jsm/controls/OrbitControls": orbitControlsShimUri,
+      "three/examples/jsm/controls/OrbitControls.js": orbitControlsShimUri,
+      "three-stdlib": orbitControlsShimUri,
+      "canvas-confetti": confettiShimUri,
+      "tone": toneShimUri,
       "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
-      "canvas-confetti": "https://esm.sh/canvas-confetti@1.9.4",
       "framer-motion": "https://esm.sh/framer-motion@11.11.17?external=react,react-dom",
-      "three": "https://esm.sh/three@0.170.0",
-      "three/addons/": "https://esm.sh/three@0.170.0/examples/jsm/",
-      "three/examples/jsm/": "https://esm.sh/three@0.170.0/examples/jsm/",
-      "three/addons/controls/OrbitControls": "https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js",
-      "three/addons/controls/OrbitControls.js": "https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js",
-      "three/examples/jsm/controls/OrbitControls": "https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js",
-      "three/examples/jsm/controls/OrbitControls.js": "https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js",
-      "three-stdlib": "https://esm.sh/three-stdlib@2.30.0?external=three",
       "cannon-es": "https://esm.sh/cannon-es@0.20.0",
-      "tone": "https://esm.sh/tone@14.8.49",
       "chart.js": "https://esm.sh/chart.js@4.4.7",
       "chart.js/auto": "https://esm.sh/chart.js@4.4.7/auto"
     };
@@ -447,9 +635,11 @@ export class VirtualMultiFileBundler {
             root.render(React.createElement(Comp));
           } else {
             console.warn('[NONA Virtual Runner]: Componente exportado no es invocable directamente:', Comp);
+            rootEl.innerHTML = '<div style="padding: 24px; color: #f87171; background: #0f172a; border-radius: 16px; margin: 20px; font-family: system-ui, sans-serif;"><h3 style="font-weight: 700; margin-bottom: 8px;">Aviso de Montaje</h3><p style="font-size: 13px; color: #94a3b8;">El componente de entrada no exportó una función o vista React válida.</p></div>';
           }
         } catch (err) {
           console.error('[NONA Virtual Runner Error]:', err);
+          rootEl.innerHTML = '<div style="padding: 24px; color: #f87171; background: #0f172a; border-radius: 16px; margin: 20px; font-family: system-ui, sans-serif;"><h3 style="font-weight: 700; margin-bottom: 8px;">Error al Montar Componente</h3><p style="font-size: 13px; color: #94a3b8;">' + String(err && err.message ? err.message : err) + '</p></div>';
           window.parent.postMessage({
             type: 'SANDBOX_RUNTIME_ERROR',
             level: 'error',
@@ -505,6 +695,13 @@ export class VirtualMultiFileBundler {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NONA Multi-File Preview</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     *, *::before, *::after {
       box-sizing: border-box;
