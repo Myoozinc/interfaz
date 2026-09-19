@@ -46,7 +46,8 @@ export class VirtualMultiFileBundler {
       // Garantizar que cualquier módulo importado por defecto no rompa la ejecución ESM
       // si sólo definió exports nombrados (ej: export function Toolbar o export const MyComponent)
       if (!transpiled.includes('export default') && (transpiled.includes('export ') || transpiled.includes('exports.'))) {
-        const namedMatch = transpiled.match(/export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z0-9_]+)/);
+        const namedMatch = transpiled.match(/export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z0-9_]+)/) ||
+                           transpiled.match(/export\s*\{\s*([A-Za-z0-9_]+)/);
         if (namedMatch) {
           const exportName = namedMatch[1];
           transpiled = `${transpiled}\nexport default ${exportName};\n`;
@@ -182,14 +183,19 @@ export class VirtualMultiFileBundler {
    * puedan importar otros módulos sin violar la no-jerarquía de 'data:'.
    * También neutraliza imports directos de CSS ya inyectados en <style>.
    */
-  public static rewriteImports(code: string, currentFilePath: string, availableFiles: string[]): string {
+  public static rewriteImports(
+    code: string,
+    currentFilePath: string,
+    availableFiles: string[],
+    importedSpecifiersCollector?: Map<string, Set<string>>
+  ): string {
     let result = code;
 
     // 1. Neutralizar imports de CSS (ya inyectados globalmente en <style>)
     result = result.replace(/import\s+['"][^'"]+\.css['"];?/g, '/* [inlined-css] */');
     result = result.replace(/import\s+([A-Za-z0-9_]+)\s+from\s+['"][^'"]+\.css['"];?/g, 'const $1 = {}; /* [inlined-css] */');
 
-    // 1b. Transformar imports nombrados de lucide-react para que nunca fallen si la IA inventa un icono
+    // 1b. Transformar imports de lucide-react para que nunca fallen si la IA inventa un icono o usa múltiples imports
     result = result.replace(
       /import\s+\{([^}]+)\}\s+from\s+['"]lucide-react['"];?/g,
       (_match, namesStr) => {
@@ -197,12 +203,20 @@ export class VirtualMultiFileBundler {
         const decls = names.map((n: string) => {
           if (n.includes(' as ')) {
             const [orig, alias] = n.split(' as ').map((s: string) => s.trim());
-            return `const ${alias} = LucideModule.Lucide[${JSON.stringify(orig)}];`;
+            return `const ${alias} = (window.__nonaGetLucideIcon || ((k) => () => null))(${JSON.stringify(orig)});`;
           }
-          return `const ${n} = LucideModule.Lucide[${JSON.stringify(n)}];`;
+          return `const ${n} = (window.__nonaGetLucideIcon || ((k) => () => null))(${JSON.stringify(n)});`;
         }).join(' ');
-        return `import * as LucideModule from 'lucide-react'; ${decls}`;
+        return decls;
       }
+    );
+    result = result.replace(
+      /import\s+([A-Za-z0-9_]+)\s+from\s+['"]lucide-react['"];?/g,
+      'const $1 = (window.__nonaLucideProxy || {});'
+    );
+    result = result.replace(
+      /import\s+\*\s+as\s+([A-Za-z0-9_]+)\s+from\s+['"]lucide-react['"];?/g,
+      'const $1 = (window.__nonaLucideProxy || {});'
     );
 
     // 2. Reescribir imports/exports estáticos:
@@ -216,6 +230,26 @@ export class VirtualMultiFileBundler {
 
         const resolved = this.resolveImportPath(currentFilePath, specifier, availableFiles);
         const canonicalBare = `app/${resolved.replace(/\.(tsx|ts|jsx|js)$/, '')}`;
+
+        if (importedSpecifiersCollector) {
+          if (!importedSpecifiersCollector.has(canonicalBare)) {
+            importedSpecifiersCollector.set(canonicalBare, new Set<string>());
+          }
+          const set = importedSpecifiersCollector.get(canonicalBare)!;
+          const namedMatches = clause.match(/\{([^}]+)\}/);
+          if (namedMatches) {
+            namedMatches[1].split(',').forEach((n: string) => {
+              const clean = n.trim().split(/\s+as\s+/)[0].trim();
+              if (clean) set.add(clean);
+            });
+          }
+          const defaultMatch = clause.match(/^\s*([A-Za-z0-9_]+)\s*(?:,|$)/);
+          if (defaultMatch && defaultMatch[1] !== 'type') {
+            set.add('default');
+            set.add(defaultMatch[1]);
+          }
+        }
+
         return `${action} ${clause}from ${quote}${canonicalBare}${quote}`;
       }
     );
@@ -232,6 +266,9 @@ export class VirtualMultiFileBundler {
         }
         const resolved = this.resolveImportPath(currentFilePath, specifier, availableFiles);
         const canonicalBare = `app/${resolved.replace(/\.(tsx|ts|jsx|js)$/, '')}`;
+        if (importedSpecifiersCollector && !importedSpecifiersCollector.has(canonicalBare)) {
+          importedSpecifiersCollector.set(canonicalBare, new Set<string>(['default']));
+        }
         return `import ${quote}${canonicalBare}${quote};`;
       }
     );
@@ -245,6 +282,9 @@ export class VirtualMultiFileBundler {
         }
         const resolved = this.resolveImportPath(currentFilePath, specifier, availableFiles);
         const canonicalBare = `app/${resolved.replace(/\.(tsx|ts|jsx|js)$/, '')}`;
+        if (importedSpecifiersCollector && !importedSpecifiersCollector.has(canonicalBare)) {
+          importedSpecifiersCollector.set(canonicalBare, new Set<string>(['default']));
+        }
         return `import(${quote}${canonicalBare}${quote})`;
       }
     );
@@ -256,7 +296,7 @@ export class VirtualMultiFileBundler {
    * Genera el documento HTML completo (srcDoc) con Import Maps para ejecutar
    * la aplicación React multi-archivo en un iframe seguro.
    */
-  public static bundle(files: Record<string, string>): BundlerResult {
+  public static bundle(files: Record<string, string>, options?: { isInspectMode?: boolean }): BundlerResult {
     const errors: string[] = [];
     let transpiledCount = 0;
 
@@ -277,6 +317,7 @@ export class VirtualMultiFileBundler {
 
     // 2. Construir Shims Locales Resilientes para React, ReactDOM, Three, Tone y Lucide
     const reactShimCode = `
+      // https://esm.sh/react@18.3.1
       const R = window.React || {};
       export default R;
       export const {
@@ -399,10 +440,14 @@ export class VirtualMultiFileBundler {
     const toneShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(toneShimCode);
 
     const lucideReactShimCode = `
+      // https://esm.sh/lucide-react
       const R = window.React || {};
       
       export function createLucideIcon(iconName) {
         return function DynamicIcon(props) {
+          if (window.__nonaGetLucideIcon) {
+            return window.__nonaGetLucideIcon(iconName)(props);
+          }
           const p = props || {};
           const size = p.size || p.width || 20;
           const color = p.color || 'currentColor';
@@ -433,7 +478,7 @@ export class VirtualMultiFileBundler {
             strokeLinejoin: 'round',
             className: 'lucide-icon ' + className,
             ...p
-          }, R.createElement('polygon', { points: '12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2' }));
+          }, R.createElement('circle', { cx: 12, cy: 12, r: 10 }));
         };
       }
 
@@ -449,7 +494,7 @@ export class VirtualMultiFileBundler {
     `;
     const lucideReactShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(lucideReactShimCode);
 
-    // 2b. Construir Import Map con resolución local y paquetes externos
+    // 2b. Construir Import Map con resolución local y paquetes externos predeterminados
     const importMap: Record<string, string> = {
       "react": reactShimUri,
       "react-dom": reactDomShimUri,
@@ -466,6 +511,8 @@ export class VirtualMultiFileBundler {
       "three-stdlib": orbitControlsShimUri,
       "canvas-confetti": confettiShimUri,
       "tone": toneShimUri,
+      "vexflow": "https://esm.sh/vexflow@4.2.5?external=react,react-dom",
+      "howler": "https://esm.sh/howler@2.2.4",
       "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
       "framer-motion": "https://esm.sh/framer-motion@11.11.17?external=react,react-dom",
       "cannon-es": "https://esm.sh/cannon-es@0.20.0",
@@ -478,14 +525,16 @@ export class VirtualMultiFileBundler {
       p.endsWith('.tsx') || p.endsWith('.ts') || p.endsWith('.jsx') || p.endsWith('.js')
     );
 
+    const importedSpecifiersCollector = new Map<string, Set<string>>();
+
     for (const p of moduleFileKeys) {
       const content = normalizedFiles[p];
       try {
         // Transpilar sintaxis TS a JS
         let processedCode = this.transpileTypeScript(content, p);
 
-        // Reescribir imports relativos a bare specifiers canónicos y neutralizar CSS inlined
-        processedCode = this.rewriteImports(processedCode, p, moduleFileKeys);
+        // Reescribir imports relativos a bare specifiers canónicos y registrar dependencias
+        processedCode = this.rewriteImports(processedCode, p, moduleFileKeys, importedSpecifiersCollector);
 
         const encoded = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(processedCode);
 
@@ -494,7 +543,6 @@ export class VirtualMultiFileBundler {
         const baseNameWithoutExt = baseName.replace(/\.(tsx|ts|jsx|js)$/, '');
 
         // Registrar bare specifiers canónicos bajo el espacio de nombres app/
-        // Esto permite que los módulos cargados vía Data URI puedan importar sin error de esquema
         importMap[`app/${p}`] = encoded;
         importMap[`app/${withoutExt}`] = encoded;
 
@@ -542,6 +590,102 @@ export class VirtualMultiFileBundler {
       }
     }
 
+    // 3b. Crear stubs sintéticos para módulos o componentes referenciados que la IA omitió generar
+    for (const [canonicalBare, names] of importedSpecifiersCollector.entries()) {
+      if (!importMap[canonicalBare]) {
+        const baseName = canonicalBare.split('/').pop() || 'Componente';
+        const namedList = Array.from(names).filter(n => n !== 'default' && n !== '*' && n !== 'type');
+
+        const stubCode = `
+          // Stub sintético generado automáticamente por NONA para evitar pantallas en blanco
+          const R = window.React;
+          function FallbackComponent(props) {
+            if (!R || !R.createElement) return null;
+            return R.createElement('div', {
+              style: {
+                padding: '8px 14px',
+                margin: '4px 0',
+                borderRadius: '10px',
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px dashed rgba(99, 102, 241, 0.35)',
+                color: '#818cf8',
+                fontSize: '12px',
+                fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }
+            }, '🧩 [' + ${JSON.stringify(baseName)} + ']');
+          }
+
+          const makeProxy = (name) => {
+            return new Proxy(FallbackComponent, {
+              get(target, prop) {
+                if (prop === '__esModule') return true;
+                if (prop === 'default') return FallbackComponent;
+                if (typeof prop === 'string') return makeProxy(prop);
+                return target[prop];
+              },
+              apply(target, thisArg, args) {
+                return FallbackComponent(args && args[0]);
+              },
+              construct(target, args) {
+                return makeProxy(name);
+              }
+            });
+          };
+
+          const stub = makeProxy(${JSON.stringify(baseName)});
+          export default stub;
+          ${namedList.map(n => `export const ${n} = stub;`).join('\n')}
+        `;
+        const stubUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(stubCode);
+        importMap[canonicalBare] = stubUri;
+        const withoutApp = canonicalBare.replace(/^app\//, '');
+        importMap[withoutApp] = stubUri;
+        importMap[`./${withoutApp}`] = stubUri;
+        importMap[`@/${withoutApp.replace(/^src\//, '')}`] = stubUri;
+        importMap[`./${baseName}`] = stubUri;
+        importMap[baseName] = stubUri;
+      }
+    }
+
+    // 3c. Auto-registro dinámico de paquetes npm externos (CDN esm.sh / shims)
+    const allCodeText = Object.values(normalizedFiles).join('\n');
+    const bareImportRegex = /(?:^|\n|\r)\s*(?:import|export)\s+(?:[\s\S]*?from\s+)?['"]([a-zA-Z0-9@][^'"]*)['"]/g;
+    let bareMatch: RegExpExecArray | null;
+    while ((bareMatch = bareImportRegex.exec(allCodeText)) !== null) {
+      const spec = bareMatch[1].trim();
+      if (!spec || spec.startsWith('app/') || spec.startsWith('.') || spec.startsWith('/')) continue;
+      if (importMap[spec]) continue;
+
+      if (spec === 'vexflow' || spec.startsWith('vexflow/')) {
+        importMap[spec] = 'https://esm.sh/vexflow@4.2.5?external=react,react-dom';
+      } else if (spec === 'howler' || spec.startsWith('howler/')) {
+        importMap[spec] = 'https://esm.sh/howler@2.2.4';
+      } else if (spec === 'framer-motion') {
+        importMap[spec] = 'https://esm.sh/framer-motion@11.11.17?external=react,react-dom';
+      } else if (spec === 'cannon-es') {
+        importMap[spec] = 'https://esm.sh/cannon-es@0.20.0';
+      } else if (spec === 'tone') {
+        importMap[spec] = toneShimUri;
+      } else if (spec === 'three') {
+        importMap[spec] = threeShimUri;
+      } else if (spec === 'canvas-confetti') {
+        importMap[spec] = confettiShimUri;
+      } else if (spec.startsWith('date-fns')) {
+        importMap[spec] = 'https://esm.sh/' + spec;
+      } else if (spec.startsWith('lodash')) {
+        importMap[spec] = 'https://esm.sh/' + spec;
+      } else if (spec.startsWith('axios')) {
+        importMap[spec] = 'https://esm.sh/' + spec;
+      } else if (spec.startsWith('zustand')) {
+        importMap[spec] = 'https://esm.sh/' + spec + '?external=react';
+      } else {
+        importMap[spec] = 'https://esm.sh/' + spec + (spec.includes('?') ? '' : '?external=react,react-dom');
+      }
+    }
+
     // 4. Identificar el punto de entrada con priorización robusta
     const hasMain = Boolean(normalizedFiles['src/main.tsx'] || normalizedFiles['src/main.jsx'] || normalizedFiles['src/main.js']);
     let entryPoint = hasMain 
@@ -572,83 +716,308 @@ export class VirtualMultiFileBundler {
       }
     }
 
-    // 5. Generar script de montaje inmune a syntax errors de export default y fallos de resolución de Data URIs
+    // 5. Generar script de montaje con Error Boundary resiliente y auto-fallback
     const entryBare = 'app/' + entryPoint.replace(/\.(tsx|ts|jsx|js)$/, '');
     const appBare = (normalizedFiles['src/App.tsx'] || normalizedFiles['src/App.jsx'] || normalizedFiles['src/App.js'])
       ? 'app/src/App'
       : entryBare;
 
-    const mountScript = hasMain
-      ? `
+    const mountScript = `
+      import React from 'react';
+      import ReactDOM from 'react-dom/client';
+
+      class NonaErrorBoundary extends React.Component {
+        constructor(props) {
+          super(props);
+          this.state = { hasError: false, error: null };
+        }
+        static getDerivedStateFromError(error) {
+          return { hasError: true, error };
+        }
+        componentDidCatch(error, errorInfo) {
+          console.error('[NONA Preview Error]:', error, errorInfo);
+          try {
+            window.parent.postMessage({
+              type: 'SANDBOX_RUNTIME_ERROR',
+              level: 'error',
+              msg: String(error && error.message ? error.message : error)
+            }, '*');
+          } catch(e) {}
+        }
+        render() {
+          if (this.state.hasError) {
+            const err = this.state.error;
+            return React.createElement('div', {
+              style: {
+                minHeight: '100vh',
+                background: '#090d16',
+                color: '#f8fafc',
+                padding: '32px 24px',
+                fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }
+            },
+              React.createElement('div', {
+                style: {
+                  maxWidth: '560px',
+                  width: '100%',
+                  background: '#0f172a',
+                  border: '1px solid #ef4444',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
+                }
+              },
+                React.createElement('h3', {
+                  style: { margin: '0 0 8px 0', fontSize: '15px', fontWeight: 'bold', color: '#f87171' }
+                }, '⚠️ Error de Ejecución en Vista Previa'),
+                React.createElement('p', {
+                  style: { margin: '0 0 12px 0', fontSize: '12px', color: '#94a3b8' }
+                }, 'Se produjo un error al renderizar el componente principal:'),
+                React.createElement('pre', {
+                  style: {
+                    background: '#020617',
+                    border: '1px solid #1e293b',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    color: '#fca5a5',
+                    overflowX: 'auto',
+                    whiteSpace: 'pre-wrap'
+                  }
+                }, String(err && err.message ? err.message : err)),
+                React.createElement('button', {
+                  onClick: () => this.setState({ hasError: false, error: null }),
+                  style: {
+                    marginTop: '14px',
+                    padding: '8px 16px',
+                    background: '#6366f1',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }
+                }, 'Reintentar')
+              )
+            );
+          }
+          return this.props.children;
+        }
+      }
+
+      const rootEl = document.getElementById('root') || document.getElementById('app') || document.body;
+
+      const renderApp = (Comp) => {
+        if (!Comp) return;
         try {
-          import('${entryBare}').then(module => {
-            // Verificación de respaldo: si main.tsx no renderizó en #root tras un instante, intentar montar App directamente
+          const root = ReactDOM.createRoot(rootEl);
+          root.render(React.createElement(NonaErrorBoundary, null, React.createElement(Comp)));
+        } catch(err) {
+          console.error('[NONA Render Error]:', err);
+        }
+      };
+
+      const loadAndMount = async () => {
+        try {
+          // 1. Intentar cargar el punto de entrada principal
+          const entryMod = await import('${entryBare}');
+          
+          if (${hasMain ? 'true' : 'false'}) {
             setTimeout(() => {
-              const rootEl = document.getElementById('root');
               if (rootEl && rootEl.childElementCount === 0) {
                 import('${appBare}').then(appMod => {
                   const Comp = appMod.default || appMod.App || Object.values(appMod).find(v => typeof v === 'function');
-                  if (Comp) {
-                    import('react').then(React => {
-                      import('react-dom/client').then(ReactDOM => {
-                        const root = ReactDOM.createRoot(rootEl);
-                        root.render(React.createElement(Comp));
-                      });
-                    });
-                  }
+                  if (Comp) renderApp(Comp);
                 }).catch(() => {});
               }
-            }, 300);
-          }).catch(err => {
-            console.error('[NONA Virtual Runner Error]:', err);
+            }, 250);
+            return;
+          }
+
+          let Comp = entryMod.default;
+          if (!Comp || (typeof Comp !== 'function' && !(Comp && Comp.$$typeof))) {
+            Comp = entryMod.App ||
+                   entryMod.Main ||
+                   Object.values(entryMod).find(v => typeof v === 'function' || (v && typeof v === 'object' && v.$$typeof)) ||
+                   entryMod;
+          }
+
+          if (typeof Comp === 'function' || (Comp && typeof Comp === 'object' && Comp.$$typeof)) {
+            renderApp(Comp);
+          } else {
+            const appMod = await import('${appBare}');
+            const FallbackComp = appMod.default || appMod.App || Object.values(appMod).find(v => typeof v === 'function');
+            if (FallbackComp) {
+              renderApp(FallbackComp);
+            } else {
+              rootEl.innerHTML = '<div style="padding: 24px; color: #f87171; background: #0f172a; border-radius: 16px; margin: 20px; font-family: system-ui, sans-serif;"><h3 style="font-weight: 700; margin-bottom: 8px;">Aviso de Montaje</h3><p style="font-size: 13px; color: #94a3b8;">El componente de entrada no exportó una función o vista React válida.</p></div>';
+            }
+          }
+        } catch (err) {
+          console.error('[NONA Virtual Runner Error]:', err);
+          try {
+            const appMod = await import('${appBare}');
+            const Comp = appMod.default || appMod.App || Object.values(appMod).find(v => typeof v === 'function');
+            if (Comp) {
+              renderApp(Comp);
+              return;
+            }
+          } catch (fallbackErr) {}
+
+          rootEl.innerHTML = '<div style="padding: 24px; color: #f87171; background: #0f172a; border: 1px solid #ef4444; border-radius: 16px; margin: 20px; font-family: system-ui, sans-serif;"><h3 style="font-weight: 700; margin-bottom: 8px;">Error al Cargar la Aplicación</h3><pre style="font-size: 12px; color: #fca5a5; white-space: pre-wrap; margin: 0;">' + String(err && err.message ? err.message : err) + '</pre></div>';
+          try {
             window.parent.postMessage({
               type: 'SANDBOX_RUNTIME_ERROR',
               level: 'error',
               msg: String(err && err.message ? err.message : err)
             }, '*');
+          } catch(e) {}
+        }
+      };
+
+      loadAndMount();
+    `;
+
+    // 6. Scripts de soporte: Lucide, Audio Polyfill, Element Inspector y Captura de Logs
+    const lucideScript = `
+      <script>
+        (function() {
+          function createLucideIcon(iconName) {
+            return function DynamicLucideIcon(props) {
+              const p = props || {};
+              const size = p.size || p.width || 20;
+              const color = p.color || 'currentColor';
+              const strokeWidth = p.strokeWidth || 2;
+              const className = p.className || '';
+              const R = window.React;
+              const lucideGlobal = window.lucide;
+
+              if (lucideGlobal && lucideGlobal.icons) {
+                const kebab = iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+                const iconDef = lucideGlobal.icons[kebab] || lucideGlobal.icons[iconName.toLowerCase()] || lucideGlobal.icons[iconName];
+                if (iconDef && typeof iconDef.toSvg === 'function') {
+                  return R ? R.createElement('span', {
+                    className: 'inline-flex items-center justify-center ' + className,
+                    dangerouslySetInnerHTML: { __html: iconDef.toSvg({ width: size, height: size, color, 'stroke-width': strokeWidth, class: className }) }
+                  }) : null;
+                }
+              }
+
+              if (!R || !R.createElement) return null;
+              return R.createElement('svg', {
+                xmlns: 'http://www.w3.org/2000/svg',
+                width: size,
+                height: size,
+                viewBox: '0 0 24 24',
+                fill: 'none',
+                stroke: color,
+                strokeWidth: strokeWidth,
+                strokeLinecap: 'round',
+                strokeLinejoin: 'round',
+                className: 'lucide-icon ' + className,
+                ...p
+              }, R.createElement('circle', { cx: 12, cy: 12, r: 10 }));
+            };
+          }
+
+          const iconCache = {};
+          window.__nonaGetLucideIcon = function(name) {
+            if (!iconCache[name]) {
+              iconCache[name] = createLucideIcon(name);
+            }
+            return iconCache[name];
+          };
+
+          window.__nonaLucideProxy = new Proxy({}, {
+            get(_, prop) {
+              if (typeof prop !== 'string') return undefined;
+              return window.__nonaGetLucideIcon(prop);
+            }
           });
-        } catch (err) {
-          console.error('[NONA Virtual Runner Error]:', err);
-          window.parent.postMessage({
-            type: 'SANDBOX_RUNTIME_ERROR',
-            level: 'error',
-            msg: String(err && err.message ? err.message : err)
-          }, '*');
-        }
-      `
-      : `
-        import React from 'react';
-        import ReactDOM from 'react-dom/client';
-        import * as EntryModule from '${entryBare}';
+        })();
+      </script>
+    `;
 
-        const rootEl = document.getElementById('root') || document.getElementById('app') || document.body;
-        try {
-          let Comp = EntryModule.default;
-          if (!Comp || (typeof Comp !== 'function' && !(Comp && Comp.$$typeof))) {
-            Comp = EntryModule.App ||
-                   EntryModule.Main ||
-                   Object.values(EntryModule).find(v => typeof v === 'function' || (v && typeof v === 'object' && v.$$typeof)) ||
-                   EntryModule;
+    const audioPolyfillScript = `
+      <script>
+        (function() {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            const resumeAudio = function() {
+              if (window.__nonaAudioCtx && window.__nonaAudioCtx.state === 'suspended') {
+                window.__nonaAudioCtx.resume();
+              }
+              const contexts = window.__allAudioContexts || [];
+              contexts.forEach(ctx => {
+                if (ctx.state === 'suspended') ctx.resume();
+              });
+            };
+            window.addEventListener('click', resumeAudio, { once: false });
+            window.addEventListener('keydown', resumeAudio, { once: false });
+            window.addEventListener('touchstart', resumeAudio, { once: false });
           }
-          if (typeof Comp === 'function' || (Comp && typeof Comp === 'object' && Comp.$$typeof)) {
-            const root = ReactDOM.createRoot(rootEl);
-            root.render(React.createElement(Comp));
-          } else {
-            console.warn('[NONA Virtual Runner]: Componente exportado no es invocable directamente:', Comp);
-            rootEl.innerHTML = '<div style="padding: 24px; color: #f87171; background: #0f172a; border-radius: 16px; margin: 20px; font-family: system-ui, sans-serif;"><h3 style="font-weight: 700; margin-bottom: 8px;">Aviso de Montaje</h3><p style="font-size: 13px; color: #94a3b8;">El componente de entrada no exportó una función o vista React válida.</p></div>';
-          }
-        } catch (err) {
-          console.error('[NONA Virtual Runner Error]:', err);
-          rootEl.innerHTML = '<div style="padding: 24px; color: #f87171; background: #0f172a; border-radius: 16px; margin: 20px; font-family: system-ui, sans-serif;"><h3 style="font-weight: 700; margin-bottom: 8px;">Error al Montar Componente</h3><p style="font-size: 13px; color: #94a3b8;">' + String(err && err.message ? err.message : err) + '</p></div>';
-          window.parent.postMessage({
-            type: 'SANDBOX_RUNTIME_ERROR',
-            level: 'error',
-            msg: String(err && err.message ? err.message : err)
-          }, '*');
-        }
-      `;
+        })();
+      </script>
+    `;
 
-    // 6. Scripts de captura de logs y errores
+    const inspectElementScript = `
+      <script>
+        (function() {
+          let currentHighlighted = null;
+          let isInspecting = ${options?.isInspectMode ? 'true' : 'false'};
+
+          window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'NONA_TOGGLE_INSPECT') {
+              isInspecting = e.data.enabled;
+              if (!isInspecting && currentHighlighted) {
+                currentHighlighted.style.outline = '';
+                currentHighlighted.style.backgroundColor = '';
+              }
+            }
+          });
+
+          document.addEventListener('mouseover', function(e) {
+            if (!isInspecting) return;
+            if (currentHighlighted && currentHighlighted !== e.target) {
+              currentHighlighted.style.outline = '';
+              currentHighlighted.style.backgroundColor = '';
+            }
+            currentHighlighted = e.target;
+            currentHighlighted.style.outline = '2px dashed #6366F1';
+            currentHighlighted.style.backgroundColor = 'rgba(99, 102, 241, 0.1)';
+            e.stopPropagation();
+          });
+
+          document.addEventListener('click', function(e) {
+            if (!isInspecting) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const target = e.target;
+            const tag = target.tagName.toLowerCase();
+            const id = target.id ? '#' + target.id : '';
+            const className = typeof target.className === 'string' ? target.className.split(' ').slice(0, 3).join('.') : '';
+            const selector = tag + id + (className ? '.' + className : '');
+            const outerHTML = target.outerHTML.slice(0, 400);
+
+            window.parent.postMessage({
+              type: 'NONA_ELEMENT_SELECTED',
+              info: {
+                tagName: tag,
+                id: target.id || undefined,
+                classList: typeof target.className === 'string' ? target.className.split(' ').filter(Boolean) : [],
+                selector,
+                outerHTML
+              }
+            }, '*');
+          });
+        })();
+      </script>
+    `;
+
     const captureScripts = `
       <script>
         (function() {
@@ -680,10 +1049,24 @@ export class VirtualMultiFileBundler {
                 level: 'error',
                 msg: String(msg),
                 source: String(src || ''),
-                line: lineno
+                line: lineno,
+                col: colno,
+                stack: err ? err.stack : ''
               }, '*');
             } catch(e) {}
           };
+          window.addEventListener('unhandledrejection', function(event) {
+            try {
+              const reason = event.reason;
+              const errTxt = reason ? (reason.message || String(reason)) : 'Promise rechazada sin razón';
+              window.parent.postMessage({
+                type: 'SANDBOX_RUNTIME_ERROR',
+                level: 'error',
+                msg: 'Unhandled Rejection: ' + errTxt,
+                stack: reason && reason.stack ? reason.stack : ''
+              }, '*');
+            } catch(e) {}
+          });
         })();
       </script>
     `;
@@ -694,14 +1077,18 @@ export class VirtualMultiFileBundler {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NONA Multi-File Preview</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script crossorigin="anonymous" src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/lucide@latest"></script>
+  ${lucideScript}
+  ${audioPolyfillScript}
+  ${inspectElementScript}
+  ${captureScripts}
   <style>
     *, *::before, *::after {
       box-sizing: border-box;
@@ -729,7 +1116,6 @@ export class VirtualMultiFileBundler {
     }
     ${inlinedCSS}
   </style>
-  ${captureScripts}
   <script type="importmap">
     ${JSON.stringify({ imports: importMap }, null, 2)}
   </script>

@@ -41,7 +41,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   const [consoleLogs, setConsoleLogs] = useState<{ type: 'log' | 'warn' | 'error' | 'info'; message: string; time: string }[]>([]);
   const [webContainerUrl, setWebContainerUrl] = useState<string | null>(null);
   const [isContainerBooting, setIsContainerBooting] = useState(false);
-  const [sandboxMode, setSandboxMode] = useState<'auto' | 'virtual'>('auto');
+  const [sandboxMode, setSandboxMode] = useState<'auto' | 'virtual'>('virtual');
 
   const filesMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -91,6 +91,12 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   useEffect(() => {
     // Whenever filesMap changes, immediately reset WebContainer URL so Virtual Sandbox / HTML srcDoc renders instantly!
     setWebContainerUrl(null);
+
+    // If sandboxMode is 'virtual', do NOT boot WebContainer in background; use ultra-fast Virtual Multi-File Bundler!
+    if (sandboxMode !== 'auto') {
+      setIsContainerBooting(false);
+      return;
+    }
 
     const isIsolated = typeof window !== 'undefined' && window.crossOriginIsolated === true;
     const hasSAB = typeof SharedArrayBuffer !== 'undefined';
@@ -172,14 +178,14 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     return () => {
       isMounted = false;
     };
-  }, [filesMap]);
+  }, [filesMap, sandboxMode]);
 
   // Clean compilation & bundling of source document (Antigravity Virtual Multi-File Sandbox)
   const srcDoc = useMemo(() => {
     // 1. If project contains React TSX / JSX files, use VirtualMultiFileBundler
     const hasReactFiles = Object.keys(filesMap).some(k => k.endsWith('.tsx') || k.endsWith('.jsx') || k.includes('src/App'));
     if (hasReactFiles) {
-      const bundleRes = VirtualMultiFileBundler.bundle(filesMap);
+      const bundleRes = VirtualMultiFileBundler.bundle(filesMap, { isInspectMode });
       return bundleRes.srcDoc;
     }
 
@@ -732,7 +738,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
                 className="w-full h-full border-none bg-white flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
                 // @ts-ignore
-                credentialless={isUsingWebContainer ? "true" : undefined}
+                credentialless="true"
               />
             </div>
           ) : (
@@ -748,7 +754,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
                 className="w-full h-full border-none bg-white flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
                 // @ts-ignore
-                credentialless={isUsingWebContainer ? "true" : undefined}
+                credentialless="true"
               />
             </div>
           )
