@@ -5,6 +5,14 @@ export const config = {
 
 // Verified active 100% FREE models on OpenRouter (when an OpenRouter key is configured)
 const VERIFIED_FREE_OR_MODELS = [
+  'openrouter/free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'qwen/qwen-2.5-coder-32b-instruct:free',
+  'deepseek/deepseek-r1:free',
+  'deepseek/deepseek-chat:free',
+  'mistralai/mistral-7b-instruct:free',
+  'google/gemma-2-9b-it:free',
+  'google/gemini-2.0-flash-exp:free',
   'poolside/laguna-s-2.1:free',
   'cohere/north-mini-code:free',
   'nex-agi/nex-n2.5-pro:free',
@@ -12,6 +20,80 @@ const VERIFIED_FREE_OR_MODELS = [
   'nvidia/nemotron-3-super-120b-a12b:free',
   'nvidia/nemotron-3.5-lightning:free'
 ];
+
+const GROQ_STATIC_FALLBACKS = [
+  'qwen/qwen3.6-27b',
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'llama3-70b-8192',
+  'llama3-8b-8192',
+  'mixtral-8x7b-32768',
+  'gemma2-9b-it',
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant'
+];
+
+let cachedGroqModels: string[] = [];
+let lastGroqModelFetch = 0;
+
+async function getActiveGroqModels(key: string): Promise<string[]> {
+  const now = Date.now();
+  if (cachedGroqModels.length > 0 && (now - lastGroqModelFetch < 300000)) {
+    return cachedGroqModels;
+  }
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: controller.signal,
+    });
+    clearTimeout(t);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.data)) {
+        const models = data.data
+          .map((m: any) => m.id)
+          .filter((id: string) => !id.includes('whisper') && !id.includes('audio') && !id.includes('tts') && !id.includes('guard'));
+        if (models.length > 0) {
+          cachedGroqModels = models;
+          lastGroqModelFetch = now;
+          return models;
+        }
+      }
+    }
+  } catch {}
+  return [];
+}
+
+function resolveGroqCandidateModels(requestedModel: string | undefined, availableModels: string[]): string[] {
+  const pool = availableModels.length > 0 ? availableModels : GROQ_STATIC_FALLBACKS;
+  const reqLower = (requestedModel || '').toLowerCase();
+  const candidates: string[] = [];
+
+  const add = (m: string) => {
+    if (!candidates.includes(m)) candidates.push(m);
+  };
+
+  if (requestedModel && pool.includes(requestedModel)) {
+    add(requestedModel);
+  }
+
+  if (reqLower.includes('qwen')) {
+    pool.filter(m => m.toLowerCase().includes('qwen')).forEach(add);
+    pool.filter(m => m.toLowerCase().includes('gpt-oss')).forEach(add);
+  }
+
+  if (reqLower.includes('llama')) {
+    pool.filter(m => m.toLowerCase().includes('llama')).forEach(add);
+    pool.filter(m => m.toLowerCase().includes('gpt-oss')).forEach(add);
+  }
+
+  pool.filter(m => m.includes('120b') || m.includes('70b') || m.includes('27b')).forEach(add);
+  pool.forEach(add);
+
+  return candidates.length > 0 ? candidates : GROQ_STATIC_FALLBACKS;
+}
 
 export default async function handler(req: any, res?: any) {
   // Support both Node.js Serverless (@vercel/node with res) and Edge/Web Standard (req: Request -> Response)
@@ -309,41 +391,13 @@ export default async function handler(req: any, res?: any) {
         }
       }
     } else {
-      let resolvedModel = model;
-      if (
-        !resolvedModel ||
-        resolvedModel === 'qwen/qwen3.8-27b' ||
-        resolvedModel === 'qwen3.8-27b' ||
-        resolvedModel === 'qwen3.8' ||
-        resolvedModel === 'qwen/qwen3.6-27b'
-      ) {
-        resolvedModel = 'qwen/qwen3.8-27b';
-      } else if (
-        resolvedModel === 'llama-3.3-70b-versatile' ||
-        resolvedModel === 'llama3-70b-8192' ||
-        resolvedModel.includes('llama')
-      ) {
-        resolvedModel = 'llama-3.3-70b-versatile';
-      } else if (
-        resolvedModel === 'llama-3.1-8b-instant' ||
-        resolvedModel === 'llama3-8b-8192'
-      ) {
-        resolvedModel = 'llama-3.1-8b-instant';
-      }
-
-      const groqPrimaryModel = (resolvedModel === 'llama-3.1-8b-instant' || (typeof model === 'string' && model.includes('instant')))
-        ? 'llama-3.1-8b-instant'
-        : 'llama-3.3-70b-versatile';
-
-      const standardGroqModels = [
-        groqPrimaryModel,
-        groqPrimaryModel === 'llama-3.3-70b-versatile' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'
-      ];
-
-      // TIER 1: Groq LPU (Ultra-rápido ~450 tokens/s con pooling de keys)
+      // TIER 1: Groq LPU (Ultra-rápido con auto-descubrimiento dinámico de modelos activos 2026)
       if (groqKeysToTry.length > 0) {
         for (const key of groqKeysToTry) {
-          for (const targetM of standardGroqModels) {
+          const activeModels = await getActiveGroqModels(key);
+          const candidateGroqModels = resolveGroqCandidateModels(model, activeModels);
+
+          for (const targetM of candidateGroqModels) {
             try {
               const res = await executeGroq(key, targetM, safeGroqMaxTokens);
               if (res.ok) {
@@ -351,17 +405,38 @@ export default async function handler(req: any, res?: any) {
                 break;
               } else {
                 const errTxt = await res.text().catch(() => '');
-                lastError = `Groq (${targetM}): ${errTxt.slice(0, 100)}`;
+                lastError += ` | Groq (${targetM}): ${errTxt.slice(0, 100)}`;
               }
             } catch (e: any) {
-              lastError = `Groq (${targetM}) error: ${e.message}`;
+              lastError += ` | Groq (${targetM}) error: ${e.message}`;
             }
           }
           if (aiResponse && aiResponse.ok) break;
         }
       }
 
-      // TIER 2: SambaNova Cloud (Llama 3.3 70B & Qwen 2.5 72B en chips SN40L)
+      // TIER 2: Google Gemini (Gemini 2.5 Flash / 2.0 Flash para código y razonamiento)
+      if ((!aiResponse || !aiResponse.ok) && envGeminiKeys.length > 0) {
+        for (const gKey of envGeminiKeys) {
+          for (const gModel of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']) {
+            try {
+              const res = await executeGemini(gKey, gModel, safeGroqMaxTokens);
+              if (res.ok) {
+                aiResponse = res;
+                break;
+              } else {
+                const errTxt = await res.text().catch(() => '');
+                lastError += ` | Gemini (${gModel}): ${errTxt.slice(0, 100)}`;
+              }
+            } catch (e: any) {
+              lastError += ` | Gemini (${gModel}) error: ${e.message}`;
+            }
+          }
+          if (aiResponse && aiResponse.ok) break;
+        }
+      }
+
+      // TIER 3: SambaNova Cloud (Llama 3.3 70B & Qwen 2.5 72B en chips SN40L)
       if ((!aiResponse || !aiResponse.ok) && envSambaNovaKeys.length > 0) {
         const sambaModels = ['Meta-Llama-3.3-70B-Instruct', 'Qwen2.5-72B-Instruct'];
         for (const key of envSambaNovaKeys) {
@@ -383,7 +458,7 @@ export default async function handler(req: any, res?: any) {
         }
       }
 
-      // TIER 3: Cerebras Cloud (Llama 3.3 70B a 1,800 tokens/s)
+      // TIER 4: Cerebras Cloud (Llama 3.3 70B a 1,800 tokens/s)
       if ((!aiResponse || !aiResponse.ok) && envCerebrasKeys.length > 0) {
         for (const key of envCerebrasKeys) {
           try {
@@ -402,18 +477,28 @@ export default async function handler(req: any, res?: any) {
         }
       }
 
-      // TIER 4: OpenRouter Cloud (DeepSeek-V3, Qwen 2.5 Coder, modelos abiertos)
+      // TIER 5: OpenRouter Cloud (Priorizando 'openrouter/free' y modelos 100% libres de costo para llaves sin saldo)
       if ((!aiResponse || !aiResponse.ok) && orKeyToUse) {
-        const targetModels = [
-          resolvedModel || 'deepseek/deepseek-chat',
-          'deepseek/deepseek-chat',
-          'qwen/qwen-2.5-coder-32b-instruct',
-          ...VERIFIED_FREE_OR_MODELS
-        ].slice(0, 3);
+        const candidateOrModels: string[] = [];
 
-        for (const orModel of targetModels) {
+        // Si el cliente solicitó un modelo de OpenRouter que no sea un ID interno de Groq
+        if (typeof model === 'string' && model.includes('/') && !model.includes('llama-3.3') && !model.includes('llama-3.1')) {
+          if (model.endsWith(':free')) {
+            candidateOrModels.push(model);
+          } else {
+            candidateOrModels.push(`${model}:free`);
+            candidateOrModels.push(model);
+          }
+        }
+
+        // Agregar modelos libres de costo verificados, iniciando con el auto-enrutador universal
+        for (const m of VERIFIED_FREE_OR_MODELS) {
+          if (!candidateOrModels.includes(m)) candidateOrModels.push(m);
+        }
+
+        for (const orModel of candidateOrModels) {
           try {
-            const openRouterTokens = Math.max(6000, Math.min(targetTokens, 12000));
+            const openRouterTokens = Math.max(4000, Math.min(targetTokens, 12000));
             const res = await executeOpenRouter(orKeyToUse, orModel, openRouterTokens);
             if (res.ok) {
               aiResponse = res;

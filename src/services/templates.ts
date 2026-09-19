@@ -3,6 +3,7 @@ import { MARIO_KART_GAME_HTML } from './marioKartTemplate';
 import { AIR_COMBAT_GAME_HTML } from './airCombatTemplate';
 import { THREE_D_STUDIO_HTML } from './templates3DStudio';
 import { BATTLESHIP_3D_HTML } from './templates3DBattleship';
+import { RETRO_CALCULATOR_HTML } from './templatesRetroCalculator';
 import { SAAS_ANALYTICS_HTML } from './templatesSaaS';
 import { ECOMMERCE_STORE_HTML } from './templatesEcommerce';
 import { SYNTHWAVE_DAW_HTML } from './templatesDaw';
@@ -14,6 +15,7 @@ export {
   AIR_COMBAT_GAME_HTML, 
   THREE_D_STUDIO_HTML, 
   BATTLESHIP_3D_HTML,
+  RETRO_CALCULATOR_HTML,
   SAAS_ANALYTICS_HTML, 
   ECOMMERCE_STORE_HTML, 
   SYNTHWAVE_DAW_HTML, 
@@ -400,6 +402,26 @@ body {
         name: 'index.html',
         language: 'html',
         content: BATTLESHIP_3D_HTML
+      }
+    ]
+  },
+  // =========================================================================
+  // 1.C 🧮 CALCULADORA CIENTÍFICA RETRO (Casio/TI Vintage Style)
+  // =========================================================================
+  {
+    id: 'retro-scientific-calculator',
+    name: '🧮 Calculadora Científica Retro Vintage',
+    description: 'Calculadora científica retro completa estilo Casio FX / TI: display de doble línea VFD/LCD con brillo fosforescente, funciones trigonométricas (DEG/RAD), potencias, raíces, logaritmos, memoria M+/MR/MC, historial de cálculos, teclado físico y clics mecánicos con Web Audio.',
+    icon: 'Calculator',
+    category: 'Productividad',
+    tags: ['Calculadora', 'Científica', 'Retro', 'Web Audio API', 'Vintage', 'Matemáticas'],
+    badge: 'Retro Pro',
+    files: [
+      {
+        id: '1',
+        name: 'index.html',
+        language: 'html',
+        content: RETRO_CALCULATOR_HTML
       }
     ]
   },

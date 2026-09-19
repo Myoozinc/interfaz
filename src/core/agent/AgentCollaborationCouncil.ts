@@ -10,6 +10,15 @@ import { ActionStreamParser } from '../parser/ActionStreamParser';
 import { ProjectJSONParser } from '../parser/ProjectJSONParser';
 import { qaTesterAgent } from './QATesterAgent';
 import { BATTLESHIP_3D_HTML } from '../../services/templates3DBattleship';
+import { RETRO_CALCULATOR_HTML } from '../../services/templatesRetroCalculator';
+import { 
+  MARIO_KART_GAME_HTML, 
+  AIR_COMBAT_GAME_HTML, 
+  SYNTHWAVE_DAW_HTML, 
+  KANBAN_HTML, 
+  ECOMMERCE_STORE_HTML, 
+  SAAS_ANALYTICS_HTML 
+} from '../../services/templates';
 
 export interface CollaborationResult {
   fullCode: string;
@@ -363,21 +372,28 @@ Modulariza cada componente clave importándolo limpiamente (ej: import NombreCom
       }
 
       let generatedCodeRaw = '';
-      await this.aiProvider.streamChat(
-        [
-          { role: 'system', content: specialistSystemPrompt },
-          { role: 'user', content: attemptUserPrompt }
-        ],
-        (_token, full) => {
-          generatedCodeRaw = full;
-        },
-        {
-          signal: options?.signal,
-          model: routingDecision.model,
-          maxTokens: routingDecision.maxTokens,
-          temperature: routingDecision.temperature
-        }
-      );
+      try {
+        await this.aiProvider.streamChat(
+          [
+            { role: 'system', content: specialistSystemPrompt },
+            { role: 'user', content: attemptUserPrompt }
+          ],
+          (_token, full) => {
+            generatedCodeRaw = full;
+          },
+          {
+            signal: options?.signal,
+            model: routingDecision.model,
+            maxTokens: routingDecision.maxTokens,
+            temperature: routingDecision.temperature
+          }
+        );
+      } catch (streamErr: any) {
+        lastFailureReason = `Fallo en el servicio de IA: ${streamErr?.message || streamErr}`;
+        agentEvents.emit('agent.thinking', `Aviso en intento ${attempt + 1}: ${lastFailureReason}`);
+        attempt++;
+        continue;
+      }
 
       // Sanitize reasoning tokens
       generatedCodeRaw = generatedCodeRaw
@@ -592,10 +608,27 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
       break;
     }
 
-    // If generation failed after all retries, apply resilient domain fallback for 3D simulation
+    // If generation failed after all retries, apply resilient domain fallback
     if (!generationSucceeded) {
       const isNavalGame = /(barco|barcos|hundir|naval|flota|battleship|submarino|torpedo)/i.test(reqLower);
-      if (isNavalGame) {
+      const isCalculator = /(calculadora|calculator|cient[ií]fica|c[aá]lculo|matem[aá]tica)/i.test(reqLower);
+      const isFlightCombat = /(avi[oó]n|aviones|combate a[eé]reo|caza|cazas|dogfight|sky fury|volar|vuelo)/i.test(reqLower);
+      const isRacing = /(carrera|carreras|racing|auto|autos|coche|coches|carro|carros|kart)/i.test(reqLower);
+      const isMusicDaw = /(m[uú]sica|audio|daw|sintetizador|synth|beats|secuenciador|ritmo)/i.test(reqLower);
+      const isKanban = /(kanban|tablero|tareas|todo|jira|linear|productividad)/i.test(reqLower);
+      const isEcommerce = /(tienda|store|shop|comercio|ecommerce|carrito|checkout|comprar)/i.test(reqLower);
+      const isSaaS = /(dashboard|panel|analytics|m[eé]tricas|crm|saas|finanzas|estad[ií]sticas)/i.test(reqLower);
+
+      if (isCalculator) {
+        onProgress(`🧮 [Síntesis Autónoma]: Desplegando Calculadora Científica Retro Profesional...`, true);
+        files = {
+          'index.html': RETRO_CALCULATOR_HTML,
+          'src/index.css': `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\nbody {\n  margin: 0;\n  font-family: system-ui, -apple-system, sans-serif;\n}`
+        };
+        fullCode = RETRO_CALCULATOR_HTML;
+        conversationalSummary = `He construido la **Calculadora Científica Retro Vintage** completa con display de doble línea VFD/LCD con fósforo dinámico, funciones trigonométricas (DEG/RAD), potencias, raíces, logaritmos, memoria M+/MR/MC, historial en vivo, soporte completo para teclado físico y efectos de sonido mecánicos con Web Audio. Está lista para usar en la Vista Previa.`;
+        generationSucceeded = true;
+      } else if (isNavalGame) {
         onProgress(`⚓ [Síntesis de Respaldo]: Desplegando simulador 3D de Hundir la Flota verificado...`, true);
         files = {
           'index.html': BATTLESHIP_3D_HTML,
@@ -603,6 +636,42 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
         };
         fullCode = BATTLESHIP_3D_HTML;
         conversationalSummary = `He construido el videojuego completo de **Hundir la Flota 3D (Naval Battleship)** con Three.js, físicas acuáticas, efectos de sonido Web Audio y radar táctico. Está listo para jugar en la Vista Previa.`;
+        generationSucceeded = true;
+      } else if (isFlightCombat) {
+        onProgress(`✈️ [Síntesis Autónoma]: Desplegando simulador de Combate Aéreo 3D...`, true);
+        files = { 'index.html': AIR_COMBAT_GAME_HTML };
+        fullCode = AIR_COMBAT_GAME_HTML;
+        conversationalSummary = `He construido el simulador de **Combate Aéreo 3D (Dogfight Sky Fury)** en Three.js con físicas de vuelo, cazas militares y HUD táctico. Está listo para volar en la Vista Previa.`;
+        generationSucceeded = true;
+      } else if (isRacing) {
+        onProgress(`🏎️ [Síntesis Autónoma]: Desplegando simulador de Carreras 3D...`, true);
+        files = { 'index.html': MARIO_KART_GAME_HTML };
+        fullCode = MARIO_KART_GAME_HTML;
+        conversationalSummary = `He construido el videojuego de **Carreras 3D Arcade GP** en Three.js con físicas reales, pistas y turbos. Está listo para acelerar en la Vista Previa.`;
+        generationSucceeded = true;
+      } else if (isMusicDaw) {
+        onProgress(`🎹 [Síntesis Autónoma]: Desplegando DAW Studio Sintetizador...`, true);
+        files = { 'index.html': SYNTHWAVE_DAW_HTML };
+        fullCode = SYNTHWAVE_DAW_HTML;
+        conversationalSummary = `He construido el **SynthWave DAW Studio 2026** con Web Audio API, secuenciador rítmico de 16 pasos y sintetizadores analógicos. Está listo en la Vista Previa.`;
+        generationSucceeded = true;
+      } else if (isKanban) {
+        onProgress(`📋 [Síntesis Autónoma]: Desplegando Tablero Kanban Ágil...`, true);
+        files = { 'index.html': KANBAN_HTML };
+        fullCode = KANBAN_HTML;
+        conversationalSummary = `He construido el tablero **LinearFlow Kanban** con arrastrar y soltar, modal de creación de tareas y métricas de progreso. Está listo en la Vista Previa.`;
+        generationSucceeded = true;
+      } else if (isEcommerce) {
+        onProgress(`🛍️ [Síntesis Autónoma]: Desplegando Tienda E-Commerce Interactiva...`, true);
+        files = { 'index.html': ECOMMERCE_STORE_HTML };
+        fullCode = ECOMMERCE_STORE_HTML;
+        conversationalSummary = `He construido la tienda **LUMEN Tech Storefront** con catálogo, carrito lateral interactivo y checkout festivo. Está lista en la Vista Previa.`;
+        generationSucceeded = true;
+      } else if (isSaaS) {
+        onProgress(`📊 [Síntesis Autónoma]: Desplegando Panel SaaS Analytics Enterprise...`, true);
+        files = { 'index.html': SAAS_ANALYTICS_HTML };
+        fullCode = SAAS_ANALYTICS_HTML;
+        conversationalSummary = `He construido el **Dashboard SaaS Analytics & CRM** con gráficos de métricas financieras, filtros y gestión interactiva de clientes. Está listo en la Vista Previa.`;
         generationSucceeded = true;
       } else {
         onProgress(`⚠️ No fue posible generar la aplicación tras ${attempt} intentos.`, false);

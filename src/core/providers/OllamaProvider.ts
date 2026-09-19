@@ -112,7 +112,7 @@ export class OllamaProvider implements AIProvider {
       signal: options?.signal,
     });
 
-    // Client-side automatic fallback to Groq LPU if primary model times out or errors
+    // Client-side automatic fallback to Groq LPU / OpenRouter Free if primary model times out or errors
     if (!res.ok) {
       onToken('⚡ Conmutando automáticamente a Groq LPU de alta velocidad (~450 t/s)...', '', false);
       try {
@@ -120,7 +120,7 @@ export class OllamaProvider implements AIProvider {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
+            model: 'qwen/qwen3.6-27b',
             messages: formattedMessages,
             openrouterKey: openrouterKey.trim() || undefined,
             groqKey: groqKey.trim() || undefined,
@@ -132,6 +132,26 @@ export class OllamaProvider implements AIProvider {
         });
         if (fallbackRes.ok) {
           res = fallbackRes;
+        } else {
+          // Second fallback to OpenRouter universal free router
+          onToken('⚡ Conmutando a OpenRouter Free Gateway...', '', false);
+          const orFreeRes = await fetch('/api/agent', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              model: 'openrouter/free',
+              messages: formattedMessages,
+              openrouterKey: openrouterKey.trim() || undefined,
+              groqKey: groqKey.trim() || undefined,
+              maxTokensRequested: Math.min(options?.maxTokens || 8000, 8000),
+              temperature: options?.temperature,
+              stream: true,
+            }),
+            signal: options?.signal,
+          });
+          if (orFreeRes.ok) {
+            res = orFreeRes;
+          }
         }
       } catch {}
     }
