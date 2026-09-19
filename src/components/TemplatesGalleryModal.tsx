@@ -15,7 +15,8 @@ import {
   Box,
   Kanban,
   Code2,
-  Plane
+  Plane,
+  Anchor
 } from 'lucide-react';
 import { STARTER_TEMPLATES } from '../services/templates';
 import type { ProjectTemplate } from '../types';
@@ -73,6 +74,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({
       case 'Kanban': return <Kanban className="w-6 h-6" />;
       case 'Smartphone': return <Smartphone className="w-6 h-6" />;
       case 'HeartHandshake': return <HeartHandshake className="w-6 h-6" />;
+      case 'Anchor': return <Anchor className="w-6 h-6" />;
       default: return <Sparkles className="w-6 h-6" />;
     }
   };

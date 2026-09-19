@@ -2,6 +2,7 @@ import type { ProjectTemplate } from '../types';
 import { MARIO_KART_GAME_HTML } from './marioKartTemplate';
 import { AIR_COMBAT_GAME_HTML } from './airCombatTemplate';
 import { THREE_D_STUDIO_HTML } from './templates3DStudio';
+import { BATTLESHIP_3D_HTML } from './templates3DBattleship';
 import { SAAS_ANALYTICS_HTML } from './templatesSaaS';
 import { ECOMMERCE_STORE_HTML } from './templatesEcommerce';
 import { SYNTHWAVE_DAW_HTML } from './templatesDaw';
@@ -12,6 +13,7 @@ export {
   MARIO_KART_GAME_HTML, 
   AIR_COMBAT_GAME_HTML, 
   THREE_D_STUDIO_HTML, 
+  BATTLESHIP_3D_HTML,
   SAAS_ANALYTICS_HTML, 
   ECOMMERCE_STORE_HTML, 
   SYNTHWAVE_DAW_HTML, 
@@ -378,6 +380,26 @@ body {
         name: 'index.html',
         language: 'html',
         content: THREE_D_STUDIO_HTML
+      }
+    ]
+  },
+  // =========================================================================
+  // 1.B ⚓ HUNDIR LA FLOTA 3D NAVAL BATTLE (Three.js WebGL + Web Audio)
+  // =========================================================================
+  {
+    id: 'battleship-3d-naval',
+    name: '⚓ Hundir la Flota 3D (Naval Battleship)',
+    description: 'Juego 3D de combate naval y táctica: océano animado con olas, cuadrícula 10x10, buques de guerra 3D, cañonazos con trayectoria, partículas de salpicadura y explosiones, radar táctico giratorio e IA enemiga.',
+    icon: 'Anchor',
+    category: 'Videojuegos 3D',
+    tags: ['Three.js', 'WebGL', 'Hundir Barcos', 'Web Audio API', 'IA Táctica', '3D Game'],
+    badge: 'Nuevo 3D',
+    files: [
+      {
+        id: '1',
+        name: 'index.html',
+        language: 'html',
+        content: BATTLESHIP_3D_HTML
       }
     ]
   },

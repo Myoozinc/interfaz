@@ -469,27 +469,33 @@ export const ChatPanel = ({
                       <button
                         key={cIdx}
                         onClick={() => {
-                          if (chip.includes('Construir y Ver en Preview')) {
-                            const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && !m.content.includes('Construir y Ver en Preview'))?.content || '';
+                          if (chip.includes('Construir y Ver en Preview') || chip.includes('Construir Aplicación') || chip.includes('Construir')) {
+                            const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && !m.content.includes('Construir'))?.content || '';
                             const promptToSend = lastUserMsg 
                               ? `Construye la aplicación ahora: ${lastUserMsg}`
-                              : chip;
+                              : 'Construye la aplicación ahora';
                             handleSendMessage(promptToSend, 'builder');
-                          } else if (chip.includes('Ver Preview Actual')) {
+                          } else if (chip.includes('Preview') || chip.includes('Probar')) {
                             if (onSwitchView) onSwitchView('preview');
+                          } else if (chip.includes('Editor') || chip.includes('Código') || chip.includes('Codigo')) {
+                            if (onSwitchView) onSwitchView('editor');
+                          } else if (chip.includes('Refinar')) {
+                            setInputPrompt('Refinar: ');
                           } else {
                             handleSendMessage(chip, 'chat');
                           }
                         }}
                         className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 cursor-pointer shadow-2xs ${
-                          chip.includes('Construir y Ver en Preview')
+                          chip.includes('Construir')
                             ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            : chip.includes('Ver Preview Actual')
+                            : chip.includes('Preview') || chip.includes('Probar')
                             ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                            : chip.includes('Editor') || chip.includes('Código')
+                            ? 'bg-slate-800 hover:bg-slate-900 text-white'
                             : 'bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 text-indigo-700'
                         }`}
                       >
-                        {chip.includes('Construir y Ver en Preview') ? (
+                        {chip.includes('Construir') || chip.includes('Preview') || chip.includes('Probar') ? (
                           <Play className="w-3 h-3 fill-current" />
                         ) : (
                           <Sparkles className="w-3 h-3" />
@@ -597,7 +603,11 @@ export const ChatPanel = ({
       {/* Modern Floating Omnibar Input */}
       <div className="p-3 border-t border-slate-200/80 bg-white shrink-0">
         <FloatingOmnibar
-          onSendMessage={(text, mode, model, atts) => handleSendMessage(text, mode, atts, model)}
+          initialText={inputPrompt}
+          onSendMessage={(text, mode, model, atts) => {
+            setInputPrompt('');
+            handleSendMessage(text, mode, atts, model);
+          }}
           isGenerating={isGenerating}
           inspectedElement={inspectedElement}
           onClearInspectedElement={onClearInspectedElement}

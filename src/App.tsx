@@ -612,6 +612,10 @@ export function App() {
                   setViewMode('split');
                   setWorkspaceCenterTab('preview');
                 }}
+                onSwitchView={(v) => {
+                  setViewMode('split');
+                  setWorkspaceCenterTab(v === 'editor' ? 'code' : 'preview');
+                }}
                 onNewCleanProject={handleNewCleanProject}
                 attachments={attachments}
                 onAddAttachment={(att) => setAttachments(prev => [...prev, att])}

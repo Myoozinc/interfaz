@@ -74,13 +74,14 @@ export class QATesterAgent {
       };
     }
 
-    // 1. Detección de archivo raíz o componentes
+    // 1. Detección de archivo raíz o componentes con código ejecutable real
     const hasRootComponent = fileKeys.some(
-      k => k === 'src/App.tsx' || k === 'src/App.jsx' || k === 'src/main.tsx' || k === 'src/main.jsx' || k === 'index.html' || (k.startsWith('src/') && (k.endsWith('.tsx') || k.endsWith('.jsx')))
+      k => ((k === 'src/App.tsx' || k === 'src/App.jsx' || k === 'src/main.tsx' || k === 'src/main.jsx' || (k.startsWith('src/') && (k.endsWith('.tsx') || k.endsWith('.jsx')))) && ((normalizedFiles[k] || '').length > 100)) ||
+           (k === 'index.html' && (normalizedFiles[k] || '').length > 300 && !normalizedFiles[k]?.includes('Lienzo Listo'))
     );
 
     if (!hasRootComponent) {
-      errors.push('El proyecto carece de un componente principal ejecutable en "src/" (ej: src/App.tsx o src/main.tsx).');
+      errors.push('El proyecto carece de un componente principal ejecutable sustancial (ej: src/App.tsx o index.html con aplicación completa).');
     }
 
     // 2. Validación archivo por archivo

@@ -28,6 +28,7 @@ interface HeroChatViewProps {
   onSendMessage: (prompt: string, mode?: 'chat' | 'builder', model?: string, attachments?: ChatAttachment[]) => void;
   creditsBalance: number;
   onOpenWorkspace: () => void;
+  onSwitchView?: (view: 'preview' | 'editor') => void;
   onNewCleanProject?: () => void;
   attachedImages?: string[];
   onAddImage?: (base64: string) => void;
@@ -47,6 +48,7 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   onSendMessage,
   creditsBalance: _creditsBalance,
   onOpenWorkspace,
+  onSwitchView,
   onNewCleanProject,
   attachedImages = [],
   onAddImage,
@@ -60,6 +62,7 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   isGenerating = false,
   thinkingText = '',
 }) => {
+  const [omnibarInitialText, setOmnibarInitialText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isConversing = messages.length > 1;
@@ -118,14 +121,20 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   ];
 
   const handleChipClick = (chip: string) => {
-    if (chip.includes('Construir y Ver en Preview') || chip.includes('Probar en Preview en Vivo')) {
-      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && !m.content.includes('Construir y Ver en Preview'))?.content || '';
+    if (chip.includes('Construir y Ver en Preview') || chip.includes('Construir Aplicación') || chip.includes('Construir')) {
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && !m.content.includes('Construir'))?.content || '';
       const promptToSend = lastUserMsg 
         ? `Construye la aplicación ahora: ${lastUserMsg}`
-        : chip;
+        : 'Construye la aplicación ahora';
       onSendMessage(promptToSend, 'builder');
-    } else if (chip.includes('Ver Preview Actual') || chip.includes('Ver Código en Editor')) {
+    } else if (chip.includes('Preview') || chip.includes('Probar')) {
       onOpenWorkspace();
+      onSwitchView?.('preview');
+    } else if (chip.includes('Editor') || chip.includes('Código') || chip.includes('Codigo')) {
+      onOpenWorkspace();
+      onSwitchView?.('editor');
+    } else if (chip.includes('Refinar')) {
+      setOmnibarInitialText('Refinar: ');
     } else {
       onSendMessage(chip, 'chat');
     }
@@ -160,7 +169,11 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
 
           {/* Centerpiece Floating Omnibar Prompt Box */}
           <FloatingOmnibar
-            onSendMessage={(prompt, mode, model, atts) => onSendMessage(prompt, mode || 'chat', model, atts)}
+            initialText={omnibarInitialText}
+            onSendMessage={(prompt, mode, model, atts) => {
+              setOmnibarInitialText('');
+              onSendMessage(prompt, mode || 'chat', model, atts);
+            }}
             isGenerating={isGenerating}
             inspectedElement={inspectedElement}
             onClearInspectedElement={onClearInspectedElement}
@@ -420,8 +433,9 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                 {!isUser && msg.actionChips && msg.actionChips.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
                     {msg.actionChips.map((chip, cIdx) => {
-                      const isBuildChip = chip.includes('Construir') || chip.includes('Probar en Preview en Vivo');
-                      const isPreviewChip = chip.includes('Ver Preview');
+                      const isBuildChip = chip.includes('Construir');
+                      const isPreviewChip = chip.includes('Preview') || chip.includes('Probar');
+                      const isEditorChip = chip.includes('Editor') || chip.includes('Código') || chip.includes('Codigo');
                       return (
                         <button
                           key={cIdx}
@@ -431,10 +445,12 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                               ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'
                               : isPreviewChip
                               ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                              : isEditorChip
+                              ? 'bg-slate-800 hover:bg-slate-900 text-white'
                               : 'bg-slate-100 hover:bg-indigo-50 border border-slate-200 text-slate-700 hover:text-indigo-700'
                           }`}
                         >
-                          {isBuildChip ? (
+                          {isBuildChip || isPreviewChip ? (
                             <Play className="w-3.5 h-3.5 fill-current" />
                           ) : (
                             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
@@ -526,7 +542,11 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
       <div className="p-4 sm:p-6 bg-gradient-to-t from-white via-white/95 to-transparent shrink-0">
         <div className="max-w-3xl mx-auto w-full space-y-2">
           <FloatingOmnibar
-            onSendMessage={(prompt, mode, model, atts) => onSendMessage(prompt, mode || 'chat', model, atts)}
+            initialText={omnibarInitialText}
+            onSendMessage={(prompt, mode, model, atts) => {
+              setOmnibarInitialText('');
+              onSendMessage(prompt, mode || 'chat', model, atts);
+            }}
             isGenerating={isGenerating}
             inspectedElement={inspectedElement}
             onClearInspectedElement={onClearInspectedElement}

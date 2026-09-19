@@ -139,10 +139,14 @@ REGLAS DE ARQUITECTURA:
       matchesPattern(/\b(carrera|carreras|racing|auto|autos|autom[oó]vil|autom[oó]viles|coche|coches|carro|carros|conducir|manejar|drift|kart|karts|veh[ií]culo|veh[ií]culos|fps|shooter|nave espacial|naves espaciales|combate espacial|asteroides|gravedad cero)\b/i) ||
       (matchesPattern(/\b(juego|videojuego|mundo virtual)\b/i) && matchesPattern(/\b(3d|3-d)\b/i))
     ) {
+      const isNavalGame = matchesPattern(/\b(barco|barcos|hundir|naval|flota|battleship|mar|oceano|oc[eé]ano|submarino|torpedo|ca[ñn]on)\b/i);
+      const isRacingGame = matchesPattern(/\b(carrera|carreras|auto|autos|coche|coches|carro|carros|veh[ií]culo|kart|mario kart|derrape|drift|pista|velocidad)\b/i);
+      const isSpaceGame = matchesPattern(/\b(espacio|espacial|galaxia|asteroide|asteroides|nave|naves|star|laser|l[aá]ser)\b/i);
+
       return {
         id: 'agent_threejs_master',
-        name: 'Three.js & WebGL 3D Master Architect',
-        domain: 'Videojuegos 3D, Carreras, Físicas & WebGL',
+        name: isNavalGame ? 'Three.js Naval 3D Fleet Architect' : 'Three.js & WebGL 3D Master Architect',
+        domain: isNavalGame ? 'Hundir la Flota 3D, Batalla Naval & Físicas WebGL' : 'Videojuegos 3D, Carreras, Físicas & WebGL',
         icon: 'Gamepad2',
         badgeColor: 'bg-cyan-100 text-cyan-800 border-cyan-200',
         recommendedLibraries: [
@@ -154,22 +158,34 @@ REGLAS DE ARQUITECTURA:
           'tailwind-merge'
         ],
         guardrails: [
-          'ARQUITECTURA REACT MULTI-ARCHIVO: Generar "index.html", "src/App.tsx" y componentes modulares en "src/components/*.tsx".',
-          'MODULARIDAD COMPONENCIAL: Dividir la aplicación en componentes (ej: "src/components/RaceCanvas.tsx" para el renderer Three.js y loop 60 FPS, "src/components/SpeedometerHUD.tsx" para velocímetro, turbo y odómetro digital, "src/components/TouchControls.tsx" para controles en pantalla).',
-          'PROHIBIDO MODELAR VEHÍCULOS COMO UNA SOLA CAJA: Si es un juego de carreras o vehículos, ensamblar siempre un THREE.Group con chasis, cabina con material reflectante, alerón trasero, faros emisivos y 4 ruedas cilíndricas giratorias.',
-          'FÍSICAS Y MOVIMIENTO REAL: Implementar variables de velocidad, aceleración, frenado y fricción. En el bucle de animación, actualizar continuamente la posición y hacer que la cámara siga al jugador suavemente.',
-          'CONTROLES DUALES CONTINUOS: Implementar mapa booleano keys = { forward: false, backward: false, left: false, right: false } con eventos keydown/keyup Y botones en pantalla con mousedown/mouseup y touchstart/touchend continuos para que nunca se quede inmóvil.',
-          'AUDIO PROCEDURAL: Incluir sonido de motor sintetizado con Web Audio API (OscillatorNode sawtooth modulado por la velocidad tras interacción del usuario).',
-          'CONTRATO DE SALIDA OBLIGATORIO: Devolver estrictamente el objeto JSON con la clave "files" (array de { "path": string, "content": string }) y "explanation". Cero scripts externos de CDN.'
+          'ARQUITECTURA REACT O STANDALONE 3D ROBUSTA: Generar "index.html", "src/App.tsx" o estructura modular 100% interactiva con Three.js sin scripts externos rotos.',
+          isNavalGame
+            ? 'SIMULACIÓN NAVAL HUNDIR BARCOS 3D: Implementar océano 3D animado, cuadrícula naval 10x10 táctica, buques 3D detallados (Portaaviones, Acorazado, Crucero, Submarino, Destructor), disparo de cañones con proyectiles parabólicos, partículas de salpicadura de agua y explosión de fuego, turno de IA enemiga y HUD de radar táctico.'
+            : isRacingGame
+            ? 'SIMULACIÓN DE CARRERAS: Ensamblar vehículo 3D detallado con THREE.Group (chasis, cabina, alerón, faros y 4 ruedas giratorias), pista de carreras con curvas, velocímetro digital HUD, aceleración/frenado suave y audio procedural de motor.'
+            : isSpaceGame
+            ? 'SIMULACIÓN ESPACIAL 3D: Nave estelar maniobrable, campo de asteroides procedural, disparo de láseres de plasma y HUD de radar orbital.'
+            : 'BUCLE DE ANIMACIÓN Y RENDER 60 FPS: Loop requestAnimationFrame continuo, iluminación con DirectionalLight y AmbientLight, sombras y cámara fluida.',
+          'AUDIO PROCEDURAL WEB AUDIO API: Generar efectos de sonido procedurales sin archivos de audio externos (disparos, explosiones, motor, oleaje o impactos usando OscillatorNode y GainNode con Web Audio seguro tras interacción).',
+          'HUD TÁCTICO INTERACTIVO: Superposición elegante con Tailwind CSS (puntuación, radar, vida, munición, botón de reinicio y pantalla de victoria/derrota).',
+          'CONTRATO DE SALIDA OBLIGATORIO: Devolver estrictamente el objeto JSON con la clave "files" (array de { "path": string, "content": string }) y "explanation".'
         ],
         systemPromptAdditions: `Eres el AGENTE ESPECIALISTA EN 3D Y VIDEOJUEGOS de NONA.
-Posees maestría absoluta en Three.js, simulación física de vehículos, shaders GLSL, partículas para estelas/nitro, y Web Audio API.
-REGLAS DE ARQUITECTURA:
-- Estructura el proyecto en archivos modulares React ("src/App.tsx", "src/components/*.tsx").
-- Construye un vehículo 3D detallado ensamblado con THREE.Group (chasis, alerón, cabina/asiento, volante, tubos de escape y 4 ruedas cilíndricas que rotan).
-- Si el usuario solicita estilo Mario Kart o arcade: genera un mundo vibrante con cielo azul soleado, colinas verdes, bordes a cuadros rojos/blancos y monedas coleccionables.
-- Si el usuario solicita estilo Cyberpunk / Neón: genera una autopista nocturna infinita con rascacielos oscuros, faros y estelas de neón cyan/magenta.
-- Controles fluidos con teclado (WASD / Flechas) y botones táctiles en pantalla.`
+Posees maestría absoluta en Three.js, shaders GLSL, simulación física, sistemas de partículas (fuego, humo, chispas, agua) y Web Audio API.
+
+${isNavalGame ? `ESPECIALIZACIÓN NAVAL (HUNDIR LA FLOTA / BATTLESHIP 3D):
+- Renderiza un océano 3D animado con plano ondulante en azul marino profundo (#0f172a a #0284c7).
+- Tablero naval 10x10 con celdas seleccionables y coordenadas (A-J, 1-10).
+- Flota 3D detallada con buques de guerra geométricos (chasis naval gris acorazado, torretas de cañones cilíndricas, puente de mando, mástiles).
+- Mecánica de combate: Selección de celda -> Animación de disparo de cañón -> Proyectil 3D volando -> Salpicadura de agua si falla (Miss) o Explosión ardiente de partículas rojas/naranjas si impacta (Hit).
+- Almirante IA enemigo que dispara en su turno con lógica de búsqueda táctica.
+- HUD Táctico: Pantalla de radar circular giratorio, barra de buques restantes y efectos de sonido de cañonazos y oleaje marino con Web Audio.` : isRacingGame ? `ESPECIALIZACIÓN EN CARRERAS Y VEHÍCULOS:
+- Vehículo 3D detallado con THREE.Group (chasis, cabina reflectante, alerón, faros emisivos y 4 ruedas giratorias).
+- Físicas con inercia, aceleración, derrape y fricción a 60 FPS.
+- HUD con velocímetro digital, barra de turbo y controles táctiles + teclado.` : `ESPECIALIZACIÓN EN VIDEOJUEGOS 3D INTERACTIVOS:
+- Escena 3D completa con iluminación cinemática, sombras y controles de cámara fluidos.
+- Entorno interactivo con loop de juego a 60 FPS y efectos visuales de partículas.
+- HUD informativo moderno superpuesto con Tailwind CSS.`}`
       };
     }
 

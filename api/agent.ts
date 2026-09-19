@@ -331,15 +331,14 @@ export default async function handler(req: any, res?: any) {
         resolvedModel = 'llama-3.1-8b-instant';
       }
 
-      const standardGroqModels = Array.from(new Set([
-        resolvedModel,
-        'llama-3.3-70b-versatile',
-        'qwen/qwen3.8-27b',
-        'llama-3.1-8b-instant',
-        'openai/gpt-oss-120b',
-        'openai/gpt-oss-20b',
-        'groq/compound'
-      ])).filter(Boolean);
+      const groqPrimaryModel = (resolvedModel === 'llama-3.1-8b-instant' || (typeof model === 'string' && model.includes('instant')))
+        ? 'llama-3.1-8b-instant'
+        : 'llama-3.3-70b-versatile';
+
+      const standardGroqModels = [
+        groqPrimaryModel,
+        groqPrimaryModel === 'llama-3.3-70b-versatile' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'
+      ];
 
       // TIER 1: Groq LPU (Ultra-rápido ~450 tokens/s con pooling de keys)
       if (groqKeysToTry.length > 0) {
