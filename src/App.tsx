@@ -41,10 +41,7 @@ import { ensureCompleteViteProject } from './core/sandbox/ProjectStructureDefaul
 
 export function App() {
   const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('chat');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
-    const saved = localStorage.getItem('nona_sidebar_open');
-    return saved !== null ? saved === 'true' : true;
-  });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
@@ -117,14 +114,38 @@ export function App() {
     agentOrchestrator.setEndpoint(ollamaUrl);
     projectStore.getAllProjects().then((list) => {
       setProjects(list);
-      if (list.length > 0) {
-        const active = list[0];
-        setActiveProjectId(active.id);
-        setProjectName(active.name);
-        setFiles(active.files);
-        if (active.messages && active.messages.length > 0) setMessages(active.messages);
-        setActiveFileId(active.files[0]?.id || '1');
-      }
+      // Cada vez que un usuario ingresa a la plataforma, presentar la vista limpia Hero "¿Qué deseas construir hoy?"
+      const freshName = 'App ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const cleanFiles: FileItem[] = [
+        {
+          id: '1',
+          name: 'index.html',
+          language: 'html',
+          content: `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n  <script src="https://unpkg.com/lucide@latest"></script>\n</head>\n<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center font-sans p-4">\n  <div class="text-center p-8 bg-slate-900/90 rounded-3xl border border-slate-800 max-w-md w-full shadow-2xl backdrop-blur-md">\n    <div class="w-16 h-16 rounded-2xl bg-white p-2.5 mx-auto mb-4 border border-slate-700/60 shadow-lg flex items-center justify-center">\n      <img src="/nona-logo.png" alt="NONA Logo" class="w-full h-full object-contain" />\n    </div>\n    <h1 class="text-2xl font-bold mb-2 tracking-tight text-white">Lienzo Listo</h1>\n    <p class="text-xs text-slate-400 leading-relaxed mb-4">Escribe en el chat o dicta por voz qué aplicación, videojuego o herramienta deseas construir.</p>\n    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-[11px] font-semibold text-blue-400">\n      <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>\n      <span>NONA AI Factory v5.2</span>\n    </div>\n  </div>\n  <script>lucide.createIcons();</script>\n</body>\n</html>`,
+          isModified: false,
+        }
+      ];
+
+      const cleanProj = projectStore.createDefaultProject(freshName, cleanFiles);
+      cleanProj.messages = [
+        {
+          id: 'welcome_' + Date.now(),
+          role: 'assistant',
+          content: '¡Lienzo limpio preparado! Pídeme cualquier aplicación, herramienta o componente interactivo.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }
+      ];
+
+      projectStore.saveProject(cleanProj).then(() => {
+        setProjects(prev => [cleanProj, ...prev.filter(p => p.id !== cleanProj.id)]);
+        setActiveProjectId(cleanProj.id);
+        setProjectName(cleanProj.name);
+        setFiles(cleanProj.files);
+        setMessages(cleanProj.messages);
+        setActiveFileId('1');
+        setViewMode('chat');
+        setIsSidebarOpen(false);
+      });
     });
   }, []);
 
@@ -262,8 +283,8 @@ export function App() {
       setProjectName(cleanProj.name);
       setFiles(cleanProj.files);
       setMessages(cleanProj.messages);
-      setActiveFileId('1');
-      setViewMode('split');
+      setViewMode('chat');
+      setIsSidebarOpen(false);
     });
   };
 
