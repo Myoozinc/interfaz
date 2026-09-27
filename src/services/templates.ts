@@ -882,8 +882,10 @@ body {
         engineGain.gain.setValueAtTime(isMuted ? 0 : 0.08, audioCtx.currentTime);
       }
       const icon = document.getElementById('audio-icon');
-      icon.setAttribute('data-lucide', isMuted ? 'volume-x' : 'volume-2');
-      lucide.createIcons();
+      if (icon) {
+        icon.setAttribute('data-lucide', isMuted ? 'volume-x' : 'volume-2');
+      }
+      try { if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons(); } catch(e) {}
     }
 
     function startGame() {
@@ -991,10 +993,15 @@ body {
       renderer.render(scene, camera);
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
+    function safeInitRacing() {
+      try { if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons(); } catch(e) {}
       init3D();
-    });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', safeInitRacing);
+    } else {
+      safeInitRacing();
+    }
   </script>
 </body>
 </html>`
@@ -1285,10 +1292,15 @@ body {
       renderer.render(scene, camera);
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
+    function safeInitSpace() {
+      try { if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons(); } catch(e) {}
       init();
-    });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', safeInitSpace);
+    } else {
+      safeInitSpace();
+    }
   </script>
 </body>
 </html>`

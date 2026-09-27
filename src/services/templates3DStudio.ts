@@ -446,10 +446,15 @@ export const THREE_D_STUDIO_HTML = `<!DOCTYPE html>
       renderer.render(scene, camera);
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
+    function safeInit3DStudio() {
+      try { if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons(); } catch(e) {}
       init();
-    });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', safeInit3DStudio);
+    } else {
+      safeInit3DStudio();
+    }
   </script>
 </body>
 </html>`;

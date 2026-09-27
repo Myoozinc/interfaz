@@ -379,9 +379,15 @@ export const KANBAN_HTML = `<!DOCTYPE html>
       renderBoard();
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    function safeInitKanban() {
       renderBoard();
-    });
+      try { if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons(); } catch(e) {}
+    }
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', safeInitKanban);
+    } else {
+      safeInitKanban();
+    }
   </script>
 </body>
 </html>`;

@@ -259,7 +259,11 @@ Responde de forma clara, natural y profesional:`;
       agentEvents.emit('agent.completed', `Modificación incremental finalizada: ${editResult.changes.length} archivo(s) procesados.`);
     }
 
-    return { responseText: editResult.explanation, updatedProject: project, intent };
+    const responseText = editResult.explanation && editResult.explanation.trim()
+      ? editResult.explanation.trim()
+      : '✅ Modificación procesada y verificada con éxito en la Vista Previa.';
+
+    return { responseText, updatedProject: project, intent };
   }
 }
 

@@ -405,11 +405,16 @@ export const ECOMMERCE_STORE_HTML = `<!DOCTYPE html>
       updateCartUI();
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    function safeInitEcommerce() {
       renderProducts(PRODUCTS);
       updateCartUI();
-      lucide.createIcons();
-    });
+      try { if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons(); } catch(e) {}
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', safeInitEcommerce);
+    } else {
+      safeInitEcommerce();
+    }
   </script>
 </body>
 </html>`;

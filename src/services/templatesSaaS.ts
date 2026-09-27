@@ -385,11 +385,16 @@ export const SAAS_ANALYTICS_HTML = `<!DOCTYPE html>
       setTimeout(() => { toast.style.opacity = '0'; }, 3000);
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
+    function safeInitSaaS() {
+      try { if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons(); } catch(e) {}
       initCharts();
       renderTransactions(transactions);
-    });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', safeInitSaaS);
+    } else {
+      safeInitSaaS();
+    }
   </script>
 </body>
 </html>`;
