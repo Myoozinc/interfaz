@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   X, 
-  Sparkles, 
+  LayoutGrid, 
   Gamepad2, 
   Music, 
   Rocket, 
@@ -78,7 +78,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({
       case 'HeartHandshake': return <HeartHandshake className="w-6 h-6" />;
       case 'Anchor': return <Anchor className="w-6 h-6" />;
       case 'Calculator': return <Calculator className="w-6 h-6" />;
-      default: return <Sparkles className="w-6 h-6" />;
+      default: return <LayoutGrid className="w-6 h-6" />;
     }
   };
 

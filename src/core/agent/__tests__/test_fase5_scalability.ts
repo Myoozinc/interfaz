@@ -50,13 +50,13 @@ const structuredProject = {
   `,
   'src/components/Navbar.tsx': `
     import React from 'react';
-    import { Sparkles } from 'lucide-react';
+    import { Code2 } from 'lucide-react';
 
     export function Navbar({ currentView, onNavigate }: { currentView: string; onNavigate: (v: string) => void }) {
       return (
         <nav className="h-14 border-b border-slate-800 px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-400" />
+            <Code2 className="w-5 h-5 text-indigo-400" />
             <span className="font-bold">NONA App</span>
           </div>
           <button onClick={() => onNavigate('dashboard')} className="text-sm text-slate-300 hover:text-white">

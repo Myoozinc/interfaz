@@ -125,7 +125,7 @@ body {
 `;
 
 export const DEFAULT_APP_TSX = `import React, { useState } from 'react';
-import { Sparkles, Code2, Play } from 'lucide-react';
+import { Code2, Play, Layers } from 'lucide-react';
 
 export default function App() {
   const [count, setCount] = useState(0);
@@ -134,7 +134,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
       <div className="max-w-md w-full bg-slate-900/80 border border-slate-800 p-8 rounded-2xl shadow-2xl text-center space-y-6 backdrop-blur-sm">
         <div className="w-16 h-16 mx-auto bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
-          <Sparkles className="w-8 h-8 text-white" />
+          <Code2 className="w-8 h-8 text-white" />
         </div>
         
         <div>

@@ -12,7 +12,7 @@ import {
   PanelLeft,
   Terminal,
   MessageSquare,
-  Sparkles,
+  LayoutGrid,
   Database
 } from 'lucide-react';
 import { NonaLogo } from './NonaLogo';
@@ -171,14 +171,14 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* ⚡ Gallery Templates Button */}
+        {/* Gallery Templates Button */}
         {onOpenTemplatesModal && (
           <button
             onClick={onOpenTemplatesModal}
             title="Explorar Galería de Plantillas y Videojuegos 3D Funcionales"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-50 to-violet-50 hover:from-indigo-100 hover:to-violet-100 border border-indigo-200/80 text-indigo-700 text-xs font-bold shadow-2xs transition-all cursor-pointer hover:scale-102"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900 text-xs font-semibold shadow-2xs transition-all cursor-pointer hover:scale-102"
           >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            <LayoutGrid className="w-3.5 h-3.5 text-blue-600" />
             <span>Plantillas</span>
           </button>
         )}

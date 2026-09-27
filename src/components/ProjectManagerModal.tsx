@@ -5,7 +5,7 @@ import {
   Plus, 
   Trash2, 
   Copy, 
-  Sparkles, 
+  FolderPlus, 
   Calendar, 
   Layers,
   ArrowRight
@@ -94,7 +94,7 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
           {showCreateForm && (
             <form onSubmit={handleCreateSubmit} className="p-4 bg-indigo-50/50 border border-indigo-200 rounded-2xl space-y-3 animate-fade-in">
               <h3 className="font-bold text-xs text-indigo-900 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <FolderPlus className="w-3.5 h-3.5 text-indigo-600" />
                 Crear Nuevo Proyecto
               </h3>
               

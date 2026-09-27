@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Sparkles, 
   RefreshCw, 
   Copy, 
   Check, 
@@ -493,7 +492,7 @@ export const ChatPanel = ({
                         {chip.includes('Construir') || chip.includes('Preview') || chip.includes('Probar') ? (
                           <Play className="w-3 h-3 fill-current" />
                         ) : (
-                          <Sparkles className="w-3 h-3" />
+                          <Code2 className="w-3 h-3" />
                         )}
                         <span>{chip}</span>
                       </button>

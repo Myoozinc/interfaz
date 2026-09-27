@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Terminal, 
-  Sparkles, 
+  Zap, 
   FileCode, 
   CheckCircle2, 
   AlertCircle, 
@@ -81,7 +81,7 @@ export const AgentActivityStream: React.FC = () => {
                  evt.type.includes('deployment') ? <Globe className="w-3 h-3 text-blue-400" /> :
                  evt.type.includes('completed') ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> :
                  evt.type.includes('error') || evt.type.includes('failed') ? <AlertCircle className="w-3 h-3 text-red-400" /> :
-                 <Sparkles className="w-3 h-3 text-amber-400" />}
+                 <Zap className="w-3 h-3 text-amber-400" />}
                 
                 <span className={
                   evt.type.includes('error') ? 'text-red-400' :

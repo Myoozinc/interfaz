@@ -4,7 +4,7 @@ import {
   FileText, 
   FilePlus, 
   Trash2, 
-  Sparkles, 
+  LayoutGrid, 
   LayoutTemplate,
   ChevronRight,
   Folder,
@@ -271,7 +271,7 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
                 className="w-full text-left p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
               >
                 <div className="font-semibold text-xs text-slate-900 flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3 text-indigo-600" />
+                  <LayoutGrid className="w-3 h-3 text-blue-600" />
                   {tmpl.name}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">

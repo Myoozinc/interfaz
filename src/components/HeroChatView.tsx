@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { 
-  Sparkles, 
+  LayoutGrid,
+  Code2, 
   Gamepad2, 
   BarChart3, 
   Music, 
@@ -144,24 +145,16 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   // State 1: Fresh clean Hero view (no conversation yet)
   if (!isConversing) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-gradient-to-b from-slate-50/70 via-white to-slate-50/50 relative overflow-y-auto select-none font-sans">
-        
-        {/* Decorative ambient subtle glow */}
-        <div className="absolute top-1/5 w-96 h-96 bg-blue-500/8 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/4 w-96 h-96 bg-indigo-500/6 rounded-full blur-3xl pointer-events-none" />
-
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-white relative overflow-y-auto select-none font-sans">
         <div className="max-w-2xl w-full z-10 space-y-6 text-center my-auto">
           
-          {/* Centered Hero Header with Official NONA Emblem */}
+          {/* Centered Hero Header with Official NONA Emblem integrated seamlessly on infinite white */}
           <div className="space-y-4">
             
             {/* Flagship Hero Logo Emblem */}
             <div className="flex justify-center">
-              <div className="relative group cursor-pointer transition-transform duration-300 hover:scale-103">
-                <div className="absolute -inset-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 rounded-3xl blur-md opacity-30 group-hover:opacity-55 transition duration-500" />
-                <div className="relative p-3.5 bg-white/95 rounded-3xl border border-slate-200/90 shadow-xl shadow-slate-200/50 flex items-center justify-center backdrop-blur-md">
-                  <NonaLogo size={74} />
-                </div>
+              <div className="cursor-pointer transition-transform duration-300 hover:scale-105 select-none">
+                <NonaLogo size={84} />
               </div>
             </div>
 
@@ -198,16 +191,16 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
             placeholder="Describe tu idea o pega una URL de referencia (soporta audio, video, imágenes)..."
           />
 
-          {/* ⚡ Featured Templates Gallery Button */}
+          {/* Featured Templates Gallery Button */}
           {onOpenTemplatesModal && (
             <div className="pt-1">
               <button
                 type="button"
                 onClick={onOpenTemplatesModal}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-pink-500 hover:opacity-95 text-white text-xs font-bold shadow-lg shadow-indigo-500/25 transition-all cursor-pointer hover:scale-102"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer hover:scale-102"
               >
-                <Sparkles className="w-4 h-4 text-cyan-300" />
-                <span>⚡ Explorar Galería de Plantillas y Videojuegos 3D Funcionales</span>
+                <LayoutGrid className="w-4 h-4 text-blue-400" />
+                <span>Explorar Galería de Plantillas y Videojuegos 3D</span>
               </button>
             </div>
           )}
@@ -465,7 +458,7 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                           {isBuildChip || isPreviewChip ? (
                             <Play className="w-3.5 h-3.5 fill-current" />
                           ) : (
-                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                            <Code2 className="w-3.5 h-3.5 text-blue-500" />
                           )}
                           <span>{chip}</span>
                         </button>
@@ -528,7 +521,7 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
             <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin shrink-0 mt-0.5" />
             <div className="space-y-1.5 flex-1">
               <div className="font-bold text-indigo-900 flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <Brain className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Ejecutando Consejo Multi-Agente NONA (Pensando & Colaborando)</span>
               </div>
               <div className="text-xs text-indigo-800 font-medium leading-relaxed">

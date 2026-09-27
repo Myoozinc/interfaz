@@ -8,7 +8,6 @@ import {
   AlertCircle, 
   ExternalLink,
   Key,
-  Sparkles,
   ShieldCheck,
   ChevronDown,
   ChevronRight,
@@ -175,7 +174,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div className="bg-white/80 backdrop-blur-xs p-2.5 rounded-xl border border-emerald-100 flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-teal-500 shrink-0" />
+                <Globe className="w-3.5 h-3.5 text-teal-500 shrink-0" />
                 <div>
                   <div className="font-bold text-slate-800 text-[11px]">Google & OpenRouter</div>
                   <div className="text-[10px] text-slate-500">Visión UI y respaldo 24/7</div>

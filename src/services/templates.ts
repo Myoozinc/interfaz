@@ -181,14 +181,14 @@ export default function App() {
         name: 'src/components/Header.tsx',
         language: 'typescript',
         content: `import React from 'react';
-import { Sparkles, Bell, Search } from 'lucide-react';
+import { Code2, Bell, Search } from 'lucide-react';
 
 export const Header: React.FC = () => {
   return (
     <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-6 py-3.5 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
-          <Sparkles className="w-4 h-4" />
+          <Code2 className="w-4 h-4" />
         </div>
         <div>
           <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
