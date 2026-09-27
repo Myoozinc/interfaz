@@ -542,6 +542,7 @@ export default async function handler(req: any, res?: any) {
 
       let buffer = '';
       let tokensEmitted = 0;
+      let isInsideThinkingNode = false;
 
       const emitContentNode = (text: string) => {
         if (!text) return;
@@ -564,8 +565,22 @@ export default async function handler(req: any, res?: any) {
               return;
             }
             const delta = parsed.choices?.[0]?.delta;
-            const content = delta?.content || delta?.reasoning_content || delta?.reasoning || parsed.choices?.[0]?.text || '';
+            const reasoning = delta?.reasoning_content || delta?.reasoning || '';
+            const content = delta?.content || parsed.choices?.[0]?.text || '';
+
+            if (reasoning) {
+              if (!isInsideThinkingNode) {
+                emitContentNode('<think>\n');
+                isInsideThinkingNode = true;
+              }
+              emitContentNode(reasoning);
+            }
+
             if (content) {
+              if (isInsideThinkingNode) {
+                emitContentNode('\n</think>\n');
+                isInsideThinkingNode = false;
+              }
               emitContentNode(content);
             }
           } catch {}
@@ -580,10 +595,25 @@ export default async function handler(req: any, res?: any) {
               emitContentNode(`\n[Error de proveedor: ${errMsg}]\n`);
               return;
             }
+            const delta = parsed.choices?.[0]?.delta;
+            const reasoning = delta?.reasoning_content || delta?.reasoning || '';
             const content = parsed.choices?.[0]?.message?.content || 
-                            parsed.choices?.[0]?.delta?.content || 
+                            delta?.content || 
                             parsed.choices?.[0]?.text || '';
+
+            if (reasoning) {
+              if (!isInsideThinkingNode) {
+                emitContentNode('<think>\n');
+                isInsideThinkingNode = true;
+              }
+              emitContentNode(reasoning);
+            }
+
             if (content) {
+              if (isInsideThinkingNode) {
+                emitContentNode('\n</think>\n');
+                isInsideThinkingNode = false;
+              }
               emitContentNode(content);
             }
           } catch {}
@@ -607,6 +637,11 @@ export default async function handler(req: any, res?: any) {
         processChunkLineNode(buffer.trim());
       }
 
+      if (isInsideThinkingNode) {
+        emitContentNode('\n</think>\n');
+        isInsideThinkingNode = false;
+      }
+
       if (tokensEmitted === 0) {
         emitContentNode('\n[Aviso: El modelo no emitió tokens en este intento. Reintentando automáticamente...]\n');
       }
@@ -620,6 +655,7 @@ export default async function handler(req: any, res?: any) {
     const stream = new ReadableStream({
       async start(controller) {
         let buffer = '';
+        let isInsideThinkingEdge = false;
 
         const emitContent = (text: string) => {
           if (!text) return;
@@ -642,8 +678,22 @@ export default async function handler(req: any, res?: any) {
                 return;
               }
               const delta = parsed.choices?.[0]?.delta;
-              const content = delta?.content || delta?.reasoning_content || delta?.reasoning || parsed.choices?.[0]?.text || '';
+              const reasoning = delta?.reasoning_content || delta?.reasoning || '';
+              const content = delta?.content || parsed.choices?.[0]?.text || '';
+
+              if (reasoning) {
+                if (!isInsideThinkingEdge) {
+                  emitContent('<think>\n');
+                  isInsideThinkingEdge = true;
+                }
+                emitContent(reasoning);
+              }
+
               if (content) {
+                if (isInsideThinkingEdge) {
+                  emitContent('\n</think>\n');
+                  isInsideThinkingEdge = false;
+                }
                 emitContent(content);
               }
             } catch {}
@@ -658,10 +708,25 @@ export default async function handler(req: any, res?: any) {
                 emitContent(`\n[Error de proveedor: ${errMsg}]\n`);
                 return;
               }
+              const delta = parsed.choices?.[0]?.delta;
+              const reasoning = delta?.reasoning_content || delta?.reasoning || '';
               const content = parsed.choices?.[0]?.message?.content || 
-                              parsed.choices?.[0]?.delta?.content || 
+                              delta?.content || 
                               parsed.choices?.[0]?.text || '';
+
+              if (reasoning) {
+                if (!isInsideThinkingEdge) {
+                  emitContent('<think>\n');
+                  isInsideThinkingEdge = true;
+                }
+                emitContent(reasoning);
+              }
+
               if (content) {
+                if (isInsideThinkingEdge) {
+                  emitContent('\n</think>\n');
+                  isInsideThinkingEdge = false;
+                }
                 emitContent(content);
               }
             } catch {}
@@ -683,6 +748,11 @@ export default async function handler(req: any, res?: any) {
 
         if (buffer.trim()) {
           processChunkLine(buffer.trim());
+        }
+
+        if (isInsideThinkingEdge) {
+          emitContent('\n</think>\n');
+          isInsideThinkingEdge = false;
         }
 
         if (tokensEmitted === 0) {

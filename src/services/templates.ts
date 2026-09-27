@@ -9,6 +9,7 @@ import { ECOMMERCE_STORE_HTML } from './templatesEcommerce';
 import { SYNTHWAVE_DAW_HTML } from './templatesDaw';
 import { KANBAN_HTML } from './templatesKanban';
 import { MOBILE_IOS_HTML } from './templatesMobile';
+import { SNAKE_RETRO_GAME_HTML } from './templatesSnakeGame';
 
 export { 
   MARIO_KART_GAME_HTML, 
@@ -16,6 +17,7 @@ export {
   THREE_D_STUDIO_HTML, 
   BATTLESHIP_3D_HTML,
   RETRO_CALCULATOR_HTML,
+  SNAKE_RETRO_GAME_HTML,
   SAAS_ANALYTICS_HTML, 
   ECOMMERCE_STORE_HTML, 
   SYNTHWAVE_DAW_HTML, 
@@ -422,6 +424,26 @@ body {
         name: 'index.html',
         language: 'html',
         content: RETRO_CALCULATOR_HTML
+      }
+    ]
+  },
+  // =========================================================================
+  // 1.D 🐍 SNIKI — NEON SNAKE 2026 (HTML5 Canvas + Web Audio API)
+  // =========================================================================
+  {
+    id: 'nona-snake-sniki',
+    name: '🐍 Sniki — Neon Snake 2026',
+    description: 'Videojuego arcade retro de la serpiente (Snake) con físicas a 60 FPS, partículas de energía, Web Audio API para efectos de sonido retro, selector de velocidad y controles táctiles y de teclado.',
+    icon: 'Gamepad2',
+    category: 'Videojuegos Arcade',
+    tags: ['Snake', 'Sniki', 'Canvas 2D', 'Web Audio API', 'Retro Arcade', 'Partículas'],
+    badge: 'Nuevo Arcade',
+    files: [
+      {
+        id: '1',
+        name: 'index.html',
+        language: 'html',
+        content: SNAKE_RETRO_GAME_HTML
       }
     ]
   },

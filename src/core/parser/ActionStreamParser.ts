@@ -60,6 +60,30 @@ export class ActionStreamParser {
   }
 
   /**
+   * Valida si un bloque de contenido es código ejecutable real y no monólogo de razonamiento o texto en prosa.
+   */
+  public static isSubstantiveCode(content: string, filePath: string): boolean {
+    if (!content || content.trim().length < 15) return false;
+    const trimmed = content.trim();
+
+    // Rechazar si es prosa en inglés de pensamiento del modelo
+    const isProseMonologue = /^(?:But we need|Let's create|Now produce|We need to|I will|In this application|Let's design|First we need|Now let's|Here is the|To implement|We'll need)\b/i.test(trimmed);
+    if (isProseMonologue) return false;
+
+    // Validación para archivos HTML
+    if (filePath.endsWith('.html')) {
+      return /<(!DOCTYPE|html|head|body|div|script|style|main|canvas|section)\b/i.test(trimmed);
+    }
+
+    // Validación para archivos TSX/JSX/TS/JS
+    if (filePath.endsWith('.tsx') || filePath.endsWith('.jsx') || filePath.endsWith('.ts') || filePath.endsWith('.js')) {
+      return /(?:import\s+[\s\S]*?from|export\s+(?:default\s+)?(?:function|const|class)|function\s+[A-Za-z0-9_]+\s*\(|const\s+[A-Za-z0-9_]+\s*=|class\s+[A-Za-z0-9_]+)/.test(trimmed);
+    }
+
+    return true;
+  }
+
+  /**
    * Full batch parse of an LLM response string.
    */
   public static parse(raw: string): ParsedArtifactResult {
@@ -71,6 +95,8 @@ export class ActionStreamParser {
     const cleaned = raw
       .replace(/<think>[\s\S]*?<\/think>/gi, '')
       .replace(/^[\s\S]*?<\/think>/gi, '')
+      .replace(/<think>[\s\S]*/gi, '')
+      .replace(/<\/think>/gi, '')
       .trim();
 
     // 0.1 Primary Contract Check: Structured JSON (Lovable / bolt.new standard)
@@ -205,9 +231,14 @@ export class ActionStreamParser {
         if (!explicitFile) {
           const blockStartIdx = blockMatch.index;
           const preceedingText = cleaned.slice(Math.max(0, blockStartIdx - 150), blockStartIdx);
-          const headerMatch = preceedingText.match(/(?:###|\*\*|`|Archivo:|File:)\s*([a-zA-Z0-9_./-]+\.(?:tsx|ts|jsx|js|html|css|json))/i);
+          const headerMatch = preceedingText.match(/(?:###\s*|\*\*(?:Archivo|File)?:\s*|(?:\n|\r)\s*(?:Archivo|File):\s*|`)([a-zA-Z0-9_./-]+\.(?:tsx|ts|jsx|js|html|css|json))/i);
           if (headerMatch) {
-            explicitFile = headerMatch[1];
+            const matchIndex = preceedingText.indexOf(headerMatch[0]);
+            const textBeforeMatch = preceedingText.slice(0, matchIndex).toLowerCase();
+            const isDiscussionList = textBeforeMatch.includes('list files') || textBeforeMatch.includes('archivos:') || textBeforeMatch.includes('we will create') || textBeforeMatch.includes('create each');
+            if (!isDiscussionList) {
+              explicitFile = headerMatch[1];
+            }
           }
         }
 
@@ -225,35 +256,37 @@ export class ActionStreamParser {
               : filePath === 'styles.css' || filePath === 'index.css' ? `src/${filePath}`
               : `src/components/${filePath}`;
           }
-          files[filePath] = code;
-        } else if (isHtml) {
+          if (ActionStreamParser.isSubstantiveCode(code, filePath)) {
+            files[filePath] = code;
+          }
+        } else if (isHtml && ActionStreamParser.isSubstantiveCode(code, 'index.html')) {
           files['index.html'] = code;
         } else if (isCss) {
           files['src/index.css'] = code;
         } else if (isJsOrTs) {
           // Detectar si el código define el componente App
           const hasAppDef = /(?:function|const|class)\s+App\b/.test(code) || /export\s+default\s+function\s+App\b/.test(code);
-          if (hasAppDef && !files['src/App.tsx']) {
+          if (hasAppDef && !files['src/App.tsx'] && ActionStreamParser.isSubstantiveCode(code, 'src/App.tsx')) {
             files['src/App.tsx'] = code;
           } else {
             // Detectar nombre del componente exportado
             const compExportMatch = code.match(/export\s+(?:default\s+)?(?:function|class|const)\s+([A-Z][A-Za-z0-9_]+)/);
             if (compExportMatch) {
               const compName = compExportMatch[1];
-              if (compName === 'App' && !files['src/App.tsx']) {
+              if (compName === 'App' && !files['src/App.tsx'] && ActionStreamParser.isSubstantiveCode(code, 'src/App.tsx')) {
                 files['src/App.tsx'] = code;
               } else {
                 const compPath = `src/components/${compName}.tsx`;
-                if (!files[compPath]) {
+                if (!files[compPath] && ActionStreamParser.isSubstantiveCode(code, compPath)) {
                   files[compPath] = code;
-                } else {
+                } else if (ActionStreamParser.isSubstantiveCode(code, `src/components/${compName}_${blockCount}.tsx`)) {
                   files[`src/components/${compName}_${blockCount}.tsx`] = code;
                 }
               }
-            } else if (!files['src/App.tsx']) {
+            } else if (!files['src/App.tsx'] && ActionStreamParser.isSubstantiveCode(code, 'src/App.tsx')) {
               // Si aún no tenemos App.tsx, el primer archivo JS/TSX se asigna a src/App.tsx
               files['src/App.tsx'] = code;
-            } else {
+            } else if (ActionStreamParser.isSubstantiveCode(code, `src/components/Module${blockCount}.tsx`)) {
               files[`src/components/Module${blockCount}.tsx`] = code;
             }
           }
@@ -299,7 +332,9 @@ export class ActionStreamParser {
             .replace(/\\\\/g, '\\')
             .replace(/\\t/g, '\t');
         }
-        files['index.html'] = rawHtml;
+        if (ActionStreamParser.isSubstantiveCode(rawHtml, 'index.html')) {
+          files['index.html'] = rawHtml;
+        }
       }
     }
 

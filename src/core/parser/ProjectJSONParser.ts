@@ -69,6 +69,7 @@ export class ProjectJSONParser {
     return raw
       .replace(/<think>[\s\S]*?<\/think>/gi, '')
       .replace(/^[\s\S]*?<\/think>/gi, '')
+      .replace(/<think>[\s\S]*/gi, '')
       .replace(/<\/think>/gi, '')
       .trim();
   }
@@ -76,8 +77,9 @@ export class ProjectJSONParser {
   /**
    * Extrae el bloque JSON potencial de la respuesta del modelo:
    * 1. Bloque ```json ... ```
-   * 2. Bloque ``` ... ```
-   * 3. Texto delimitado por el primer '{' y el último '}'
+   * 2. Bloque ``` ... ``` con "files" o "changes"
+   * 3. Objeto raíz delimitado por el '{' que precede a "files" o "changes"
+   * 4. Delimitado por primer '{' y último '}'
    */
   public static extractJSONString(text: string): string | null {
     const cleaned = this.sanitizeInput(text);
@@ -85,20 +87,44 @@ export class ProjectJSONParser {
     // 1. Markdown codeblock con tag json
     const jsonBlockMatch = cleaned.match(/```(?:json)\s*\n([\s\S]*?)(?:```|$)/i);
     if (jsonBlockMatch && jsonBlockMatch[1].trim()) {
-      return jsonBlockMatch[1].trim();
+      const candidate = jsonBlockMatch[1].trim();
+      const firstB = candidate.indexOf('{');
+      const lastB = candidate.lastIndexOf('}');
+      if (firstB !== -1 && lastB !== -1 && lastB > firstB) {
+        return candidate.slice(firstB, lastB + 1).trim();
+      }
+      return candidate;
     }
 
-    // 2. Cualquier bloque de código markdown que contenga { y "files" o "changes"
+    // 2. Cualquier bloque de código markdown que contenga "files" o "changes"
     const genericBlockRegex = /```[a-zA-Z0-9_-]*\s*\n([\s\S]*?)(?:```|$)/g;
     let blockMatch: RegExpExecArray | null;
     while ((blockMatch = genericBlockRegex.exec(cleaned)) !== null) {
       const candidate = blockMatch[1].trim();
-      if (candidate.startsWith('{') && (candidate.includes('"files"') || candidate.includes('"changes"'))) {
-        return candidate;
+      if (candidate.includes('"files"') || candidate.includes('"changes"')) {
+        const firstB = candidate.indexOf('{');
+        const lastB = candidate.lastIndexOf('}');
+        if (firstB !== -1 && lastB !== -1 && lastB > firstB) {
+          return candidate.slice(firstB, lastB + 1).trim();
+        }
       }
     }
 
-    // 3. Buscar el primer '{' y el último '}' en el texto completo
+    // 3. Buscar el objeto JSON raíz que contenga "files" o "changes" en el texto completo
+    const filesIndex = cleaned.indexOf('"files"');
+    const changesIndex = cleaned.indexOf('"changes"');
+    const targetKeyIndex = filesIndex !== -1 ? filesIndex : changesIndex;
+
+    if (targetKeyIndex !== -1) {
+      // Buscar la llave de apertura '{' hacia atrás desde "files" o "changes"
+      const rootBrace = cleaned.lastIndexOf('{', targetKeyIndex);
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (rootBrace !== -1 && lastBrace !== -1 && lastBrace > rootBrace) {
+        return cleaned.slice(rootBrace, lastBrace + 1).trim();
+      }
+    }
+
+    // 4. Último recurso: primer '{' y último '}'
     const firstBrace = cleaned.indexOf('{');
     const lastBrace = cleaned.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -146,10 +172,19 @@ export class ProjectJSONParser {
    */
   public static recoverTruncatedJSON(text: string): any | null {
     const cleaned = this.sanitizeInput(text);
-    const firstBrace = cleaned.indexOf('{');
-    if (firstBrace === -1) return null;
 
-    const base = cleaned.slice(firstBrace);
+    const filesIndex = cleaned.indexOf('"files"');
+    const changesIndex = cleaned.indexOf('"changes"');
+    const targetKeyIndex = filesIndex !== -1 ? filesIndex : changesIndex;
+    if (targetKeyIndex === -1) return null;
+
+    let rootBrace = cleaned.lastIndexOf('{', targetKeyIndex);
+    if (rootBrace === -1) {
+      rootBrace = cleaned.indexOf('{');
+    }
+    if (rootBrace === -1) return null;
+
+    const base = cleaned.slice(rootBrace);
     const isFullBuild = base.includes('"files"');
     const isIncremental = !isFullBuild && base.includes('"changes"');
     if (!isFullBuild && !isIncremental) return null;

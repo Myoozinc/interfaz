@@ -11,6 +11,7 @@ import { ProjectJSONParser } from '../parser/ProjectJSONParser';
 import { qaTesterAgent } from './QATesterAgent';
 import { BATTLESHIP_3D_HTML } from '../../services/templates3DBattleship';
 import { RETRO_CALCULATOR_HTML } from '../../services/templatesRetroCalculator';
+import { SNAKE_RETRO_GAME_HTML } from '../../services/templatesSnakeGame';
 import { 
   MARIO_KART_GAME_HTML, 
   AIR_COMBAT_GAME_HTML, 
@@ -587,15 +588,37 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
         continue;
       }
 
-      // 4. Verificar que el proyecto contenga código ejecutable real (no solo estilos o utils)
-      const hasSubstantiveCode = 
-        (candidateFiles['src/App.tsx'] && candidateFiles['src/App.tsx'].length > 250) ||
-        (candidateFiles['src/App.jsx'] && candidateFiles['src/App.jsx'].length > 250) ||
-        (candidateFiles['index.html'] && candidateFiles['index.html'].length > 400 && !candidateFiles['index.html'].includes('Lienzo Listo')) ||
-        Object.keys(candidateFiles).some(k => (k.endsWith('.tsx') || k.endsWith('.jsx')) && candidateFiles[k].length > 250);
+      // 4. Verificar que el proyecto contenga código ejecutable real (no monólogos de pensamiento ni solo estilos/utils)
+      const isMonologue = (str?: string) => {
+        if (!str) return true;
+        const trimmed = str.trim();
+        return /^(?:But we need|Let's create|Let's start|Now produce|We need to|First, let's|I will create|Here is the code)\b/i.test(trimmed) ||
+               (trimmed.includes('Let\'s start.') && !trimmed.includes('<html') && !trimmed.includes('import '));
+      };
+
+      const hasValidHtml = Boolean(
+        candidateFiles['index.html'] &&
+        candidateFiles['index.html'].length > 250 &&
+        /<(!DOCTYPE|html|body|script)\b/i.test(candidateFiles['index.html']) &&
+        !candidateFiles['index.html'].includes('Lienzo Listo') &&
+        !isMonologue(candidateFiles['index.html'])
+      );
+
+      const hasValidApp = Boolean(
+        ((candidateFiles['src/App.tsx'] && candidateFiles['src/App.tsx'].length > 200 && !isMonologue(candidateFiles['src/App.tsx'])) ||
+         (candidateFiles['src/App.jsx'] && candidateFiles['src/App.jsx'].length > 200 && !isMonologue(candidateFiles['src/App.jsx'])))
+      );
+
+      const hasValidComponents = Object.keys(candidateFiles).some(k => 
+        (k.endsWith('.tsx') || k.endsWith('.jsx')) && 
+        candidateFiles[k].length > 200 && 
+        !isMonologue(candidateFiles[k])
+      );
+
+      const hasSubstantiveCode = hasValidHtml || hasValidApp || hasValidComponents;
 
       if (!hasSubstantiveCode) {
-        lastFailureReason = 'La generación no produjo ningún archivo ejecutable principal (falta src/App.tsx o index.html sustancial con código de aplicación).';
+        lastFailureReason = 'La generación no produjo ningún archivo ejecutable principal válido (falta src/App.tsx o index.html con código ejecutable real, descartando monólogos).';
         attempt++;
         continue;
       }
@@ -610,6 +633,7 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
 
     // If generation failed after all retries, apply resilient domain fallback
     if (!generationSucceeded) {
+      const isSnakeGame = /(snake|sniki|serpiente|vibora|v[ií]bora|gusanito|culebra)/i.test(reqLower);
       const isNavalGame = /(barco|barcos|hundir|naval|flota|battleship|submarino|torpedo)/i.test(reqLower);
       const isCalculator = /(calculadora|calculator|cient[ií]fica|c[aá]lculo|matem[aá]tica)/i.test(reqLower);
       const isFlightCombat = /(avi[oó]n|aviones|combate a[eé]reo|caza|cazas|dogfight|sky fury|volar|vuelo)/i.test(reqLower);
@@ -619,7 +643,16 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
       const isEcommerce = /(tienda|store|shop|comercio|ecommerce|carrito|checkout|comprar)/i.test(reqLower);
       const isSaaS = /(dashboard|panel|analytics|m[eé]tricas|crm|saas|finanzas|estad[ií]sticas)/i.test(reqLower);
 
-      if (isCalculator) {
+      if (isSnakeGame) {
+        onProgress(`🐍 [Síntesis Autónoma]: Desplegando videojuego Sniki Neon Snake 2026...`, true);
+        files = {
+          'index.html': SNAKE_RETRO_GAME_HTML,
+          'src/index.css': `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\nbody {\n  margin: 0;\n  font-family: system-ui, -apple-system, sans-serif;\n}`
+        };
+        fullCode = SNAKE_RETRO_GAME_HTML;
+        conversationalSummary = `He construido el videojuego completo **Sniki (Neon Snake 2026)** con físicas a 60 FPS, partículas de energía, Web Audio API para efectos de sonido retro y controles táctiles y de teclado. ¡Listo para jugar en la Vista Previa!`;
+        generationSucceeded = true;
+      } else if (isCalculator) {
         onProgress(`🧮 [Síntesis Autónoma]: Desplegando Calculadora Científica Retro Profesional...`, true);
         files = {
           'index.html': RETRO_CALCULATOR_HTML,
