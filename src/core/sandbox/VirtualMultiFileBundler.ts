@@ -17,6 +17,94 @@ export interface BundlerResult {
 
 export class VirtualMultiFileBundler {
   /**
+   * Sanitiza y deduplica todas las declaraciones e imports de React en un módulo ES.
+   * Garantiza que 'React' se importe exactamente una vez y elimina declaraciones duplicadas
+   * que provoquen "SyntaxError: Identifier 'React' has already been declared".
+   */
+  public static sanitizeReactInModule(code: string): string {
+    if (!code) return '';
+    let clean = code;
+
+    // 1. Eliminar declaraciones redundantes de const/var/let React = ...
+    clean = clean.replace(/(?:^|\n)\s*(?:const|var|let)\s+React\s*=\s*(?:window\.)?React\s*;?/g, '\n/* [redundant-react] */');
+
+    // 2. Extraer todos los imports de 'react' o "react"
+    const reactImportRegex = /import\s+([\s\S]*?)\s+from\s+['"]react['"];?/g;
+    let hasReactDefault = false;
+    let hasReactNamespace = false;
+    const namedImports = new Set<string>();
+    let foundAnyReactImport = false;
+
+    let match: RegExpExecArray | null;
+    while ((match = reactImportRegex.exec(clean)) !== null) {
+      foundAnyReactImport = true;
+      const clause = match[1].trim();
+
+      if (clause.startsWith('* as ')) {
+        hasReactNamespace = true;
+      } else {
+        const defaultMatch = clause.match(/^([A-Za-z0-9_]+)\s*(?:,|$)/);
+        if (defaultMatch && defaultMatch[1] !== 'type') {
+          hasReactDefault = true;
+        }
+        const namedMatch = clause.match(/\{([\s\S]*?)\}/);
+        if (namedMatch) {
+          namedMatch[1].split(',').forEach(n => {
+            const item = n.trim().replace(/^type\s+/, '');
+            if (item) {
+              if (item === 'React') {
+                hasReactDefault = true;
+              } else {
+                namedImports.add(item);
+              }
+            }
+          });
+        }
+      }
+    }
+
+    // Comprobar si el código invoca React directamente (ej: React.createElement, React.useState)
+    const usesReactGlobal = /\bReact\./.test(clean) || /\bReact\b(?!\s*from)/.test(clean);
+
+    if (foundAnyReactImport || usesReactGlobal) {
+      // Reemplazar todos los imports existentes de 'react' por un placeholder
+      clean = clean.replace(/import\s+[\s\S]*?\s+from\s+['"]react['"];?/g, '/* [react-import-placeholder] */');
+
+      // Construir la única declaración unificada canónica
+      let unified = '';
+      const namedList = Array.from(namedImports);
+      const namedStr = namedList.length > 0 ? `{ ${namedList.join(', ')} }` : '';
+
+      if (hasReactNamespace) {
+        unified = `import * as React from 'react';`;
+      } else if ((hasReactDefault || usesReactGlobal) && namedStr) {
+        unified = `import React, ${namedStr} from 'react';`;
+      } else if (hasReactDefault || usesReactGlobal) {
+        unified = `import React from 'react';`;
+      } else if (namedStr) {
+        unified = `import React, ${namedStr} from 'react';`;
+      }
+
+      // Reemplazar únicamente el primer placeholder y remover los duplicados subsecuentes
+      let replaced = false;
+      clean = clean.replace(/\/\* \[react-import-placeholder\] \*\//g, () => {
+        if (!replaced) {
+          replaced = true;
+          return unified;
+        }
+        return '';
+      });
+
+      // Si no había ningún import previo pero usesReactGlobal es true, anteponer al inicio del módulo
+      if (!replaced && unified) {
+        clean = `${unified}\n${clean}`;
+      }
+    }
+
+    return clean;
+  }
+
+  /**
    * Transpila código TypeScript y JSX a JavaScript estándar ejecutable nativamente por el navegador.
    * Utiliza Sucrase para compilar TSX/TS a React.createElement y remueve tipos en milisegundos.
    */
@@ -36,12 +124,8 @@ export class VirtualMultiFileBundler {
         production: true,
       }).code;
 
-      // Garantizar que React esté disponible en el módulo si se generó React.createElement
-      // y NO fue importado ni declarado previamente en el módulo.
-      const hasReactDeclaration = /(?:^|\n)\s*(?:import\s+[^;]*?\bReact\b[^;]*?from|(?:const|let|var|function|class)\s+React\b)/m.test(transpiled);
-      if (transpiled.includes('React.createElement') && !hasReactDeclaration) {
-        transpiled = `import React from 'react';\n${transpiled}`;
-      }
+      // Sanitizar y deduplicar imports de React de forma canónica
+      transpiled = this.sanitizeReactInModule(transpiled);
 
       // Garantizar que cualquier módulo importado por defecto no rompa la ejecución ESM
       // si sólo definió exports nombrados (ej: export function Toolbar o export const MyComponent)
@@ -88,6 +172,8 @@ export class VirtualMultiFileBundler {
 
     // 5. Remover genéricos en hooks
     clean = clean.replace(/(useState|useRef|useMemo|useCallback)<[^>]+>\(/g, '$1(');
+
+    clean = this.sanitizeReactInModule(clean);
 
     return clean;
   }
@@ -536,6 +622,9 @@ export class VirtualMultiFileBundler {
         // Reescribir imports relativos a bare specifiers canónicos y registrar dependencias
         processedCode = this.rewriteImports(processedCode, p, moduleFileKeys, importedSpecifiersCollector);
 
+        // Garantizar que React nunca se declare duplicado tras las transformaciones
+        processedCode = this.sanitizeReactInModule(processedCode);
+
         const encoded = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(processedCode);
 
         const withoutExt = p.replace(/\.(tsx|ts|jsx|js)$/, '');
@@ -686,20 +775,29 @@ export class VirtualMultiFileBundler {
       }
     }
 
-    // 4. Identificar el punto de entrada con priorización robusta
-    const hasMain = Boolean(normalizedFiles['src/main.tsx'] || normalizedFiles['src/main.jsx'] || normalizedFiles['src/main.js']);
-    let entryPoint = hasMain 
-      ? (normalizedFiles['src/main.tsx'] ? 'src/main.tsx' : normalizedFiles['src/main.jsx'] ? 'src/main.jsx' : 'src/main.js') 
-      : 'src/App.tsx';
+    // 4. Identificar el punto de entrada con priorización robusta (soporta src/ y raíz)
+    const mainKey = Object.keys(normalizedFiles).find(k => 
+      k === 'src/main.tsx' || k === 'src/main.jsx' || k === 'src/main.js' ||
+      k === 'main.tsx' || k === 'main.jsx' || k === 'main.js'
+    );
+    const hasMain = Boolean(mainKey);
 
-    if (!hasMain && !normalizedFiles['src/App.tsx'] && !normalizedFiles['src/App.jsx'] && !normalizedFiles['src/App.js']) {
+    const appKey = Object.keys(normalizedFiles).find(k => 
+      k === 'src/App.tsx' || k === 'src/App.jsx' || k === 'src/App.js' ||
+      k === 'App.tsx' || k === 'App.jsx' || k === 'App.js' ||
+      k === 'src/components/App.tsx' || k === 'src/components/App.jsx'
+    );
+
+    let entryPoint: string = hasMain ? mainKey! : (appKey || 'src/App.tsx');
+
+    if (!hasMain && !appKey) {
       // Prioridad 1: cualquier archivo con App en el nombre o que defina App
-      const appKey = Object.keys(normalizedFiles).find(k => 
+      const anyAppKey = Object.keys(normalizedFiles).find(k => 
         (k.endsWith('.tsx') || k.endsWith('.jsx')) && 
         (/\bApp\b/i.test(k) || (normalizedFiles[k] && /\bfunction App\b/.test(normalizedFiles[k])))
       );
-      if (appKey) {
-        entryPoint = appKey;
+      if (anyAppKey) {
+        entryPoint = anyAppKey;
       } else {
         // Prioridad 2: primer archivo que exporte un componente por defecto
         const defExportKey = Object.keys(normalizedFiles).find(k => 
@@ -718,9 +816,7 @@ export class VirtualMultiFileBundler {
 
     // 5. Generar script de montaje con Error Boundary resiliente y auto-fallback
     const entryBare = 'app/' + entryPoint.replace(/\.(tsx|ts|jsx|js)$/, '');
-    const appBare = (normalizedFiles['src/App.tsx'] || normalizedFiles['src/App.jsx'] || normalizedFiles['src/App.js'])
-      ? 'app/src/App'
-      : entryBare;
+    const appBare = appKey ? 'app/' + appKey.replace(/\.(tsx|ts|jsx|js)$/, '') : entryBare;
 
     const mountScript = `
       import React from 'react';
