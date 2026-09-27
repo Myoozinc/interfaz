@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   X, 
-  Zap, 
   Check, 
   ShieldCheck, 
   Flame,
@@ -11,6 +10,7 @@ import {
 import confetti from 'canvas-confetti';
 import type { UserCredits } from '../types';
 import { creditLedger } from '../core/credits/CreditLedger';
+import { NonaLogo } from './NonaLogo';
 
 interface CreditsModalProps {
   isOpen: boolean;
@@ -59,17 +59,15 @@ export const CreditsModal: React.FC<CreditsModalProps> = ({
       <div className="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden animate-fade-in text-xs font-sans max-h-[90vh] flex flex-col">
         
         {/* Header */}
-        <div className="p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs">
-              <Zap className="w-5 h-5 fill-indigo-600 text-indigo-600" />
-            </div>
+        <div className="p-6 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <NonaLogo size={32} variant="badge" />
             <div>
-              <h2 className="text-base font-extrabold text-slate-900">
+              <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
                 Saldo de Créditos & Planes NONA
               </h2>
               <p className="text-xs text-slate-500">
-                Tienes actualmente <strong className="text-indigo-600">{credits.balance} créditos</strong> disponibles
+                Tienes actualmente <strong className="text-blue-600 font-bold">{credits.balance} créditos</strong> disponibles
               </p>
             </div>
           </div>

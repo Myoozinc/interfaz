@@ -16,6 +16,7 @@ import {
   Layers,
   Server
 } from 'lucide-react';
+import { NonaLogo } from './NonaLogo';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -108,14 +109,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-fade-in text-xs font-sans">
         
         {/* Header */}
-        <div className="p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-              <Cpu className="w-4 h-4" />
-            </div>
+        <div className="p-5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <NonaLogo size={28} variant="badge" />
             <div>
-              <h2 className="text-sm font-extrabold text-slate-900">
-                Centro de Inteligencia Cloud
+              <h2 className="text-sm font-extrabold text-slate-900 tracking-tight">
+                Centro de Inteligencia Cloud NONA
               </h2>
               <p className="text-[11px] text-slate-500 font-medium">
                 Infraestructura multi-proveedor autónoma y pre-conectada

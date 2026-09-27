@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { FloatingOmnibar } from './FloatingOmnibar';
 import { MarkdownViewer } from './MarkdownViewer';
+import { NonaLogo } from './NonaLogo';
 import type { ChatMessage, ChatAttachment } from '../types';
 
 interface HeroChatViewProps {
@@ -143,27 +144,38 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   // State 1: Fresh clean Hero view (no conversation yet)
   if (!isConversing) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-gradient-to-b from-slate-50/60 via-white to-slate-50/40 relative overflow-y-auto select-none font-sans">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-gradient-to-b from-slate-50/70 via-white to-slate-50/50 relative overflow-y-auto select-none font-sans">
         
         {/* Decorative ambient subtle glow */}
-        <div className="absolute top-1/4 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/4 w-80 h-80 bg-violet-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/5 w-96 h-96 bg-blue-500/8 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 w-96 h-96 bg-indigo-500/6 rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-2xl w-full z-10 space-y-6 text-center my-auto">
           
-          {/* Centered Minimalist Header */}
-          <div className="space-y-2.5">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200/80 text-[11px] font-semibold text-slate-700 shadow-2xs">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              <span>NONA Software Factory • Meta-Agentes & Búsqueda Web</span>
+          {/* Centered Hero Header with Official NONA Emblem */}
+          <div className="space-y-4">
+            
+            {/* Flagship Hero Logo Emblem */}
+            <div className="flex justify-center">
+              <div className="relative group cursor-pointer transition-transform duration-300 hover:scale-103">
+                <div className="absolute -inset-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 rounded-3xl blur-md opacity-30 group-hover:opacity-55 transition duration-500" />
+                <div className="relative p-3.5 bg-white/95 rounded-3xl border border-slate-200/90 shadow-xl shadow-slate-200/50 flex items-center justify-center backdrop-blur-md">
+                  <NonaLogo size={74} />
+                </div>
+              </div>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50/90 border border-blue-200/70 text-[11px] font-bold text-blue-700 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+              <span>NONA AI Software Factory • v5.2</span>
+            </div>
+
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-tight">
               ¿Qué deseas construir hoy?
             </h1>
 
-            <p className="text-slate-500 text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
-              Adjunta audio, video, enlaces web de referencia o escribe tu idea. Un Meta-Agente asignará un especialista en tu dominio y coordinará la creación del software.
+            <p className="text-slate-500 text-xs sm:text-sm max-w-lg mx-auto leading-relaxed font-normal">
+              Describe cualquier aplicación, videojuego 3D, herramienta o flujo de trabajo. Un consejo de Meta-Agentes coordinará la arquitectura, código y ejecución en tiempo real.
             </p>
           </div>
 
@@ -243,8 +255,8 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
       {/* Top Conversational Header */}
       <div className="h-12 px-4 sm:px-6 bg-white/90 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-100/80 text-indigo-700 text-xs font-bold shadow-2xs">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+          <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-blue-50/80 border border-blue-200/60 text-blue-800 text-xs font-bold shadow-2xs">
+            <NonaLogo size={18} />
             <span>NONA Multi-Agent Architecture</span>
           </div>
 
@@ -327,8 +339,8 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
               {/* Header Label with Domain & Collaborator badges */}
               <div className="flex items-center gap-2 mb-1.5 px-1 text-[11px] text-slate-400 font-medium flex-wrap">
                 {!isUser && (
-                  <div className="flex items-center gap-1 text-indigo-600 font-bold">
-                    <Sparkles className="w-3.5 h-3.5" />
+                  <div className="flex items-center gap-1.5 text-blue-600 font-bold">
+                    <NonaLogo size={16} />
                     <span>NONA AI Architect</span>
                   </div>
                 )}

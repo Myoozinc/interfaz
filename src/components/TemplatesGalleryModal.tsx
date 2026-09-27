@@ -20,6 +20,7 @@ import {
   Calculator
 } from 'lucide-react';
 import { STARTER_TEMPLATES } from '../services/templates';
+import { NonaLogo } from './NonaLogo';
 import type { ProjectTemplate } from '../types';
 
 interface TemplatesGalleryModalProps {
@@ -87,19 +88,17 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({
         
         {/* Modal Header */}
         <div className="p-6 border-b border-slate-800/80 flex items-center justify-between shrink-0 bg-slate-900/50">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-              <Sparkles className="w-6 h-6" />
-            </div>
+          <div className="flex items-center gap-3.5">
+            <NonaLogo size={36} variant="badge" />
             <div>
               <h2 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
                 Galería de Plantillas y Modelos de Apps
-                <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold border border-indigo-500/30">
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold border border-blue-500/30">
                   {STARTER_TEMPLATES.length} Funcionales
                 </span>
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Modelos de software completos, interactivos y 100% editables listos para probar y evolucionar.
+                Modelos de software completos, interactivos y 100% editables listos para probar y evolucionar con NONA.
               </p>
             </div>
           </div>

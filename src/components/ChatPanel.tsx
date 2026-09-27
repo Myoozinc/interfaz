@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Sparkles, 
   RefreshCw, 
-  Zap, 
   Copy, 
   Check, 
   Edit3, 
@@ -22,6 +21,7 @@ import { agentOrchestrator } from '../core/agent/AgentOrchestrator';
 import { creditLedger } from '../core/credits/CreditLedger';
 import { FloatingOmnibar } from './FloatingOmnibar';
 import { MarkdownViewer } from './MarkdownViewer';
+import { NonaLogo } from './NonaLogo';
 
 interface ChatPanelProps {
   files: FileItem[];
@@ -297,14 +297,9 @@ export const ChatPanel = ({
     >
       
       {/* Top Header */}
-      <div className="h-11 px-3.5 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
+      <div className="h-12 px-3.5 border-b border-slate-200/80 flex items-center justify-between shrink-0 bg-white/95 backdrop-blur-sm">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center shadow-xs">
-            <Zap className="w-3.5 h-3.5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xs font-black text-slate-800 tracking-tight">NONA Agent Core</h2>
-          </div>
+          <NonaLogo size={22} showText subtitle="Core Agent" />
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -362,8 +357,8 @@ export const ChatPanel = ({
               {/* Role Header */}
               <div className="flex items-center gap-1.5 mb-1 px-1">
                 {!isUser && (
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-600">
-                    <Sparkles className="w-3 h-3" />
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600">
+                    <NonaLogo size={14} />
                     <span>NONA AI Engine</span>
                   </div>
                 )}

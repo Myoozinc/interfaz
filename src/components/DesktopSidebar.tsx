@@ -13,6 +13,7 @@ import {
   PanelLeftClose, 
   ChevronUp
 } from 'lucide-react';
+import { NonaLogo } from './NonaLogo';
 import type { ProjectRecord, UserCredits, UserAccount } from '../types';
 
 interface DesktopSidebarProps {
@@ -80,25 +81,23 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   return (
     <aside className="w-64 sm:w-72 bg-slate-50/95 border-r border-slate-200/80 flex flex-col h-full select-none text-xs shrink-0 font-sans z-30 transition-all">
       
-      {/* Top Header: Traffic Light Spacer & Toggle */}
-      <div className="h-12 px-3 flex items-center justify-between border-b border-slate-200/60">
-        <div className="flex items-center gap-2">
-          {/* macOS window traffic lights mockup */}
-          <div className="flex items-center gap-1.5 pl-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-400/80 hover:bg-red-500 transition-colors"></span>
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 hover:bg-amber-500 transition-colors"></span>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 hover:bg-emerald-500 transition-colors"></span>
+      {/* Top Header: Traffic Light Spacer, NONA Logo & Toggle */}
+      <div className="h-13 px-3.5 flex items-center justify-between border-b border-slate-200/70 bg-white/60 backdrop-blur-xs">
+        <div className="flex items-center gap-2.5">
+          {/* macOS window traffic lights */}
+          <div className="flex items-center gap-1.5 pl-0.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-400/80 hover:bg-red-500 transition-colors shadow-2xs"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 hover:bg-amber-500 transition-colors shadow-2xs"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 hover:bg-emerald-500 transition-colors shadow-2xs"></span>
           </div>
-          <span className="ml-2 font-bold text-slate-800 tracking-tight text-xs flex items-center gap-1">
-            <span>NONA</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
-          </span>
+          <div className="h-3 w-px bg-slate-200" />
+          <NonaLogo size={20} showText subtitle="Studio v5.2" />
         </div>
 
         <button
           onClick={onClose}
           title="Colapsar barra lateral (Cmd+B)"
-          className="p-1 rounded-lg hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 transition-all cursor-pointer"
         >
           <PanelLeftClose className="w-4 h-4" />
         </button>
