@@ -22,13 +22,6 @@ const VERIFIED_FREE_OR_MODELS = [
 ];
 
 const GROQ_STATIC_FALLBACKS = [
-  'qwen/qwen3.6-27b',
-  'openai/gpt-oss-120b',
-  'openai/gpt-oss-20b',
-  'llama3-70b-8192',
-  'llama3-8b-8192',
-  'mixtral-8x7b-32768',
-  'gemma2-9b-it',
   'llama-3.3-70b-versatile',
   'llama-3.1-8b-instant'
 ];
@@ -63,12 +56,11 @@ async function getActiveGroqModels(key: string): Promise<string[]> {
       }
     }
   } catch {}
-  return [];
+  return GROQ_STATIC_FALLBACKS;
 }
 
 function resolveGroqCandidateModels(requestedModel: string | undefined, availableModels: string[]): string[] {
   const pool = availableModels.length > 0 ? availableModels : GROQ_STATIC_FALLBACKS;
-  const reqLower = (requestedModel || '').toLowerCase();
   const candidates: string[] = [];
 
   const add = (m: string) => {
@@ -79,18 +71,11 @@ function resolveGroqCandidateModels(requestedModel: string | undefined, availabl
     add(requestedModel);
   }
 
-  if (reqLower.includes('qwen')) {
-    pool.filter(m => m.toLowerCase().includes('qwen')).forEach(add);
-    pool.filter(m => m.toLowerCase().includes('gpt-oss')).forEach(add);
-  }
+  // Always ensure verified active models on Groq
+  add('llama-3.3-70b-versatile');
+  add('llama-3.1-8b-instant');
 
-  if (reqLower.includes('llama')) {
-    pool.filter(m => m.toLowerCase().includes('llama')).forEach(add);
-    pool.filter(m => m.toLowerCase().includes('gpt-oss')).forEach(add);
-  }
-
-  pool.filter(m => m.includes('120b') || m.includes('70b') || m.includes('27b')).forEach(add);
-  pool.forEach(add);
+  pool.filter(m => m.includes('llama') || m.includes('qwen') || m.includes('70b') || m.includes('8b')).forEach(add);
 
   return candidates.length > 0 ? candidates : GROQ_STATIC_FALLBACKS;
 }
@@ -210,8 +195,13 @@ export default async function handler(req: any, res?: any) {
 
     const executeGroq = async (keyToUse: string, targetModel: string, tokens: number): Promise<Response> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout para conexión inicial con Groq LPU
+      const timeoutId = setTimeout(() => controller.abort(), 14000); // 14s timeout para conexión inicial con Groq LPU
       try {
+        // Strict token clamping for 70b to stay under 6,000 TPM limit (prevents instant 429)
+        const actualTokens = targetModel.includes('70b') 
+          ? Math.min(tokens, 3900) 
+          : Math.min(tokens, 8192);
+
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -225,7 +215,7 @@ export default async function handler(req: any, res?: any) {
             messages: formatMessages(safeMessages),
             stream: true,
             temperature: temp,
-            max_tokens: tokens,
+            max_tokens: actualTokens,
           }),
           signal: controller.signal,
         });
@@ -406,6 +396,16 @@ export default async function handler(req: any, res?: any) {
               } else {
                 const errTxt = await res.text().catch(() => '');
                 lastError += ` | Groq (${targetM}): ${errTxt.slice(0, 100)}`;
+                // Si Groq devuelve 429 (límite de tokens/minuto alcanzado en 70b), intentar inmediatamente con 8b-instant (~20,000 TPM)
+                if (res.status === 429 && targetM !== 'llama-3.1-8b-instant') {
+                  try {
+                    const fallback8b = await executeGroq(key, 'llama-3.1-8b-instant', 4000);
+                    if (fallback8b.ok) {
+                      aiResponse = fallback8b;
+                      break;
+                    }
+                  } catch {}
+                }
               }
             } catch (e: any) {
               lastError += ` | Groq (${targetM}) error: ${e.message}`;

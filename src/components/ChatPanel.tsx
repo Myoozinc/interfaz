@@ -457,54 +457,58 @@ export const ChatPanel = ({
                 )}
 
                 {/* Interactive Action Chips (Lovable / Antigravity Style) */}
-                {!isUser && msg.actionChips && msg.actionChips.length > 0 && (
-                  <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex flex-wrap gap-1.5 animate-fade-in">
-                    {msg.actionChips.map((chip, cIdx) => (
-                      <button
-                        key={cIdx}
-                        onClick={() => {
-                          if (chip.includes('Construir y Ver en Preview') || chip.includes('Construir Aplicación') || chip.includes('Construir')) {
-                            const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && !m.content.includes('Construir'))?.content || '';
-                            const promptToSend = lastUserMsg 
-                              ? `Construye la aplicación ahora: ${lastUserMsg}`
-                              : 'Construye la aplicación ahora';
-                            handleSendMessage(promptToSend, 'builder');
-                          } else if (chip.includes('Preview') || chip.includes('Probar')) {
-                            if (onSwitchView) onSwitchView('preview');
-                          } else if (chip.includes('Editor') || chip.includes('Código') || chip.includes('Codigo')) {
-                            if (onSwitchView) onSwitchView('editor');
-                          } else if (chip.includes('Refinar')) {
-                            setInputPrompt('Refinar: ');
-                          } else {
-                            handleSendMessage(chip, 'chat');
-                          }
-                        }}
-                        className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 cursor-pointer shadow-2xs ${
-                          chip.includes('Construir')
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            : chip.includes('Preview') || chip.includes('Probar')
-                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                            : chip.includes('Editor') || chip.includes('Código')
-                            ? 'bg-slate-800 hover:bg-slate-900 text-white'
-                            : 'bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 text-indigo-700'
-                        }`}
-                      >
-                        {chip.includes('Construir') || chip.includes('Preview') || chip.includes('Probar') ? (
-                          <Play className="w-3 h-3 fill-current" />
-                        ) : (
-                          <Code2 className="w-3 h-3" />
-                        )}
-                        <span>{chip}</span>
-                      </button>
-                    ))}
-                  </div>
+                {/* Interactive Action Chips (filtered for no duplicates) */}
+                {!isUser && msg.actionChips && (
+                  (() => {
+                    const chipsToShow = msg.actionChips.filter(c => 
+                      !c.toLowerCase().includes('preview') && 
+                      !c.toLowerCase().includes('probar') && 
+                      !c.toLowerCase().includes('código') &&
+                      !c.toLowerCase().includes('editor')
+                    );
+                    if (chipsToShow.length === 0) return null;
+                    return (
+                      <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex flex-wrap gap-1.5 animate-fade-in">
+                        {chipsToShow.map((chip, cIdx) => (
+                          <button
+                            key={cIdx}
+                            onClick={() => {
+                              if (chip.includes('Construir y Ver en Preview') || chip.includes('Construir Aplicación') || chip.includes('Construir')) {
+                                const lastUserMsg = [...messages].reverse().find(m => m.role === 'user' && !m.content.includes('Construir'))?.content || '';
+                                const promptToSend = lastUserMsg 
+                                  ? `Construye la aplicación ahora: ${lastUserMsg}`
+                                  : 'Construye la aplicación ahora';
+                                handleSendMessage(promptToSend, 'builder');
+                              } else if (chip.includes('Refinar')) {
+                                setInputPrompt('Refinar: ');
+                              } else {
+                                handleSendMessage(chip, 'chat');
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 cursor-pointer shadow-2xs ${
+                              chip.includes('Construir')
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                : 'bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 text-indigo-700'
+                            }`}
+                          >
+                            {chip.includes('Construir') ? (
+                              <Play className="w-3 h-3 fill-current" />
+                            ) : (
+                              <Code2 className="w-3 h-3" />
+                            )}
+                            <span>{chip}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()
                 )}
 
-                {/* Software Verification Badge & View Switches */}
+                {/* Software Verification Status & Direct View Switcher */}
                 {!isUser && msg.content && (msg.intent === 'FULL_BUILD' || msg.intent === 'SURGICAL_EDIT') && (
                   <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px]">
                     <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                      <Check className="w-3 h-3" /> Software generado y verificado
+                      <Check className="w-3 h-3 text-emerald-600" /> Software verificado
                     </span>
                     <div className="flex items-center gap-1">
                       {onSwitchView && (

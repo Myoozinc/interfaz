@@ -218,6 +218,16 @@ export class QATesterAgent {
           }
 
           if (!exists) {
+            const baseName = specifier.split('/').pop()?.replace(/\.(tsx|ts|jsx|js)$/, '');
+            if (baseName && new RegExp(`(?:function|const|class)\\s+${baseName}\\b`).test(content)) {
+              // El componente ya fue implementado inline en este archivo. Auto-remover el import colgante.
+              normalizedFiles[filePath] = normalizedFiles[filePath].replace(
+                new RegExp(`import\\s+(?:[A-Za-z0-9_{},\\s*]+from\\s+)?['"][^'"]*${baseName}['"];?\\n?`, 'g'),
+                ''
+              );
+              continue;
+            }
+
             const err = `El archivo "${filePath}" importa "${specifier}", pero no se encontró ningún archivo correspondiente en el proyecto.`;
             errors.push(err);
             unresolvedImports.push({ file: filePath, importedSpecifier: specifier });
@@ -288,7 +298,7 @@ export class QATesterAgent {
    * Resuelve una ruta relativa tipo "./components/Header" respecto a "src" -> "src/components/Header",
    * o un alias tipo "@/lib/supabase" -> "src/lib/supabase"
    */
-  private resolveRelativePath(baseDir: string, relativePath: string): string {
+  public resolveRelativePath(baseDir: string, relativePath: string): string {
     if (relativePath.startsWith('@/')) {
       return `src/${relativePath.slice(2)}`;
     }

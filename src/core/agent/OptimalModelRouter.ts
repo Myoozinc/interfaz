@@ -179,7 +179,7 @@ export class OptimalModelRouter {
         server: isGroqExclusive ? 'groq' : 'openrouter',
         model: resolvedModel,
         rationale: `🎯 Enrutado al modelo específico seleccionado: ${resolvedModel}.`,
-        maxTokens: isGroqExclusive ? 12000 : 8192,
+        maxTokens: isGroqExclusive ? 4000 : 8192,
         temperature: 0.15,
         routeCategory: 'complex_build',
         complexityScore: 5
@@ -240,8 +240,8 @@ export class OptimalModelRouter {
       return {
         server: 'groq',
         model: 'llama-3.3-70b-versatile',
-        rationale: `⚡ Enrutado a Groq LPU (Llama 3.3 70B Versatile, 12,000 tokens) para edición multi-archivo en proyecto existente (~${estimatedAffectedFiles} archivos afectados). Generación multi-fase manejada por el orquestador.`,
-        maxTokens: 12000,
+        rationale: `⚡ Enrutado a Groq LPU (Llama 3.3 70B Versatile, 4,000 tokens) para edición multi-archivo en proyecto existente (~${estimatedAffectedFiles} archivos afectados).`,
+        maxTokens: 4000,
         temperature: 0.15,
         routeCategory: 'complex_build',
         complexityScore: 4,
@@ -252,15 +252,14 @@ export class OptimalModelRouter {
 
     // ---------------------------------------------------------------------------------
     // CASO 6: Generación Inicial de Aplicación Nueva Completa
-    // Groq LPU (llama-3.3-70b-versatile) con generación multi-fase secuencial
-    // manejada por AgentCollaborationCouncil (Fase 1 scaffold, Fase 2 componentes, Fase 3 soporte).
-    // OpenRouter/deepseek NO se usa por defecto — produce archivos script_N.js con errores ESM.
+    // Groq LPU (llama-3.3-70b-versatile) optimizado para generación completa en un único paso
+    // de alta velocidad (~450 tokens/s) sin saturar límites de tokens por minuto (TPM).
     // ---------------------------------------------------------------------------------
     return {
       server: 'groq',
       model: 'llama-3.3-70b-versatile',
-      rationale: `🚀 Enrutado a Groq LPU (Llama 3.3 70B Versatile, 12,000 tokens) para generación inicial multi-archivo React + Vite. Fase 1: scaffold, Fase 2: componentes, Fase 3: soporte (~${estimatedAffectedFiles} archivos previstos).`,
-      maxTokens: 12000,
+      rationale: `🚀 Enrutado a Groq LPU (Llama 3.3 70B Versatile) para generación inicial completa React + Vite (~${estimatedAffectedFiles} archivos previstos).`,
+      maxTokens: 4000,
       temperature: 0.15,
       routeCategory: 'complex_build',
       complexityScore: 5,

@@ -8,7 +8,7 @@ export class OllamaProvider implements AIProvider {
 
   constructor(
     baseUrl: string = '/api/agent',
-    defaultModel: string = 'qwen/qwen3.8-27b'
+    defaultModel: string = 'llama-3.3-70b-versatile'
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.defaultModel = defaultModel;
@@ -120,11 +120,11 @@ export class OllamaProvider implements AIProvider {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            model: 'qwen/qwen3.6-27b',
+            model: 'llama-3.1-8b-instant',
             messages: formattedMessages,
             openrouterKey: openrouterKey.trim() || undefined,
             groqKey: groqKey.trim() || undefined,
-            maxTokensRequested: Math.min(options?.maxTokens || 12000, 16000),
+            maxTokensRequested: Math.min(options?.maxTokens || 4000, 4000),
             temperature: options?.temperature,
             stream: true,
           }),

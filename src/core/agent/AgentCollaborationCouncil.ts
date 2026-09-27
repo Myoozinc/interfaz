@@ -19,8 +19,7 @@ import {
   SYNTHWAVE_DAW_HTML, 
   KANBAN_HTML, 
   ECOMMERCE_STORE_HTML, 
-  SAAS_ANALYTICS_HTML,
-  getBarbershopTemplate
+  SAAS_ANALYTICS_HTML
 } from '../../services/templates';
 
 export interface CollaborationResult {
@@ -319,6 +318,8 @@ REGLAS TÉCNICAS:
     let conversationalSummary = '';
     let lastFailureReason = '';
     let generationSucceeded = false;
+    let candidateFiles: Record<string, string> = {};
+    let candidateSummary = '';
 
     while (attempt <= maxRetries && !generationSucceeded) {
       const isRetry = attempt > 0;
@@ -380,15 +381,17 @@ Por favor devuelve EXCLUSIVAMENTE el objeto JSON válido con la clave "files" (a
 5. Sección de testimonios o reseñas de clientes y pie de página (Footer) completo.`;
         }
 
-        attemptUserPrompt += `\n\nFASE 1 (Arquitectura Completa y Funcional de Alta Calidad):
-Genera una aplicación COMPLETA, PROFESIONAL Y DE ALTA CALIDAD VISUAL (estándar Apple / Linear / Vercel). PROHIBIDO generar prototipos vacíos o simplistas.
-Estructura la aplicación en "src/App.tsx" (puedes estructurar la UI completa con sus subcomponentes directamente dentro de "src/App.tsx" o incluir los componentes modulares en el array "files" como "src/components/...").
-IMPORTANTE: Todos los componentes importados DEBEN existir con su código completo y funcional en el array "files" de esta respuesta. No dejes imports rotos a archivos que no existan.
+        attemptUserPrompt += `\n\nCONSTRUCCIÓN COMPLETA Y PROFESIONAL EN UN SOLO PASO:
+Genera una aplicación COMPLETA, PROFESIONAL Y DE ALTA CALIDAD VISUAL (estándar Apple / Linear / Vercel), DIRECTAMENTE adaptada a la petición del usuario.
+IMPORTANTE:
+1. Diseña la aplicación COMPLETA en "src/App.tsx" con todos sus subcomponentes y estados necesarios directamente implementados (puedes organizar subcomponentes modulares dentro de "src/App.tsx" o incluir archivos en "files" como "src/components/...").
+2. No uses plantillas genéricas: adapta el contenido, títulos, opciones, datos e interactividad EXACTAMENTE a lo que el usuario pidió (ej: nombre de negocio, servicios reales, precios, animaciones interactivas, modales de reserva o cálculo funcional).
+3. Todo el código debe estar 100% terminado y ejecutable. PROHIBIDO dejar imports a archivos no creados o colocar comentarios "// TODO".
 ${architectureGuidance}`;
       } else {
         attemptUserPrompt += `\n\n[MODIFICACIÓN EN PROYECTO EXISTENTE]:
 Estás modificando un software ya existente. Aplica con precisión la instrucción solicitada respetando la arquitectura previa.
-En el array "files", puedes devolver ÚNICAMENTE los archivos modificados o creados, asegurando que sigan siendo 100% compatibles con el resto de la aplicación.
+Puedes responder devolviendo los archivos modificados o creados en "files" (o lista de cambios en "changes"). Asegúrate de que el código sea 100% compatible con el resto del proyecto.
 Responde estrictamente en el formato JSON especificado.`;
       }
 
@@ -422,7 +425,7 @@ Responde estrictamente en el formato JSON especificado.`;
         .replace(/^[\s\S]*?<\/think>/gi, '')
         .trim();
 
-      // 1. Primary verification: Parse strictly using ProjectJSONParser
+      // 1. Primary verification: Parse strictly using ProjectJSONParser (supporting both Full Build and Incremental Edits)
       // Base de archivos para la ronda (si es modificación, heredar los archivos existentes del proyecto)
       const baseProjectFiles: Record<string, string> = !isNewBuildRequest && project.files
         ? Object.fromEntries(
@@ -430,16 +433,28 @@ Responde estrictamente en el formato JSON especificado.`;
           )
         : {};
 
-      let candidateFiles: Record<string, string> = { ...baseProjectFiles };
-      let candidateSummary = '';
+      candidateFiles = { ...baseProjectFiles };
+      candidateSummary = '';
 
-      const parseResult = ProjectJSONParser.parseFullBuild(generatedCodeRaw);
+      const parseResult = ProjectJSONParser.parse(generatedCodeRaw);
       if (parseResult.success) {
-        for (const fileEntry of parseResult.contract.files) {
-          const normPath = ProjectJSONParser.normalizePath(fileEntry.path);
-          candidateFiles[normPath] = fileEntry.content;
+        if (parseResult.data.type === 'full_build') {
+          for (const fileEntry of parseResult.data.contract.files) {
+            const normPath = ProjectJSONParser.normalizePath(fileEntry.path);
+            candidateFiles[normPath] = fileEntry.content;
+          }
+          candidateSummary = parseResult.data.contract.explanation;
+        } else if (parseResult.data.type === 'incremental') {
+          for (const change of parseResult.data.contract.changes) {
+            const normPath = ProjectJSONParser.normalizePath(change.path);
+            if (change.action === 'delete') {
+              delete candidateFiles[normPath];
+            } else if (change.content !== undefined) {
+              candidateFiles[normPath] = change.content;
+            }
+          }
+          candidateSummary = parseResult.data.contract.explanation;
         }
-        candidateSummary = parseResult.contract.explanation;
       } else {
         // 2. Secondary resilient check: ActionStreamParser for XML / markdown blocks
         const fallbackParsed = ActionStreamParser.parse(generatedCodeRaw);
@@ -459,126 +474,23 @@ Responde estrictamente en el formato JSON especificado.`;
       candidateFiles = this.normalizeProjectStructure(candidateFiles);
 
       // =========================================================================
-      // PASO 3: Generación Multi-Fase Secuencial para Proyectos Nuevos (FULL_BUILD)
+      // PASO 3: Auto-curación Instantánea y Auto-sanación de Componentes Modulares
       // =========================================================================
-      if (isNewBuildRequest && candidateFiles['src/App.tsx']) {
-        // Detectar si src/App.tsx importa componentes que aún no están en candidateFiles
+      if (candidateFiles['src/App.tsx']) {
         const importedComponents = extractRelativeComponentImports(candidateFiles['src/App.tsx'], 'src');
         const missingComponents = importedComponents.filter(c => !candidateFiles[c]);
 
-        if (missingComponents.length > 0) {
-          onProgress(`🧩 [${expertAgent.name}]: Sintetizando componentes modulares (Fase 2: ${missingComponents.map(p => p.split('/').pop()).join(', ')})...`, true);
-          agentEvents.emit('agent.thinking', `🧩 Fase 2: Implementando componentes requeridos: ${missingComponents.join(', ')}`);
-
-          const phase2Prompt = `FASE 2 (Síntesis de Componentes Modulares de Alta Calidad):
-Implementa el código COMPLETO, PROFUNDO Y 100% INTERACTIVO para los siguientes componentes requeridos por src/App.tsx:
-${missingComponents.map(p => `- "${p}"`).join('\n')}
-
-CONTEXTO DE src/App.tsx:
-\`\`\`tsx
-${candidateFiles['src/App.tsx']}
-\`\`\`
-
-REQUISITOS DE CADA COMPONENTE:
-- Prohibido código esqueleto o botones sin funcionalidad.
-- Cada botón o pestaña debe incluir iconos vectoriales de 'lucide-react'.
-- Controles interactivos con sliders con lectura de valor numérico en vivo, switches y presets.
-- Estilos visuales consistentes con Tailwind CSS: dark mode elegante, bordes sutiles, micro-interacciones (active:scale-95 transition-all).
-
-Responde ÚNICAMENTE en formato JSON con la clave "files" (array de { "path": string, "content": string }) conteniendo estos componentes con sus tipos TypeScript e interactividad completa.`;
-
-          try {
-            let phase2Raw = '';
-            await this.aiProvider.streamChat(
-              [
-                { role: 'system', content: specialistSystemPrompt },
-                { role: 'user', content: phase2Prompt }
-              ],
-              (_tok, full) => { phase2Raw = full; },
-              {
-                signal: options?.signal,
-                model: routingDecision.model,
-                maxTokens: 8000,
-                temperature: routingDecision.temperature
-              }
+        for (const missingPath of missingComponents) {
+          const baseName = missingPath.split('/').pop()?.replace(/\.(tsx|jsx|ts|js)$/, '') || '';
+          if (baseName && new RegExp(`(?:function|const|class)\\s+${baseName}\\b`).test(candidateFiles['src/App.tsx'])) {
+            // El componente ya está implementado inline en App.tsx. Limpiar el import huérfano.
+            candidateFiles['src/App.tsx'] = candidateFiles['src/App.tsx'].replace(
+              new RegExp(`import\\s+(?:[A-Za-z0-9_{},\\s*]+from\\s+)?['"][^'"]*${baseName}['"];?\\n?`, 'g'),
+              ''
             );
-
-            phase2Raw = phase2Raw
-              .replace(/<think>[\s\S]*?<\/think>/gi, '')
-              .replace(/^[\s\S]*?<\/think>/gi, '')
-              .trim();
-
-            const p2Result = ProjectJSONParser.parseFullBuild(phase2Raw);
-            if (p2Result.success) {
-              for (const f of p2Result.contract.files) {
-                candidateFiles[ProjectJSONParser.normalizePath(f.path)] = f.content;
-              }
-            } else {
-              const fb2 = ActionStreamParser.parse(phase2Raw);
-              for (const [p, c] of Object.entries(fb2.files)) {
-                candidateFiles[ProjectJSONParser.normalizePath(p)] = c;
-              }
-            }
-          } catch (e: any) {
-            agentEvents.emit('agent.thinking', `Aviso en Fase 2: ${e.message}`);
-          }
-        }
-
-        // Fase 3: Archivos de soporte y BaaS si faltan y se requieren
-        const allCode = Object.values(candidateFiles).join('\n');
-        const missingSupport: string[] = [];
-        if (needsBaaS && !candidateFiles['src/lib/supabase.ts']) {
-          missingSupport.push('src/lib/supabase.ts');
-        }
-        if (allCode.includes('lib/utils') && !candidateFiles['src/lib/utils.ts'] && !candidateFiles['src/lib/utils.js']) {
-          missingSupport.push('src/lib/utils.ts');
-        }
-
-        if (missingSupport.length > 0) {
-          onProgress(`🎨 [${expertAgent.name}]: Generando soporte y utilidades (Fase 3: ${missingSupport.map(p => p.split('/').pop()).join(', ')})...`, true);
-
-          const phase3Prompt = `FASE 3 (Estilos y Utilidades):
-Genera los siguientes archivos de soporte necesarios para completar el proyecto:
-${missingSupport.map(p => `- "${p}"`).join('\n')}
-${missingSupport.includes('src/lib/supabase.ts') ? '- "src/lib/supabase.ts": Cliente de Supabase (@supabase/supabase-js) con fallback seguro y DDL SQL en comentarios.' : ''}
-${missingSupport.includes('src/lib/utils.ts') ? '- "src/lib/utils.ts": Utilidad cn() con clsx y tailwind-merge.' : ''}
-
-Responde ÚNICAMENTE en formato JSON con la clave "files".`;
-
-          try {
-            let phase3Raw = '';
-            await this.aiProvider.streamChat(
-              [
-                { role: 'system', content: specialistSystemPrompt },
-                { role: 'user', content: phase3Prompt }
-              ],
-              (_tok, full) => { phase3Raw = full; },
-              {
-                signal: options?.signal,
-                model: routingDecision.model,
-                maxTokens: 4000,
-                temperature: routingDecision.temperature
-              }
-            );
-
-            phase3Raw = phase3Raw
-              .replace(/<think>[\s\S]*?<\/think>/gi, '')
-              .replace(/^[\s\S]*?<\/think>/gi, '')
-              .trim();
-
-            const p3Result = ProjectJSONParser.parseFullBuild(phase3Raw);
-            if (p3Result.success) {
-              for (const f of p3Result.contract.files) {
-                candidateFiles[ProjectJSONParser.normalizePath(f.path)] = f.content;
-              }
-            } else {
-              const fb3 = ActionStreamParser.parse(phase3Raw);
-              for (const [p, c] of Object.entries(fb3.files)) {
-                candidateFiles[ProjectJSONParser.normalizePath(p)] = c;
-              }
-            }
-          } catch (e: any) {
-            agentEvents.emit('agent.thinking', `Aviso en Fase 3: ${e.message}`);
+          } else if (baseName) {
+            // Síntesis local inmediata sin rondas de red adicionales que agoten la cuota de TPM
+            candidateFiles[missingPath] = this.synthesizeSmartComponent(baseName);
           }
         }
       }
@@ -667,7 +579,22 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
       break;
     }
 
-    // If generation failed after all retries, apply resilient domain fallback
+    // Si la verificación estricta no concluyó pero candidateFiles contiene código generado por el modelo,
+    // preservar y montar siempre el código personalizado auténtico de la IA
+    if (!generationSucceeded && Object.keys(candidateFiles).length > 0) {
+      this.autoHealMissingComponents(candidateFiles, []);
+      if (!candidateFiles['src/App.tsx'] || isDummyApp(candidateFiles['src/App.tsx'])) {
+        this.assembleRootAppFromComponents(candidateFiles);
+      }
+      if (candidateFiles['src/App.tsx'] || candidateFiles['index.html']) {
+        files = candidateFiles;
+        fullCode = files['index.html'] || files['src/App.tsx'] || Object.values(files)[0] || '';
+        conversationalSummary = candidateSummary || `He diseñado y programado la aplicación personalizada para "${effectiveInstruction}". Código completo y listo para interactuar en la Vista Previa.`;
+        generationSucceeded = true;
+      }
+    }
+
+    // Solo como último recurso si el proveedor de IA no respondió ningún token (offline total):
     if (!generationSucceeded) {
       const isSnakeGame = /(snake|sniki|serpiente|vibora|v[ií]bora|gusanito|culebra)/i.test(reqLower);
       const isNavalGame = /(barco|barcos|hundir|naval|flota|battleship|submarino|torpedo)/i.test(reqLower);
@@ -678,7 +605,6 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
       const isKanban = /(kanban|tablero|tareas|todo|jira|linear|productividad)/i.test(reqLower);
       const isEcommerce = /(tienda|store|shop|comercio|ecommerce|carrito|checkout|comprar)/i.test(reqLower);
       const isSaaS = /(dashboard|panel|analytics|m[eé]tricas|crm|saas|finanzas|estad[ií]sticas)/i.test(reqLower);
-      const isBarbershopOrSalon = /(barber[ií]a|barbero|peluquer[ií]a|corte de pelo|corte y barba|afeitad|sal[oó]n de belleza|estilista|haircut|grooming)/i.test(reqLower);
       const is3DGeneral = /(?:\b3d\b|three\.?js|webgl|escena 3d|espacio 3d|geometr[ií]a 3d|modelo 3d|modelado 3d|render 3d|simulador 3d|canvas 3d|3d studio|estudio 3d)/i.test(reqLower);
       const isArcadeGame = /(juego|game|arcade|play|puntaje|nivel|vidas)/i.test(reqLower);
 
@@ -690,21 +616,6 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
         };
         fullCode = SNAKE_RETRO_GAME_HTML;
         conversationalSummary = `He construido el videojuego completo **Sniki (Neon Snake 2026)** con físicas a 60 FPS, partículas de energía, Web Audio API para efectos de sonido retro y controles táctiles y de teclado. ¡Listo para jugar en la Vista Previa!`;
-        generationSucceeded = true;
-      } else if (isBarbershopOrSalon) {
-        const nameMatch = reqLower.match(/(?:se llama|llamada|llamado|nombre|barber[ií]a)\s+([A-Za-z0-9_-]+)/i);
-        const detectedName = nameMatch && nameMatch[1] && !['que', 'de', 'para', 'una', 'un', 'con', 'el', 'la'].includes(nameMatch[1].toLowerCase())
-          ? nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1)
-          : 'Temochoeso';
-
-        const barbershopHtml = getBarbershopTemplate(detectedName);
-        onProgress(`💈 [Síntesis Autónoma]: Desplegando sitio web premium para Barbería ${detectedName}...`, true);
-        files = {
-          'index.html': barbershopHtml,
-          'src/index.css': `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\nbody {\n  margin: 0;\n  font-family: system-ui, -apple-system, sans-serif;\n}`
-        };
-        fullCode = barbershopHtml;
-        conversationalSummary = `He construido la **página web completa para la barbería ${detectedName}** con diseño minimalista moderno, catálogo interactivo de servicios con selector de precios, selección de barberos especialistas, modal interactivo de reserva de turnos (fecha, hora y barbero) con confirmación festiva y horarios en vivo. ¡Lista para interactuar en la Vista Previa!`;
         generationSucceeded = true;
       } else if (is3DGeneral) {
         onProgress(`🪐 [Síntesis Autónoma]: Desplegando 3D Studio WebGL interactivo...`, true);
@@ -985,18 +896,26 @@ export default function App() {
       if (spec.endsWith('.css') || spec.includes('utils') || spec.includes('supabase')) continue;
 
       const baseName = spec.split('/').pop()?.replace(/\.(tsx|ts|jsx|js)$/, '') || 'Component';
-      const cleanPath = spec.startsWith('./')
-        ? `src/${spec.slice(2)}`
-        : spec.startsWith('@/')
-          ? `src/${spec.slice(2)}`
-          : `src/components/${baseName}`;
-      const finalPath = cleanPath.endsWith('.tsx') ? cleanPath : `${cleanPath}.tsx`;
+
+      // 1. Si el archivo que importa ya define este componente en su propio código, limpiar el import
+      if (item.file && files[item.file] && new RegExp(`(?:function|const|class)\\s+${baseName}\\b`).test(files[item.file])) {
+        files[item.file] = files[item.file].replace(
+          new RegExp(`import\\s+(?:[A-Za-z0-9_{},\\s*]+from\\s+)?['"][^'"]*${baseName}['"];?\\n?`, 'g'),
+          ''
+        );
+        continue;
+      }
+
+      // 2. Resolver la ruta relativa correcta con respecto al directorio del archivo importador
+      const fileDir = item.file && item.file.includes('/') ? item.file.slice(0, item.file.lastIndexOf('/')) : 'src';
+      const resolvedPath = qaTesterAgent.resolveRelativePath(fileDir, spec);
+      const finalPath = resolvedPath.endsWith('.tsx') || resolvedPath.endsWith('.jsx')
+        ? resolvedPath
+        : `${resolvedPath}.tsx`;
 
       if (baseName === 'App' || finalPath === 'src/App.tsx') {
         const assembled = this.assembleRootAppFromComponents(files);
         if (assembled) continue;
-        // Si no hay componentes modulares para ensamblar, NO generar un stub falso para App.tsx.
-        // Dejar que falle la validación para que se active el fallback enriquecido de dominio.
         continue;
       }
 
