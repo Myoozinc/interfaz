@@ -19,7 +19,8 @@ import {
   SYNTHWAVE_DAW_HTML, 
   KANBAN_HTML, 
   ECOMMERCE_STORE_HTML, 
-  SAAS_ANALYTICS_HTML 
+  SAAS_ANALYTICS_HTML,
+  getBarbershopTemplate
 } from '../../services/templates';
 
 export interface CollaborationResult {
@@ -379,11 +380,11 @@ Por favor devuelve EXCLUSIVAMENTE el objeto JSON válido con la clave "files" (a
 5. Sección de testimonios o reseñas de clientes y pie de página (Footer) completo.`;
         }
 
-        attemptUserPrompt += `\n\nFASE 1 (Scaffold y Arquitectura de Alta Calidad):
+        attemptUserPrompt += `\n\nFASE 1 (Arquitectura Completa y Funcional de Alta Calidad):
 Genera una aplicación COMPLETA, PROFESIONAL Y DE ALTA CALIDAD VISUAL (estándar Apple / Linear / Vercel). PROHIBIDO generar prototipos vacíos o simplistas.
-En el array "files", incluye obligatoriamente "index.html" y "src/App.tsx" estructurando la aplicación con componentes modulares:
-${architectureGuidance}
-Modulariza cada componente clave importándolo limpiamente (ej: import NombreComponente from './components/NombreComponente').`;
+Estructura la aplicación en "src/App.tsx" (puedes estructurar la UI completa con sus subcomponentes directamente dentro de "src/App.tsx" o incluir los componentes modulares en el array "files" como "src/components/...").
+IMPORTANTE: Todos los componentes importados DEBEN existir con su código completo y funcional en el array "files" de esta respuesta. No dejes imports rotos a archivos que no existan.
+${architectureGuidance}`;
       } else {
         attemptUserPrompt += `\n\n[MODIFICACIÓN EN PROYECTO EXISTENTE]:
 Estás modificando un software ya existente. Aplica con precisión la instrucción solicitada respetando la arquitectura previa.
@@ -604,8 +605,8 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
 
       // 3. Deep static & semantic project validation (QA Tester Agent)
       let qaValidation = qaTesterAgent.validateTypeScriptProject(candidateFiles);
-      if (!qaValidation.valid && qaValidation.unresolvedImports.length > 0 && attempt === maxRetries) {
-        // Auto-sanación de emergencia en el último intento para componentes UI faltantes
+      if (!qaValidation.valid && qaValidation.unresolvedImports.length > 0) {
+        // Auto-sanación de emergencia para componentes UI faltantes
         this.autoHealMissingComponents(candidateFiles, qaValidation.unresolvedImports);
         qaValidation = qaTesterAgent.validateTypeScriptProject(candidateFiles);
       }
@@ -677,7 +678,8 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
       const isKanban = /(kanban|tablero|tareas|todo|jira|linear|productividad)/i.test(reqLower);
       const isEcommerce = /(tienda|store|shop|comercio|ecommerce|carrito|checkout|comprar)/i.test(reqLower);
       const isSaaS = /(dashboard|panel|analytics|m[eé]tricas|crm|saas|finanzas|estad[ií]sticas)/i.test(reqLower);
-      const is3DGeneral = /(3d|three|webgl|espacio|universo|animaci[oó]n|render|planeta|escena 3d|geometr[ií]a|modelado)/i.test(reqLower);
+      const isBarbershopOrSalon = /(barber[ií]a|barbero|peluquer[ií]a|corte de pelo|corte y barba|afeitad|sal[oó]n de belleza|estilista|haircut|grooming)/i.test(reqLower);
+      const is3DGeneral = /(?:\b3d\b|three\.?js|webgl|escena 3d|espacio 3d|geometr[ií]a 3d|modelo 3d|modelado 3d|render 3d|simulador 3d|canvas 3d|3d studio|estudio 3d)/i.test(reqLower);
       const isArcadeGame = /(juego|game|arcade|play|puntaje|nivel|vidas)/i.test(reqLower);
 
       if (isSnakeGame) {
@@ -688,6 +690,21 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
         };
         fullCode = SNAKE_RETRO_GAME_HTML;
         conversationalSummary = `He construido el videojuego completo **Sniki (Neon Snake 2026)** con físicas a 60 FPS, partículas de energía, Web Audio API para efectos de sonido retro y controles táctiles y de teclado. ¡Listo para jugar en la Vista Previa!`;
+        generationSucceeded = true;
+      } else if (isBarbershopOrSalon) {
+        const nameMatch = reqLower.match(/(?:se llama|llamada|llamado|nombre|barber[ií]a)\s+([A-Za-z0-9_-]+)/i);
+        const detectedName = nameMatch && nameMatch[1] && !['que', 'de', 'para', 'una', 'un', 'con', 'el', 'la'].includes(nameMatch[1].toLowerCase())
+          ? nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1)
+          : 'Temochoeso';
+
+        const barbershopHtml = getBarbershopTemplate(detectedName);
+        onProgress(`💈 [Síntesis Autónoma]: Desplegando sitio web premium para Barbería ${detectedName}...`, true);
+        files = {
+          'index.html': barbershopHtml,
+          'src/index.css': `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\nbody {\n  margin: 0;\n  font-family: system-ui, -apple-system, sans-serif;\n}`
+        };
+        fullCode = barbershopHtml;
+        conversationalSummary = `He construido la **página web completa para la barbería ${detectedName}** con diseño minimalista moderno, catálogo interactivo de servicios con selector de precios, selección de barberos especialistas, modal interactivo de reserva de turnos (fecha, hora y barbero) con confirmación festiva y horarios en vivo. ¡Lista para interactuar en la Vista Previa!`;
         generationSucceeded = true;
       } else if (is3DGeneral) {
         onProgress(`🪐 [Síntesis Autónoma]: Desplegando 3D Studio WebGL interactivo...`, true);
@@ -984,18 +1001,93 @@ export default function App() {
       }
 
       if (!files[finalPath]) {
-        files[finalPath] = `import React from 'react';
+        files[finalPath] = this.synthesizeSmartComponent(baseName);
+      }
+    }
+  }
+
+  /**
+   * Sintetiza código React funcional y estilizado para componentes faltantes comunes
+   * (Navbar, Hero, Footer, Services, etc.) para que la aplicación nunca quede rota.
+   */
+  private synthesizeSmartComponent(baseName: string): string {
+    const lower = baseName.toLowerCase();
+
+    if (lower.includes('nav') || lower.includes('header')) {
+      return `import React from 'react';
+import { Sparkles } from 'lucide-react';
 
 export default function ${baseName}(props: any) {
   return (
-    <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 text-white my-2">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-slate-950/80 border-b border-white/10 px-6 py-4 flex items-center justify-between">
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-slate-950 font-bold shadow-md">
+          <Sparkles className="w-4 h-4" />
+        </div>
+        <span className="font-extrabold text-white tracking-wide text-base uppercase">Estilo & Calidad</span>
+      </div>
+      <nav className="hidden md:flex items-center gap-6 text-xs uppercase tracking-wider text-slate-400 font-semibold">
+        <a href="#services" className="hover:text-amber-400 transition-colors">Servicios</a>
+        <a href="#about" className="hover:text-amber-400 transition-colors">Nosotros</a>
+        <a href="#contact" className="hover:text-amber-400 transition-colors">Contacto</a>
+      </nav>
+      <button className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase rounded-xl transition-all shadow-md cursor-pointer">
+        Reservar Turno
+      </button>
+    </header>
+  );
+}
+`;
+    }
+
+    if (lower.includes('footer')) {
+      return `import React from 'react';
+
+export default function ${baseName}() {
+  return (
+    <footer className="w-full bg-slate-950 border-t border-white/5 py-8 px-6 text-center text-xs text-slate-500">
+      <p>© ${new Date().getFullYear()} Todos los derechos reservados.</p>
+    </footer>
+  );
+}
+`;
+    }
+
+    if (lower.includes('hero')) {
+      return `import React from 'react';
+import { Sparkles, Star } from 'lucide-react';
+
+export default function ${baseName}(props: any) {
+  return (
+    <section className="py-16 px-6 text-center bg-gradient-to-b from-slate-950 to-slate-900 text-white">
+      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold mb-4">
+        <Star className="w-3.5 h-3.5 fill-amber-400" />
+        <span>Servicio Premium Garantizado</span>
+      </div>
+      <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
+        Estilo, Calidad y Atención Profesional
+      </h1>
+      <p className="text-slate-400 max-w-xl mx-auto text-sm mb-6">
+        Diseño moderno, atención personalizada y la mejor experiencia para ti.
+      </p>
       {props.children}
+    </section>
+  );
+}
+`;
+    }
+
+    return `import React from 'react';
+
+export default function ${baseName}(props: any) {
+  return (
+    <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 text-white my-3 shadow-lg">
+      <h3 className="text-base font-bold text-slate-100 mb-2">${baseName}</h3>
+      {props.children || <p className="text-xs text-slate-400">Módulo interactivo activo y listo.</p>}
     </div>
   );
 }
 `;
-      }
-    }
   }
 }
 

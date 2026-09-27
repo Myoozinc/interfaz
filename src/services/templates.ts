@@ -10,6 +10,7 @@ import { SYNTHWAVE_DAW_HTML } from './templatesDaw';
 import { KANBAN_HTML } from './templatesKanban';
 import { MOBILE_IOS_HTML } from './templatesMobile';
 import { SNAKE_RETRO_GAME_HTML } from './templatesSnakeGame';
+import { getBarbershopTemplate } from './templatesBarbershop';
 
 export { 
   MARIO_KART_GAME_HTML, 
@@ -22,7 +23,8 @@ export {
   ECOMMERCE_STORE_HTML, 
   SYNTHWAVE_DAW_HTML, 
   KANBAN_HTML, 
-  MOBILE_IOS_HTML 
+  MOBILE_IOS_HTML,
+  getBarbershopTemplate
 };
 
 export const STARTER_TEMPLATES: ProjectTemplate[] = [
