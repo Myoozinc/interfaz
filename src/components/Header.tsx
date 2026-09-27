@@ -3,9 +3,6 @@ import {
   Download, 
   Settings, 
   Zap, 
-  Columns,
-  Eye,
-  Code2,
   FolderOpen,
   Wand2,
   Activity,
@@ -102,44 +99,6 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
       </div>
 
-      {/* Center: Workspace Sub-tabs (Only when in IDE/split/preview/editor mode) */}
-      {viewMode !== 'chat' && (
-        <div className="hidden md:flex items-center bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60 text-[11px]">
-          <button
-            onClick={() => setViewMode('split')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-              viewMode === 'split'
-                ? 'bg-white text-indigo-600 shadow-2xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Columns className="w-3 h-3" />
-            <span>Workspace</span>
-          </button>
-          <button
-            onClick={() => setViewMode('preview')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-              viewMode === 'preview'
-                ? 'bg-white text-indigo-600 shadow-2xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Eye className="w-3 h-3" />
-            <span>Preview</span>
-          </button>
-          <button
-            onClick={() => setViewMode('editor')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-              viewMode === 'editor'
-                ? 'bg-white text-indigo-600 shadow-2xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Code2 className="w-3 h-3" />
-            <span>Código</span>
-          </button>
-        </div>
-      )}
 
       {/* Right: Model Indicator + "Open IDE" Button (Antigravity standard) + Tools */}
       <div className="flex items-center gap-1.5 sm:gap-2">

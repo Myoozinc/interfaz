@@ -9,7 +9,6 @@ import {
   Code2, 
   Columns, 
   X, 
-  MessageSquare,
   Terminal 
 } from 'lucide-react';
 import { Header } from './components/Header';
@@ -722,15 +721,12 @@ export function App() {
                     </button>
                   </div>
 
-                  {/* Right: Quick shortcut back to chat mode */}
+                  {/* Right: Active Live Workspace Indicator */}
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setViewMode('chat')}
-                      className="flex items-center gap-1 px-2.5 py-1 text-slate-500 hover:text-indigo-600 font-semibold rounded-xl hover:bg-indigo-50 transition-colors cursor-pointer text-[11px]"
-                    >
-                      <MessageSquare className="w-3 h-3" />
-                      <span>Ir a Modo Chat</span>
-                    </button>
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 text-emerald-700 bg-emerald-50 border border-emerald-200/60 font-semibold rounded-xl text-[11px] shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>En Vivo</span>
+                    </span>
                   </div>
                 </div>
 

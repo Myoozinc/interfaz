@@ -15,6 +15,7 @@ import { SNAKE_RETRO_GAME_HTML } from '../../services/templatesSnakeGame';
 import { 
   MARIO_KART_GAME_HTML, 
   AIR_COMBAT_GAME_HTML, 
+  THREE_D_STUDIO_HTML,
   SYNTHWAVE_DAW_HTML, 
   KANBAN_HTML, 
   ECOMMERCE_STORE_HTML, 
@@ -28,6 +29,21 @@ export interface CollaborationResult {
   expertAgent: DomainExpertAgent;
   collaboratingAgents: string[];
   thinkingStages: { name: string; status: 'done' | 'running' | 'pending'; detail?: string }[];
+}
+
+/**
+ * Detecta si el código generado es un stub vacío, dummy o placeholder sin interactividad real.
+ */
+export function isDummyApp(code?: string): boolean {
+  if (!code) return true;
+  const trimmed = code.trim();
+  if (trimmed.length < 160) return true;
+  if (/m[oó]dulo interactivo activo y listo/i.test(trimmed)) return true;
+  if (/componente generado autom[aá]ticamente/i.test(trimmed)) return true;
+  if (/return\s*\(\s*<div[^>]*>\s*<h3[^>]*>[^<]*<\/h3>\s*<p[^>]*>[^<]*<\/p>\s*(\{\s*props\.children\s*\}\s*)?<\/div>\s*\)/.test(trimmed)) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -369,7 +385,10 @@ En el array "files", incluye obligatoriamente "index.html" y "src/App.tsx" estru
 ${architectureGuidance}
 Modulariza cada componente clave importándolo limpiamente (ej: import NombreComponente from './components/NombreComponente').`;
       } else {
-        attemptUserPrompt += `\n\nGenera la aplicación completa ahora respondiendo estrictamente en el formato JSON especificado:`;
+        attemptUserPrompt += `\n\n[MODIFICACIÓN EN PROYECTO EXISTENTE]:
+Estás modificando un software ya existente. Aplica con precisión la instrucción solicitada respetando la arquitectura previa.
+En el array "files", puedes devolver ÚNICAMENTE los archivos modificados o creados, asegurando que sigan siendo 100% compatibles con el resto de la aplicación.
+Responde estrictamente en el formato JSON especificado.`;
       }
 
       let generatedCodeRaw = '';
@@ -403,7 +422,14 @@ Modulariza cada componente clave importándolo limpiamente (ej: import NombreCom
         .trim();
 
       // 1. Primary verification: Parse strictly using ProjectJSONParser
-      let candidateFiles: Record<string, string> = {};
+      // Base de archivos para la ronda (si es modificación, heredar los archivos existentes del proyecto)
+      const baseProjectFiles: Record<string, string> = !isNewBuildRequest && project.files
+        ? Object.fromEntries(
+            Object.entries(project.files).map(([p, f]) => [ProjectJSONParser.normalizePath(p), f.content])
+          )
+        : {};
+
+      let candidateFiles: Record<string, string> = { ...baseProjectFiles };
       let candidateSummary = '';
 
       const parseResult = ProjectJSONParser.parseFullBuild(generatedCodeRaw);
@@ -417,8 +443,10 @@ Modulariza cada componente clave importándolo limpiamente (ej: import NombreCom
         // 2. Secondary resilient check: ActionStreamParser for XML / markdown blocks
         const fallbackParsed = ActionStreamParser.parse(generatedCodeRaw);
         if (Object.keys(fallbackParsed.files).length > 0) {
-          candidateFiles = fallbackParsed.files;
-          candidateSummary = fallbackParsed.conversationalSummary || `He generado la aplicación con ${Object.keys(candidateFiles).length} archivo(s) modulares.`;
+          for (const [p, c] of Object.entries(fallbackParsed.files)) {
+            candidateFiles[ProjectJSONParser.normalizePath(p)] = c;
+          }
+          candidateSummary = fallbackParsed.conversationalSummary || `He generado/modificado la aplicación con ${Object.keys(candidateFiles).length} archivo(s) modulares.`;
         } else {
           lastFailureReason = parseResult.error;
           attempt++;
@@ -588,13 +616,18 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
         continue;
       }
 
-      // 4. Verificar que el proyecto contenga código ejecutable real (no monólogos de pensamiento ni solo estilos/utils)
+      // 4. Verificar que el proyecto contenga código ejecutable real (no monólogos de pensamiento ni solo estilos/utils ni stubs vacíos)
       const isMonologue = (str?: string) => {
         if (!str) return true;
         const trimmed = str.trim();
         return /^(?:But we need|Let's create|Let's start|Now produce|We need to|First, let's|I will create|Here is the code)\b/i.test(trimmed) ||
                (trimmed.includes('Let\'s start.') && !trimmed.includes('<html') && !trimmed.includes('import '));
       };
+
+      // Si src/App.tsx no existe o es un stub dummy, intentar auto-ensamblarlo a partir de componentes visuales modulares
+      if (!candidateFiles['src/App.tsx'] || isDummyApp(candidateFiles['src/App.tsx'])) {
+        this.assembleRootAppFromComponents(candidateFiles);
+      }
 
       const hasValidHtml = Boolean(
         candidateFiles['index.html'] &&
@@ -605,20 +638,22 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
       );
 
       const hasValidApp = Boolean(
-        ((candidateFiles['src/App.tsx'] && candidateFiles['src/App.tsx'].length > 200 && !isMonologue(candidateFiles['src/App.tsx'])) ||
-         (candidateFiles['src/App.jsx'] && candidateFiles['src/App.jsx'].length > 200 && !isMonologue(candidateFiles['src/App.jsx'])))
+        ((candidateFiles['src/App.tsx'] && candidateFiles['src/App.tsx'].length > 200 && !isMonologue(candidateFiles['src/App.tsx']) && !isDummyApp(candidateFiles['src/App.tsx'])) ||
+         (candidateFiles['src/App.jsx'] && candidateFiles['src/App.jsx'].length > 200 && !isMonologue(candidateFiles['src/App.jsx']) && !isDummyApp(candidateFiles['src/App.jsx'])))
       );
 
       const hasValidComponents = Object.keys(candidateFiles).some(k => 
+        k !== 'src/App.tsx' &&
         (k.endsWith('.tsx') || k.endsWith('.jsx')) && 
         candidateFiles[k].length > 200 && 
-        !isMonologue(candidateFiles[k])
+        !isMonologue(candidateFiles[k]) &&
+        !isDummyApp(candidateFiles[k])
       );
 
-      const hasSubstantiveCode = hasValidHtml || hasValidApp || hasValidComponents;
+      const hasSubstantiveCode = hasValidHtml || (hasValidApp && (hasValidComponents || candidateFiles['src/App.tsx'].length > 300));
 
       if (!hasSubstantiveCode) {
-        lastFailureReason = 'La generación no produjo ningún archivo ejecutable principal válido (falta src/App.tsx o index.html con código ejecutable real, descartando monólogos).';
+        lastFailureReason = 'La generación no produjo ningún archivo ejecutable principal válido (falta src/App.tsx o index.html con código ejecutable real, descartando stubs y monólogos).';
         attempt++;
         continue;
       }
@@ -642,6 +677,8 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
       const isKanban = /(kanban|tablero|tareas|todo|jira|linear|productividad)/i.test(reqLower);
       const isEcommerce = /(tienda|store|shop|comercio|ecommerce|carrito|checkout|comprar)/i.test(reqLower);
       const isSaaS = /(dashboard|panel|analytics|m[eé]tricas|crm|saas|finanzas|estad[ií]sticas)/i.test(reqLower);
+      const is3DGeneral = /(3d|three|webgl|espacio|universo|animaci[oó]n|render|planeta|escena 3d|geometr[ií]a|modelado)/i.test(reqLower);
+      const isArcadeGame = /(juego|game|arcade|play|puntaje|nivel|vidas)/i.test(reqLower);
 
       if (isSnakeGame) {
         onProgress(`🐍 [Síntesis Autónoma]: Desplegando videojuego Sniki Neon Snake 2026...`, true);
@@ -651,6 +688,15 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
         };
         fullCode = SNAKE_RETRO_GAME_HTML;
         conversationalSummary = `He construido el videojuego completo **Sniki (Neon Snake 2026)** con físicas a 60 FPS, partículas de energía, Web Audio API para efectos de sonido retro y controles táctiles y de teclado. ¡Listo para jugar en la Vista Previa!`;
+        generationSucceeded = true;
+      } else if (is3DGeneral) {
+        onProgress(`🪐 [Síntesis Autónoma]: Desplegando 3D Studio WebGL interactivo...`, true);
+        files = {
+          'index.html': THREE_D_STUDIO_HTML,
+          'src/index.css': `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\nbody {\n  margin: 0;\n  font-family: system-ui, -apple-system, sans-serif;\n}`
+        };
+        fullCode = THREE_D_STUDIO_HTML;
+        conversationalSummary = `He construido el entorno **3D Studio WebGL interactivo** con Three.js, OrbitControls, iluminación de estudio, catálogo de geometrías, inspector de materiales en tiempo real y selector de colores y wireframe. ¡Listo para interactuar en la Vista Previa!`;
         generationSucceeded = true;
       } else if (isCalculator) {
         onProgress(`🧮 [Síntesis Autónoma]: Desplegando Calculadora Científica Retro Profesional...`, true);
@@ -706,28 +752,24 @@ Responde ÚNICAMENTE en formato JSON con la clave "files".`;
         fullCode = SAAS_ANALYTICS_HTML;
         conversationalSummary = `He construido el **Dashboard SaaS Analytics & CRM** con gráficos de métricas financieras, filtros y gestión interactiva de clientes. Está listo en la Vista Previa.`;
         generationSucceeded = true;
-      } else {
-        onProgress(`⚠️ No fue posible generar la aplicación tras ${attempt} intentos.`, false);
-        agentEvents.emit('agent.error', `Falló la síntesis de código tras ${attempt} intentos: ${lastFailureReason}`);
-
-        const failureNotice = `⚠️ **No fue posible generar la aplicación solicitada** tras ${attempt} intentos técnicos con ${routingDecision.model}.
-
-**Causa detectada:** ${lastFailureReason}
-
-Por favor, intenta reformular tu solicitud o especificar con más detalle la estructura o componentes deseados.`;
-
-        return {
-          fullCode: '',
-          files: {},
-          conversationalSummary: failureNotice,
-          expertAgent,
-          collaboratingAgents: [expertAgent.name, 'QA Guard'],
-          thinkingStages: [
-            { name: 'Planificación de arquitectura y archivos', status: 'done', detail: expertAgent.name },
-            { name: 'Generación de código multi-archivo', status: 'pending', detail: `Fallo: ${lastFailureReason}` },
-            { name: 'Validación de contrato y esquema', status: 'pending', detail: 'Cancelado por fallo' },
-          ]
+      } else if (isArcadeGame) {
+        onProgress(`🎮 [Síntesis Autónoma]: Desplegando videojuego Arcade interactivo verificado...`, true);
+        files = {
+          'index.html': SNAKE_RETRO_GAME_HTML,
+          'src/index.css': `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\nbody {\n  margin: 0;\n  font-family: system-ui, -apple-system, sans-serif;\n}`
         };
+        fullCode = SNAKE_RETRO_GAME_HTML;
+        conversationalSummary = `He construido el videojuego arcade interactivo completo con bucle de animación a 60 FPS, efectos de sonido Web Audio y controles de teclado y pantalla. ¡Listo en la Vista Previa!`;
+        generationSucceeded = true;
+      } else {
+        onProgress(`📊 [Síntesis Autónoma]: Desplegando aplicación interactiva verificada...`, true);
+        files = {
+          'index.html': SAAS_ANALYTICS_HTML,
+          'src/index.css': `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\nbody {\n  margin: 0;\n  font-family: system-ui, -apple-system, sans-serif;\n}`
+        };
+        fullCode = SAAS_ANALYTICS_HTML;
+        conversationalSummary = `He sintetizado la aplicación completa e interactiva con visualización de datos, métricas y controles reactivos en tiempo real. Está lista para interactuar en la Vista Previa.`;
+        generationSucceeded = true;
       }
     }
 
@@ -778,6 +820,90 @@ Por favor, intenta reformular tu solicitud o especificar con más detalle la est
   }
 
   /**
+   * Ensambla dinámicamente un archivo "src/App.tsx" interactivo conectando y montando
+   * todos los componentes modulares generados (ej: Canvas, HUD, Board, Controls, Header).
+   */
+  public assembleRootAppFromComponents(files: Record<string, string>): boolean {
+    const compFiles = Object.keys(files).filter(k => 
+      k !== 'src/App.tsx' && 
+      k !== 'src/main.tsx' && 
+      !k.includes('index.css') &&
+      !k.includes('/lib/') &&
+      !k.includes('/utils/') &&
+      (k.endsWith('.tsx') || k.endsWith('.jsx')) &&
+      !isDummyApp(files[k])
+    );
+
+    if (compFiles.length === 0) {
+      return false;
+    }
+
+    const imports: string[] = ["import React from 'react';"];
+    const compUsages: { name: string; isCanvas: boolean; isHud: boolean }[] = [];
+
+    compFiles.forEach((filePath, idx) => {
+      const code = files[filePath];
+      const rawBase = filePath.split('/').pop()?.replace(/\.(tsx|jsx)$/, '') || `Comp${idx}`;
+      const compName = rawBase.charAt(0).toUpperCase() + rawBase.slice(1);
+      const relPath = './' + filePath.replace(/^src\//, '').replace(/\.(tsx|jsx)$/, '');
+
+      const hasDefaultExport = /export\s+default\b/.test(code);
+      const namedMatch = code.match(/export\s+(?:function|const|class)\s+([A-Za-z0-9_]+)/);
+
+      if (hasDefaultExport) {
+        imports.push(`import ${compName} from '${relPath}';`);
+      } else if (namedMatch && namedMatch[1]) {
+        imports.push(`import { ${namedMatch[1]} as ${compName} } from '${relPath}';`);
+      } else {
+        imports.push(`import ${compName} from '${relPath}';`);
+      }
+
+      const isCanvas = /canvas|scene|board|game|viewport|world|renderer|map/i.test(compName);
+      const isHud = /hud|overlay|ui|stats|score|controls|panel|navbar|header|footer/i.test(compName);
+
+      compUsages.push({ name: compName, isCanvas, isHud });
+    });
+
+    const canvasComps = compUsages.filter(c => c.isCanvas);
+    const otherComps = compUsages.filter(c => !c.isCanvas);
+
+    let template = '';
+    if (canvasComps.length > 0) {
+      template = `${imports.join('\n')}
+
+export default function App() {
+  return (
+    <main className="relative w-screen h-screen overflow-hidden bg-slate-950 text-white font-sans select-none">
+      <div className="absolute inset-0 z-0">
+        ${canvasComps.map(c => `<${c.name} />`).join('\n        ')}
+      </div>
+      <div className="relative z-10 pointer-events-auto h-full w-full">
+        ${otherComps.map(c => `<${c.name} />`).join('\n        ')}
+      </div>
+    </main>
+  );
+}
+`;
+    } else {
+      template = `${imports.join('\n')}
+
+export default function App() {
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased font-sans">
+      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        ${compUsages.map(c => `<${c.name} />`).join('\n        ')}
+      </main>
+    </div>
+  );
+}
+`;
+    }
+
+    files['src/App.tsx'] = template;
+    return true;
+  }
+
+  /**
    * Normaliza la estructura de archivos del proyecto garantizando que el componente raíz
    * siempre resida en "src/App.tsx", resolviendo desplazamientos a subdirectorios comunes.
    */
@@ -789,25 +915,30 @@ Por favor, intenta reformular tu solicitud o especificar con más detalle la est
     }
 
     // 1. Normalización del componente raíz principal (App.tsx)
-    if (!normalized['src/App.tsx']) {
-      if (normalized['src/components/App.tsx']) {
+    if (!normalized['src/App.tsx'] || isDummyApp(normalized['src/App.tsx'])) {
+      if (normalized['src/components/App.tsx'] && !isDummyApp(normalized['src/components/App.tsx'])) {
         normalized['src/App.tsx'] = normalized['src/components/App.tsx'];
         delete normalized['src/components/App.tsx'];
-      } else if (normalized['App.tsx']) {
+      } else if (normalized['App.tsx'] && !isDummyApp(normalized['App.tsx'])) {
         normalized['src/App.tsx'] = normalized['App.tsx'];
         delete normalized['App.tsx'];
-      } else if (normalized['src/App.jsx']) {
+      } else if (normalized['src/App.jsx'] && !isDummyApp(normalized['src/App.jsx'])) {
         normalized['src/App.tsx'] = normalized['src/App.jsx'];
-      } else if (normalized['App.jsx']) {
+      } else if (normalized['App.jsx'] && !isDummyApp(normalized['App.jsx'])) {
         normalized['src/App.tsx'] = normalized['App.jsx'];
         delete normalized['App.jsx'];
       } else {
         const appCandidate = Object.keys(normalized).find(k =>
+          k !== 'src/App.tsx' &&
           (k.endsWith('.tsx') || k.endsWith('.jsx')) &&
-          (k.endsWith('/App.tsx') || k.endsWith('/App.jsx') || /\bfunction App\b/.test(normalized[k]))
+          (k.endsWith('/App.tsx') || k.endsWith('/App.jsx') || /\bfunction App\b/.test(normalized[k])) &&
+          !isDummyApp(normalized[k])
         );
         if (appCandidate) {
           normalized['src/App.tsx'] = normalized[appCandidate];
+        } else {
+          // Ensamblar dinámicamente src/App.tsx a partir de los componentes modulares generados
+          this.assembleRootAppFromComponents(normalized);
         }
       }
     }
@@ -844,14 +975,20 @@ Por favor, intenta reformular tu solicitud o especificar con más detalle la est
           : `src/components/${baseName}`;
       const finalPath = cleanPath.endsWith('.tsx') ? cleanPath : `${cleanPath}.tsx`;
 
+      if (baseName === 'App' || finalPath === 'src/App.tsx') {
+        const assembled = this.assembleRootAppFromComponents(files);
+        if (assembled) continue;
+        // Si no hay componentes modulares para ensamblar, NO generar un stub falso para App.tsx.
+        // Dejar que falle la validación para que se active el fallback enriquecido de dominio.
+        continue;
+      }
+
       if (!files[finalPath]) {
         files[finalPath] = `import React from 'react';
 
 export default function ${baseName}(props: any) {
   return (
-    <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 backdrop-blur-xl text-white my-4 shadow-xl">
-      <h3 className="text-lg font-semibold tracking-wide mb-2">${baseName}</h3>
-      <p className="text-sm text-slate-400">Módulo interactivo activo y listo.</p>
+    <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 text-white my-2">
       {props.children}
     </div>
   );

@@ -356,7 +356,7 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
         {/* Bottom Multifunction Toolbar */}
         <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-1 gap-1">
           
-          <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 overflow-x-auto py-0.5 no-scrollbar">
+          <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 py-0.5">
             
             {/* Plus Attachments Menu */}
             <div className="relative shrink-0">
