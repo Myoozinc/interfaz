@@ -343,7 +343,8 @@ FORMATO 3 (Si requieres entregar el código completo del archivo principal):
 REGLAS ABSOLUTAS:
 1. Si se reporta un error de tipo "${missingSymbol || 'ReferenceError'}", ASEGÚRATE de definir la función o variable en el ámbito global o en el lugar correspondiente para que nunca arroje error al pulsar botones.
 2. Mantén 100% intactas las funcionalidades existentes (estilos, Three.js, Canvas, controles, Web Audio).
-3. Tu respuesta debe ser código directo ejecutable, sin monólogos en inglés ni introducciones vacías.`;
+3. Tu respuesta debe ser código directo ejecutable, sin monólogos en inglés ni introducciones vacías.
+4. NUNCA envuelvas componentes en try/catch vacíos ni captures errores con console.error("Global error caught:", ...). Corrige la causa raíz directamente (declarar variables faltantes, corregir imports o props de componentes).`;
 
     const maxRetries = 2;
     let attempt = 0;

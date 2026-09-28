@@ -530,7 +530,7 @@ export class VirtualMultiFileBundler {
       const R = window.React || {};
       
       export function createLucideIcon(iconName) {
-        return function DynamicIcon(props) {
+        function DynamicIcon(props) {
           if (window.__nonaGetLucideIcon) {
             return window.__nonaGetLucideIcon(iconName)(props);
           }
@@ -565,13 +565,37 @@ export class VirtualMultiFileBundler {
             className: 'lucide-icon ' + className,
             ...p
           }, R.createElement('circle', { cx: 12, cy: 12, r: 10 }));
-        };
+        }
+
+        DynamicIcon.displayName = iconName;
+        DynamicIcon.toString = () => iconName;
+        DynamicIcon.valueOf = () => 0;
+        DynamicIcon[Symbol.toPrimitive] = (hint) => (hint === 'number' ? 0 : iconName);
+        return DynamicIcon;
       }
 
       const iconCache = {};
       export const Lucide = new Proxy({}, {
-        get(_, prop) {
-          if (typeof prop !== 'string') return undefined;
+        get(target, prop) {
+          if (prop === '__esModule') return true;
+          if (prop === 'default') return Lucide;
+          if (prop === 'then') return undefined;
+
+          if (prop === Symbol.toPrimitive) {
+            return (hint) => (hint === 'number' ? 0 : 'Lucide');
+          }
+          if (prop === Symbol.toStringTag) {
+            return 'Lucide';
+          }
+          if (typeof prop !== 'string') {
+            return target[prop];
+          }
+
+          if (prop === 'toString') return () => 'Lucide';
+          if (prop === 'valueOf') return () => 0;
+          if (prop === 'toJSON') return () => ({ name: 'Lucide' });
+          if (prop === 'displayName' || prop === 'name') return 'Lucide';
+
           if (!iconCache[prop]) iconCache[prop] = createLucideIcon(prop);
           return iconCache[prop];
         }
@@ -579,6 +603,17 @@ export class VirtualMultiFileBundler {
       export default Lucide;
     `;
     const lucideReactShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(lucideReactShimCode);
+
+    const utilsShimCode = `
+      import clsx from 'clsx';
+      import twMerge from 'tailwind-merge';
+      export function cn(...inputs) {
+        return twMerge(clsx(...inputs));
+      }
+      export { clsx, twMerge };
+      export default { cn, clsx, twMerge };
+    `;
+    const utilsShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(utilsShimCode);
 
     // 2b. Construir Import Map con resolución local y paquetes externos predeterminados
     const importMap: Record<string, string> = {
@@ -589,6 +624,14 @@ export class VirtualMultiFileBundler {
       "lucide-react": lucideReactShimUri,
       "clsx": clsxShimUri,
       "tailwind-merge": twMergeShimUri,
+      "@/lib/utils": utilsShimUri,
+      "@/utils": utilsShimUri,
+      "lib/utils": utilsShimUri,
+      "./lib/utils": utilsShimUri,
+      "../lib/utils": utilsShimUri,
+      "./utils": utilsShimUri,
+      "../utils": utilsShimUri,
+      "utils": utilsShimUri,
       "three": threeShimUri,
       "three/addons/controls/OrbitControls": orbitControlsShimUri,
       "three/addons/controls/OrbitControls.js": orbitControlsShimUri,
@@ -690,38 +733,97 @@ export class VirtualMultiFileBundler {
           const R = window.React;
           function FallbackComponent(props) {
             if (!R || !R.createElement) return null;
+            const p = props || {};
+            if (p.children !== undefined && p.children !== null) {
+              return R.createElement('div', {
+                className: p.className || '',
+                style: { display: 'contents' }
+              }, p.children);
+            }
             return R.createElement('div', {
               style: {
-                padding: '8px 14px',
-                margin: '4px 0',
-                borderRadius: '10px',
+                padding: '4px 10px',
+                margin: '2px',
+                borderRadius: '8px',
                 background: 'rgba(99, 102, 241, 0.08)',
                 border: '1px dashed rgba(99, 102, 241, 0.35)',
                 color: '#818cf8',
-                fontSize: '12px',
+                fontSize: '11px',
                 fontFamily: 'ui-sans-serif, system-ui, sans-serif',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '4px'
               }
-            }, '🧩 [' + ${JSON.stringify(baseName)} + ']');
+            }, '🧩 [' + String(${JSON.stringify(baseName)}) + ']');
           }
 
+          FallbackComponent.displayName = String(${JSON.stringify(baseName)});
+          FallbackComponent.toString = () => String(${JSON.stringify(baseName)});
+          FallbackComponent.valueOf = () => 0;
+          FallbackComponent[Symbol.toPrimitive] = (hint) => (hint === 'number' ? 0 : String(${JSON.stringify(baseName)}));
+
           const makeProxy = (name) => {
-            return new Proxy(FallbackComponent, {
+            const proxy = new Proxy(FallbackComponent, {
               get(target, prop) {
                 if (prop === '__esModule') return true;
-                if (prop === 'default') return FallbackComponent;
-                if (typeof prop === 'string') return makeProxy(prop);
-                return target[prop];
+                if (prop === 'default') return proxy;
+                if (prop === 'then') return undefined;
+
+                if (prop === Symbol.toPrimitive) {
+                  return (hint) => (hint === 'number' ? 0 : String(name));
+                }
+                if (prop === Symbol.iterator) {
+                  return function* () {};
+                }
+                if (prop === Symbol.toStringTag) {
+                  return String(name);
+                }
+                if (typeof prop !== 'string') {
+                  return target[prop];
+                }
+
+                if (prop === 'toString') return () => String(name);
+                if (prop === 'valueOf') return () => 0;
+                if (prop === 'toJSON') return () => ({ name: String(name) });
+                if (prop === 'displayName' || prop === 'name') return String(name);
+
+                if (prop === 'length') return 0;
+                if (prop === 'map') return (fn) => [];
+                if (prop === 'filter') return (fn) => [];
+                if (prop === 'forEach') return (fn) => {};
+                if (prop === 'find') return (fn) => undefined;
+                if (prop === 'findIndex') return (fn) => -1;
+                if (prop === 'some') return (fn) => false;
+                if (prop === 'every') return (fn) => true;
+                if (prop === 'reduce') return (fn, init) => init;
+                if (prop === 'slice') return () => [];
+                if (prop === 'concat') return () => [];
+                if (prop === 'includes') return () => false;
+                if (prop === 'indexOf') return () => -1;
+                if (prop === 'flat') return () => [];
+                if (prop === 'flatMap') return () => [];
+
+                if (prop in target) {
+                  return target[prop];
+                }
+
+                return makeProxy(name + '.' + prop);
               },
               apply(target, thisArg, args) {
-                return FallbackComponent(args && args[0]);
+                const firstArg = args && args[0];
+                if (args && args.length > 0 && typeof firstArg === 'string') {
+                  return args.filter(Boolean).join(' ');
+                }
+                if (firstArg && typeof firstArg === 'object' && !firstArg.$$typeof && !firstArg.children && (firstArg.variant || firstArg.size || firstArg.className)) {
+                  return [name, firstArg.variant, firstArg.size, firstArg.className].filter(Boolean).join(' ');
+                }
+                return FallbackComponent(firstArg);
               },
               construct(target, args) {
                 return makeProxy(name);
               }
             });
+            return proxy;
           };
 
           const stub = makeProxy(${JSON.stringify(baseName)});
@@ -983,7 +1085,7 @@ export class VirtualMultiFileBundler {
       <script>
         (function() {
           function createLucideIcon(iconName) {
-            return function DynamicLucideIcon(props) {
+            function DynamicLucideIcon(props) {
               const p = props || {};
               const size = p.size || p.width || 20;
               const color = p.color || 'currentColor';
@@ -1017,7 +1119,13 @@ export class VirtualMultiFileBundler {
                 className: 'lucide-icon ' + className,
                 ...p
               }, R.createElement('circle', { cx: 12, cy: 12, r: 10 }));
-            };
+            }
+
+            DynamicLucideIcon.displayName = iconName;
+            DynamicLucideIcon.toString = () => iconName;
+            DynamicLucideIcon.valueOf = () => 0;
+            DynamicLucideIcon[Symbol.toPrimitive] = (hint) => (hint === 'number' ? 0 : iconName);
+            return DynamicLucideIcon;
           }
 
           const iconCache = {};
@@ -1029,8 +1137,26 @@ export class VirtualMultiFileBundler {
           };
 
           window.__nonaLucideProxy = new Proxy({}, {
-            get(_, prop) {
-              if (typeof prop !== 'string') return undefined;
+            get(target, prop) {
+              if (prop === '__esModule') return true;
+              if (prop === 'default') return window.__nonaLucideProxy;
+              if (prop === 'then') return undefined;
+
+              if (prop === Symbol.toPrimitive) {
+                return (hint) => (hint === 'number' ? 0 : 'Lucide');
+              }
+              if (prop === Symbol.toStringTag) {
+                return 'Lucide';
+              }
+              if (typeof prop !== 'string') {
+                return target[prop];
+              }
+
+              if (prop === 'toString') return () => 'Lucide';
+              if (prop === 'valueOf') return () => 0;
+              if (prop === 'toJSON') return () => ({ name: 'Lucide' });
+              if (prop === 'displayName' || prop === 'name') return 'Lucide';
+
               return window.__nonaGetLucideIcon(prop);
             }
           });
@@ -1117,33 +1243,54 @@ export class VirtualMultiFileBundler {
     const captureScripts = `
       <script>
         (function() {
+          const formatArg = function(a) {
+            if (a === null) return 'null';
+            if (a === undefined) return 'undefined';
+            if (a instanceof Error || (a && typeof a === 'object' && ('message' in a || 'stack' in a))) {
+              return a.stack || a.message || String(a);
+            }
+            if (typeof a === 'object') {
+              try {
+                const s = JSON.stringify(a);
+                if (s === '{}' && (a.name || a.type || a.target)) {
+                  return (a.name || a.type || 'Object') + (a.detail ? ': ' + JSON.stringify(a.detail) : '');
+                }
+                return s;
+              } catch(e) {
+                return String(a);
+              }
+            }
+            return String(a);
+          };
+
           const _log = console.log;
           const _err = console.error;
           const _warn = console.warn;
           console.log = function(...args) {
             try {
-              window.parent.postMessage({ type: 'NONA_LOG', level: 'info', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+              window.parent.postMessage({ type: 'NONA_LOG', level: 'info', msg: args.map(formatArg).join(' ') }, '*');
             } catch(e) {}
             _log.apply(console, args);
           };
           console.error = function(...args) {
             try {
-              window.parent.postMessage({ type: 'NONA_LOG', level: 'error', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+              window.parent.postMessage({ type: 'NONA_LOG', level: 'error', msg: args.map(formatArg).join(' ') }, '*');
             } catch(e) {}
             _err.apply(console, args);
           };
           console.warn = function(...args) {
             try {
-              window.parent.postMessage({ type: 'NONA_LOG', level: 'warn', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+              window.parent.postMessage({ type: 'NONA_LOG', level: 'warn', msg: args.map(formatArg).join(' ') }, '*');
             } catch(e) {}
             _warn.apply(console, args);
           };
           window.onerror = function(msg, src, lineno, colno, err) {
             try {
+              const errMsg = (err && (err.message || err.stack)) ? String(err.message || err.stack) : (typeof msg === 'object' ? formatArg(msg) : String(msg || 'Error de ejecución'));
               window.parent.postMessage({
                 type: 'SANDBOX_RUNTIME_ERROR',
                 level: 'error',
-                msg: String(msg),
+                msg: errMsg,
                 source: String(src || ''),
                 line: lineno,
                 col: colno,
@@ -1154,7 +1301,7 @@ export class VirtualMultiFileBundler {
           window.addEventListener('unhandledrejection', function(event) {
             try {
               const reason = event.reason;
-              const errTxt = reason ? (reason.message || String(reason)) : 'Promise rechazada sin razón';
+              const errTxt = reason ? (reason.stack || reason.message || formatArg(reason)) : 'Promise rechazada sin razón';
               window.parent.postMessage({
                 type: 'SANDBOX_RUNTIME_ERROR',
                 level: 'error',

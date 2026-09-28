@@ -11,7 +11,8 @@ import {
   Wrench,
   AlertTriangle,
   Server,
-  Zap
+  Zap,
+  X
 } from 'lucide-react';
 import type { FileItem } from '../types';
 import { webContainerService } from '../core/sandbox/WebContainerService';
@@ -38,6 +39,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   const [iframeKey, setIframeKey] = useState(0);
   const [isInspectMode, setIsInspectMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'preview' | 'console'>('preview');
+  const [isErrorDismissed, setIsErrorDismissed] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState<{ type: 'log' | 'warn' | 'error' | 'info'; message: string; time: string }[]>([]);
   const [webContainerUrl, setWebContainerUrl] = useState<string | null>(null);
   const [isContainerBooting, setIsContainerBooting] = useState(false);
@@ -81,10 +83,11 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   }, [filesMap, htmlCode]);
 
   // Reset console logs when preview code changes
-  const [prevHtml, setPrevHtml] = useState(htmlFile);
-  if (prevHtml !== htmlFile) {
-    setPrevHtml(htmlFile);
+  const [prevHash, setPrevHash] = useState(filesHash);
+  if (prevHash !== filesHash) {
+    setPrevHash(filesHash);
     setConsoleLogs([]);
+    setIsErrorDismissed(false);
   }
 
   // WebContainers lifecycle integration
@@ -241,24 +244,44 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     const consoleCaptureScript = `
       <script>
         (function() {
+          const formatArg = function(a) {
+            if (a === null) return 'null';
+            if (a === undefined) return 'undefined';
+            if (a instanceof Error || (a && typeof a === 'object' && ('message' in a || 'stack' in a))) {
+              return a.stack || a.message || String(a);
+            }
+            if (typeof a === 'object') {
+              try {
+                const s = JSON.stringify(a);
+                if (s === '{}' && (a.name || a.type || a.target)) {
+                  return (a.name || a.type || 'Object') + (a.detail ? ': ' + JSON.stringify(a.detail) : '');
+                }
+                return s;
+              } catch(e) {
+                return String(a);
+              }
+            }
+            return String(a);
+          };
+
           const _log = console.log;
           const _err = console.error;
           const _warn = console.warn;
           console.log = function(...args) {
             try {
-              window.parent.postMessage({ type: 'NONA_LOG', level: 'info', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+              window.parent.postMessage({ type: 'NONA_LOG', level: 'info', msg: args.map(formatArg).join(' ') }, '*');
             } catch(e) {}
             _log.apply(console, args);
           };
           console.error = function(...args) {
             try {
-              window.parent.postMessage({ type: 'NONA_LOG', level: 'error', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+              window.parent.postMessage({ type: 'NONA_LOG', level: 'error', msg: args.map(formatArg).join(' ') }, '*');
             } catch(e) {}
             _err.apply(console, args);
           };
           console.warn = function(...args) {
             try {
-              window.parent.postMessage({ type: 'NONA_LOG', level: 'warn', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+              window.parent.postMessage({ type: 'NONA_LOG', level: 'warn', msg: args.map(formatArg).join(' ') }, '*');
             } catch(e) {}
             _warn.apply(console, args);
           };
@@ -269,12 +292,33 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     const runtimeErrorCaptureScript = `
       <script>
         (function() {
+          const formatArg = function(a) {
+            if (a === null) return 'null';
+            if (a === undefined) return 'undefined';
+            if (a instanceof Error || (a && typeof a === 'object' && ('message' in a || 'stack' in a))) {
+              return a.stack || a.message || String(a);
+            }
+            if (typeof a === 'object') {
+              try {
+                const s = JSON.stringify(a);
+                if (s === '{}' && (a.name || a.type || a.target)) {
+                  return (a.name || a.type || 'Object') + (a.detail ? ': ' + JSON.stringify(a.detail) : '');
+                }
+                return s;
+              } catch(e) {
+                return String(a);
+              }
+            }
+            return String(a);
+          };
+
           window.onerror = function(msg, src, lineno, colno, err) {
             try {
+              const errMsg = (err && (err.message || err.stack)) ? String(err.message || err.stack) : (typeof msg === 'object' ? formatArg(msg) : String(msg || 'Error de ejecución'));
               window.parent.postMessage({
                 type: 'SANDBOX_RUNTIME_ERROR',
                 level: 'error',
-                msg: String(msg),
+                msg: errMsg,
                 source: String(src || ''),
                 line: lineno,
                 col: colno,
@@ -285,7 +329,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
           window.addEventListener('unhandledrejection', function(event) {
             try {
               const reason = event.reason;
-              const errTxt = reason ? (reason.message || String(reason)) : 'Promise rechazada sin razón';
+              const errTxt = reason ? (reason.stack || reason.message || formatArg(reason)) : 'Promise rechazada sin razón';
               window.parent.postMessage({
                 type: 'SANDBOX_RUNTIME_ERROR',
                 level: 'error',
@@ -701,7 +745,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
 
       {/* Main Preview Container */}
       <div className="flex-1 p-3 flex items-center justify-center overflow-auto bg-slate-100 relative">
-        {activeTab === 'preview' && errorLogs.length > 0 && (
+        {activeTab === 'preview' && errorLogs.length > 0 && !isErrorDismissed && (
           <div className="absolute top-5 left-5 right-5 bg-rose-950/95 border border-rose-500/70 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between z-40 animate-fade-in text-xs">
             <div className="flex items-center gap-2.5 overflow-hidden">
               <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
@@ -710,13 +754,22 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
                 <p className="text-rose-300 font-mono truncate max-w-md">{errorLogs[errorLogs.length - 1].message}</p>
               </div>
             </div>
-            <button
-              onClick={handleTriggerAutoFix}
-              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 font-bold text-white rounded-xl transition-all shadow-md shrink-0 flex items-center gap-1.5 cursor-pointer ml-3"
-            >
-              <Wrench className="w-3.5 h-3.5" />
-              Auto-Corregir con NONA
-            </button>
+            <div className="flex items-center gap-2 shrink-0 ml-3">
+              <button
+                onClick={handleTriggerAutoFix}
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 font-bold text-white rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                Auto-Corregir con NONA
+              </button>
+              <button
+                onClick={() => setIsErrorDismissed(true)}
+                title="Descartar aviso"
+                className="p-1.5 text-rose-300 hover:text-white hover:bg-rose-900/50 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
 
