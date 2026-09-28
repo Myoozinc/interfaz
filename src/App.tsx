@@ -29,6 +29,8 @@ import { AuthModal } from './components/AuthModal';
 import { DiagnosticsPage } from './components/DiagnosticsPage';
 import { AgentActivityStream } from './components/AgentActivityStream';
 import { DesktopSidebar } from './components/DesktopSidebar';
+import { AdminDashboard } from './components/AdminDashboard';
+import { telemetryService } from './services/telemetryService';
 import type { FileItem, ProjectRecord, ProjectTemplate, UserCredits, UserAccount, ChatMessage, ChatAttachment } from './types';
 import type { FullStackProject } from './core/types';
 import { projectStore } from './services/projectStore';
@@ -39,6 +41,58 @@ import { creditLedger } from './core/credits/CreditLedger';
 import { ensureCompleteViteProject } from './core/sandbox/ProjectStructureDefaults';
 
 export function App() {
+  // Check if current URL route matches /admin, #/admin, or ?admin
+  const checkIsAdminPath = () => {
+    if (typeof window === 'undefined') return false;
+    const p = window.location.pathname.toLowerCase();
+    const h = window.location.hash.toLowerCase();
+    const s = window.location.search.toLowerCase();
+    return p === '/admin' || p.startsWith('/admin/') || h === '#/admin' || h.startsWith('#/admin') || s.includes('admin');
+  };
+
+  const [isAdminView, setIsAdminView] = useState<boolean>(checkIsAdminPath);
+
+  // Initialize real telemetry and listen to route / popstate / hash changes
+  useEffect(() => {
+    telemetryService.init();
+
+    const handleUrlChange = () => {
+      setIsAdminView(checkIsAdminPath());
+    };
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+
+    // Secret shortcut: Ctrl + Alt + A (or Cmd + Option + A) toggles admin
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        setIsAdminView(prev => {
+          const next = !prev;
+          if (next) {
+            window.history.pushState(null, '', '/admin');
+          } else {
+            window.history.pushState(null, '', '/');
+          }
+          return next;
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const handleExitAdmin = () => {
+    setIsAdminView(false);
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', '/');
+    }
+  };
+
   const [viewMode, setViewMode] = useState<'chat' | 'split' | 'preview' | 'editor'>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
@@ -400,6 +454,9 @@ export function App() {
     });
     const blob = await zip.generateAsync({ type: 'blob' });
     saveAs(blob, `${projectName.toLowerCase().replace(/\s+/g, '-')}-nona.zip`);
+    telemetryService.trackEvent('export_zip', `Descarga de proyecto ZIP: ${projectName}`, {
+      fileCount: files.length
+    });
   };
 
   const handleSendMessage = async (
@@ -419,6 +476,12 @@ export function App() {
     }
 
     const executionMode: 'chat' | 'builder' = modeOverride || (viewMode === 'chat' ? 'chat' : 'builder');
+
+    telemetryService.trackEvent('prompt_submit', `Prompt enviado: "${promptToSend.slice(0, 80)}"`, {
+      length: promptToSend.length,
+      mode: executionMode,
+      model: customModel
+    });
 
     if (!handleDeductCredit(5)) {
       alert('⚠️ No tienes suficientes créditos para esta generación (requiere 5 créditos).');
@@ -503,6 +566,19 @@ export function App() {
         }));
         setFiles(updatedFileList);
 
+        // Vault backup: backup of generated app ("un resguardo de lo que genere")
+        telemetryService.backupGeneration(
+          promptToSend,
+          projectName || 'Proyecto Generado',
+          updatedFileList,
+          0
+        );
+        telemetryService.trackEvent('generation_success', `Generación exitosa: ${projectName}`, {
+          fileCount: updatedFileList.length,
+          intent: result.intent.type,
+          prompt: promptToSend.slice(0, 100)
+        });
+
         // Always switch to split view so the user immediately sees the interactive app in Live Preview!
         setViewMode('split');
         setWorkspaceCenterTab('preview');
@@ -535,6 +611,10 @@ export function App() {
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         creditLedger.refundCredits(5, 'Reembolso por fallo en generación');
+        telemetryService.trackEvent('generation_error', `Error en generación: ${err.message}`, {
+          prompt: promptToSend.slice(0, 100),
+          error: err.message
+        });
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantPlaceholderId
@@ -566,6 +646,10 @@ export function App() {
       setFiles(prev => prev.map((f, i) => i === htmlIndex ? { ...f, content: updated, isModified: true } : f));
     }
   };
+
+  if (isAdminView) {
+    return <AdminDashboard onBackToApp={handleExitAdmin} />;
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-50 text-slate-900 overflow-hidden font-sans select-none">
