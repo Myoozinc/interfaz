@@ -46,6 +46,14 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
 const QUALITY_RULES = `CALIDAD:
 - Usa EXACTAMENTE los nombres, textos, colores y estilo que pide el usuario (si pide que se llame "X", la app se llama "X").
 - Interfaz moderna y cuidada: jerarquía tipográfica clara, espaciado generoso, estados hover/activos, diseño responsive (móvil y escritorio).
+DISEÑO VISUAL (obligatorio):
+- Elige UNA paleta coherente con el tema pedido: 1 color de fondo, 1 superficie para tarjetas, 1 color de acento y un texto principal + uno secundario. Si el usuario pide colores o estética, respétalos.
+- CONTRASTE LEGIBLE SIEMPRE: el fondo de la app lo defines tú en el contenedor raíz (ej. min-h-screen bg-slate-50 text-slate-900, o bg-slate-950 text-slate-100). Nunca texto claro sobre fondo claro ni oscuro sobre oscuro; revisa títulos, botones, inputs y placeholders.
+- Estructura: encabezado con el nombre de la app, contenido centrado (max-w-5xl mx-auto px-4 sm:px-6), tarjetas rounded-2xl con borde sutil o sombra suave, separación consistente (gap-4/gap-6).
+- Tipografía: título grande y en negrita (text-3xl sm:text-4xl font-bold tracking-tight), subtítulos medianos, texto secundario más tenue; cifras importantes grandes.
+- Botones claros: el principal con el color de acento, estados hover/disabled, y un icono de lucide-react cuando ayude.
+- Inputs con etiqueta o placeholder visible, borde, foco resaltado (focus:ring-2) y fondo que contraste con su texto.
+- Estados vacíos amables (icono + frase + acción) y estados de carga visibles.
 - Todo debe funcionar de verdad: nada de botones decorativos, "TODO", "lorem ipsum" ni funciones vacías. La interacción principal (mover una pieza, enviar un mensaje, añadir un elemento) debe funcionar al primer intento.
 - En juegos de tablero distingue visualmente los dos bandos (colores de pieza distintos) y resalta la selección y los movimientos posibles.
 - Código organizado en varios archivos pequeños (componentes en src/components/, lógica en src/hooks/ o src/lib/), tipado con TypeScript.
@@ -263,12 +271,68 @@ function ensureRuntimeHelpers(files: Record<string, string>) {
 }
 
 
+type RGBA = [number, number, number, number];
+const parseColor = (c: string): RGBA | null => {
+  const m = c.match(/rgba?\(([^)]+)\)/);
+  if (!m) return null;
+  const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+  return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
+};
+const luminance = ([r, g, b]: RGBA) => {
+  const f = (v: number) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+};
+const contrast = (a: RGBA, b: RGBA) => {
+  const [l1, l2] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (l1 + 0.05) / (l2 + 0.05);
+};
+
+/** Busca textos visibles casi ilegibles (contraste < 2:1 contra su fondo real). */
+function scanContrast(doc: Document | null, win: Window | null): string[] {
+  if (!doc || !win) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const els = Array.from(doc.querySelectorAll('#root *')).slice(0, 1500) as HTMLElement[];
+  for (const el of els) {
+    if (out.length >= 6) break;
+    const text = Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent || '').join('').trim();
+    if (text.length < 2) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) continue;
+    const cs = win.getComputedStyle(el);
+    if (cs.visibility === 'hidden' || Number(cs.opacity) < 0.3) continue;
+    if (cs.backgroundClip === 'text' || cs.webkitTextFillColor === 'transparent') continue;
+    const fg = parseColor(cs.color);
+    if (!fg || fg[3] < 0.5) continue;
+    let bg: RGBA | null = null;
+    let node: HTMLElement | null = el;
+    let skip = false;
+    while (node) {
+      const ns = win.getComputedStyle(node);
+      if (ns.backgroundImage && ns.backgroundImage !== 'none') { skip = true; break; }
+      const c = parseColor(ns.backgroundColor);
+      if (c && c[3] >= 0.6) { bg = c; break; }
+      node = node.parentElement;
+    }
+    if (skip) continue;
+    if (!bg) bg = [255, 255, 255, 1];
+    const ratio = contrast(fg, bg);
+    if (ratio < 2) {
+      const key = `${cs.color}|${bg.join(',')}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(`Texto casi ilegible (contraste ${ratio.toFixed(1)}:1) en <${el.tagName.toLowerCase()} class="${(el.className || '').toString().slice(0, 80)}">: "${text.slice(0, 40)}" — color ${cs.color} sobre fondo rgb(${bg.slice(0, 3).join(', ')})`);
+    }
+  }
+  return out;
+}
+
 /**
  * Ejecuta la app en un iframe oculto (mismo empaquetador que la vista previa) y devuelve los errores
  * de arranque: imports inexistentes, exports incorrectos de librerías, excepciones al renderizar, etc.
  * Solo funciona en el navegador; en Node devuelve [].
  */
-export async function runtimeCheck(files: Record<string, string>, timeoutMs = 7000): Promise<string[]> {
+export async function runtimeCheck(files: Record<string, string>, timeoutMs = 7000, design?: string[]): Promise<string[]> {
   if (typeof document === 'undefined' || typeof window === 'undefined') return [];
   const hasReact = Object.keys(files).some(p => /\.(tsx|jsx)$/.test(p));
   if (!hasReact) return [];
@@ -297,6 +361,9 @@ export async function runtimeCheck(files: Record<string, string>, timeoutMs = 70
     const finish = () => {
       if (settled) return;
       settled = true;
+      if (design && errors.length === 0) {
+        try { design.push(...scanContrast(iframe.contentDocument, iframe.contentWindow)); } catch {}
+      }
       window.removeEventListener('message', onMsg);
       clearInterval(poll);
       clearTimeout(hard);
@@ -455,6 +522,25 @@ export class AppBuilderAgent {
       if (staticProblems.length > 0) {
         throw new Error(`La corrección introdujo errores:\n- ${staticProblems.slice(0, 4).join('\n- ')}`);
       }
+    }
+
+    // Revisión visual automática (no bloqueante): si hay textos ilegibles, una ronda de corrección de diseño.
+    try {
+      const design: string[] = [];
+      await runtimeCheck(files, 7000, design);
+      if (design.length > 0) {
+        onProgress(`${label}\n🎨 Ajustando el contraste (${design.length} texto(s) poco legibles)…`, true);
+        const user = `La app funciona, pero la revisión visual encontró textos casi ilegibles:\n- ${design.join('\n- ')}\n\nCorrige SOLO los colores (clases de Tailwind) para que todo el texto tenga buen contraste con su fondo. No cambies la funcionalidad ni la estructura.\n\nARCHIVOS DEL PROYECTO:\n${filesAsContext(files, 100000)}`;
+        const fix = await this.askWithRetry(REPAIR_SYSTEM, user, 12000, onProgress, label, opts?.signal);
+        const candidate = { ...files, ...fix.files };
+        ensureRuntimeHelpers(candidate);
+        if (validateProject(candidate).length === 0 && (await runtimeCheck(candidate)).length === 0) {
+          Object.assign(files, fix.files);
+        }
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e;
+      // La revisión de diseño nunca debe impedir entregar una app que funciona.
     }
 
     const changedPaths = Object.keys(files).filter(p => files[p] !== current[p]);
