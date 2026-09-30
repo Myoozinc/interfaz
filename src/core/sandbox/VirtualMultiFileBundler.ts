@@ -9,6 +9,9 @@
 import { transform } from 'sucrase';
 import { NONA_BADGE_HTML } from './ProjectStructureDefaults';
 
+export const THREE_VERSION = '0.170.0';
+const THREE_ESM = `https://esm.sh/three@${THREE_VERSION}`;
+
 export interface BundlerResult {
   srcDoc: string;
   transpiledFilesCount: number;
@@ -491,33 +494,7 @@ export class VirtualMultiFileBundler {
     `;
     const reactJsxRuntimeShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(reactJsxRuntimeShimCode);
 
-    const threeShimCode = `
-      const T = window.THREE || {};
-      export default T;
-      export const {
-        Scene, PerspectiveCamera, OrthographicCamera, WebGLRenderer,
-        BoxGeometry, SphereGeometry, CylinderGeometry, ConeGeometry,
-        TorusGeometry, PlaneGeometry, RingGeometry, DodecahedronGeometry,
-        BufferGeometry, Float32BufferAttribute, BufferAttribute,
-        MeshStandardMaterial, MeshBasicMaterial, MeshPhysicalMaterial,
-        MeshLambertMaterial, MeshDepthMaterial, PointsMaterial,
-        Mesh, Points, Line, Group, Color, Vector2, Vector3, Vector4,
-        Matrix3, Matrix4, Quaternion, Euler, Raycaster, Clock,
-        DirectionalLight, AmbientLight, PointLight, SpotLight, HemisphereLight,
-        TextureLoader, PCFSoftShadowMap, Fog, FogExp2, AdditiveBlending
-      } = T;
-    `;
-    const threeShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(threeShimCode);
 
-    const orbitControlsShimCode = `
-      const OC = (window.THREE && window.THREE.OrbitControls) || window.OrbitControls || function(cam, dom) {
-        this.update = function() {};
-        this.dispose = function() {};
-      };
-      export const OrbitControls = OC;
-      export default OC;
-    `;
-    const orbitControlsShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(orbitControlsShimCode);
 
     const clsxShimCode = `
       export function clsx(...inputs) {
@@ -557,11 +534,6 @@ export class VirtualMultiFileBundler {
     `;
     const confettiShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(confettiShimCode);
 
-    const toneShimCode = `
-      const T = window.Tone || {};
-      export default T;
-    `;
-    const toneShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(toneShimCode);
 
     const lucideReactShimCode = `
       // https://esm.sh/lucide-react
@@ -695,14 +667,11 @@ export class VirtualMultiFileBundler {
       "./utils": utilsShimUri,
       "../utils": utilsShimUri,
       "utils": utilsShimUri,
-      "three": threeShimUri,
-      "three/addons/controls/OrbitControls": orbitControlsShimUri,
-      "three/addons/controls/OrbitControls.js": orbitControlsShimUri,
-      "three/examples/jsm/controls/OrbitControls": orbitControlsShimUri,
-      "three/examples/jsm/controls/OrbitControls.js": orbitControlsShimUri,
-      "three-stdlib": orbitControlsShimUri,
+      // three.js y Tone.js completos (misma versión que el package.json exportado). Antes eran shims recortados
+      // sobre la versión global r128: "import * as THREE from 'three'" solo exponía ~50 clases y Tone ninguna.
+      "three": THREE_ESM,
       "canvas-confetti": confettiShimUri,
-      "tone": toneShimUri,
+      "tone": "https://esm.sh/tone@14.8.49",
       "vexflow": "https://esm.sh/vexflow@4.2.5?external=react,react-dom",
       "howler": "https://esm.sh/howler@2.2.4",
       "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
@@ -922,9 +891,14 @@ export class VirtualMultiFileBundler {
       } else if (spec === 'cannon-es') {
         importMap[spec] = 'https://esm.sh/cannon-es@0.20.0';
       } else if (spec === 'tone') {
-        importMap[spec] = toneShimUri;
+        importMap[spec] = 'https://esm.sh/tone@14.8.49';
       } else if (spec === 'three') {
-        importMap[spec] = threeShimUri;
+        importMap[spec] = THREE_ESM;
+      } else if (spec.startsWith('three/')) {
+        // Addons oficiales: three/addons/x -> three/examples/jsm/x(.js), compartiendo la misma instancia de three
+        let sub = spec.slice('three/'.length).replace(/^addons\//, 'examples/jsm/');
+        if (!/\.(m?js)$/.test(sub)) sub += '.js';
+        importMap[spec] = `https://esm.sh/three@${THREE_VERSION}/${sub}?external=three`;
       } else if (spec === 'canvas-confetti') {
         importMap[spec] = confettiShimUri;
       } else if (spec.startsWith('date-fns')) {
@@ -936,7 +910,8 @@ export class VirtualMultiFileBundler {
       } else if (spec.startsWith('zustand')) {
         importMap[spec] = 'https://esm.sh/' + spec + '?external=react';
       } else {
-        importMap[spec] = 'https://esm.sh/' + spec + (spec.includes('?') ? '' : '?external=react,react-dom');
+        // external=three: librerías que dependen de three (three-stdlib, @react-three/*) usan la misma instancia
+        importMap[spec] = 'https://esm.sh/' + spec + (spec.includes('?') ? '' : '?external=react,react-dom,three');
       }
     }
 
