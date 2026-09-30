@@ -13,6 +13,7 @@ import {
 import { GitHubIcon } from './icons/GitHubIcon';
 import type { FileItem } from '../types';
 import { gitHubService, type GitHubUserProfile } from '../core/services/GitHubService';
+import { ensureCompleteViteProject } from '../core/sandbox/ProjectStructureDefaults';
 
 interface GitHubExportModalProps {
   isOpen: boolean;
@@ -103,11 +104,21 @@ export const GitHubExportModal: React.FC<GitHubExportModalProps> = ({
 
       // 2. Subir todos los archivos
       setExportProgressText('Subiendo archivos del proyecto y componentes...');
+      // Proyecto completo y ejecutable (package.json con dependencias reales, vite, index.html, README)
+      const record: Record<string, string> = {};
+      files.forEach(f => { record[f.name.replace(/^\/+/, '')] = f.content; });
+      const complete = ensureCompleteViteProject(record);
+      const exportFiles: FileItem[] = Object.entries(complete).map(([name, content], i) => ({
+        id: String(i + 1),
+        name,
+        content,
+        language: (name.endsWith('.tsx') || name.endsWith('.ts') ? 'typescript' : name.endsWith('.css') ? 'css' : name.endsWith('.json') ? 'json' : name.endsWith('.md') ? 'markdown' : name.endsWith('.html') ? 'html' : 'javascript') as any,
+      }));
       const pushResult = await gitHubService.pushFiles(
         token,
         userProfile.login,
         repoResult.name,
-        files,
+        exportFiles,
         commitMessage,
         (status) => setExportProgressText(status)
       );

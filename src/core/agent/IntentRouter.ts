@@ -30,7 +30,6 @@ export class IntentRouter {
 
     // Check if current code is the default placeholder or starter template
     const isStarterOrPlaceholder = !currentCode ||
-      currentCode.includes('AURA.store') ||
       currentCode.includes('Lienzo Listo') ||
       currentCode.trim().length < 30;
 

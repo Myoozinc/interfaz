@@ -17,7 +17,7 @@ import {
 import type { FileItem } from '../types';
 import { webContainerService } from '../core/sandbox/WebContainerService';
 import { VirtualMultiFileBundler } from '../core/sandbox/VirtualMultiFileBundler';
-import { ensureCompleteViteProject } from '../core/sandbox/ProjectStructureDefaults';
+import { ensureCompleteViteProject, injectNonaBadge } from '../core/sandbox/ProjectStructureDefaults';
 
 export interface ElementSelectionInfo {
   tagName: string;
@@ -546,7 +546,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
 </html>`;
     }
 
-    return compiled;
+    return injectNonaBadge(compiled);
   }, [htmlFile, filesMap, isInspectMode]);
 
   // Handle postMessage logs, runtime errors, and element inspection from iframe
@@ -792,7 +792,8 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
                 src={activeIframeSrc}
                 srcDoc={activeIframeSrcDoc}
                 className="w-full h-full border-none bg-white flex-1"
-                sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
+                sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox allow-pointer-lock"
+                allow="camera; microphone; display-capture; fullscreen; clipboard-read; clipboard-write; autoplay; geolocation; gamepad; screen-wake-lock"
                 // @ts-ignore
                 credentialless="true"
               />
@@ -808,7 +809,8 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
                 src={activeIframeSrc}
                 srcDoc={activeIframeSrcDoc}
                 className="w-full h-full border-none bg-white flex-1"
-                sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
+                sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox allow-pointer-lock"
+                allow="camera; microphone; display-capture; fullscreen; clipboard-read; clipboard-write; autoplay; geolocation; gamepad; screen-wake-lock"
                 // @ts-ignore
                 credentialless="true"
               />

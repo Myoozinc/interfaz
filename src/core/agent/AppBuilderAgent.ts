@@ -69,6 +69,20 @@ const FORMAT_RULES = `FORMATO DE RESPUESTA (obligatorio, nada fuera de esto):
 </file>
 Para borrar un archivo: <delete path="ruta/del/archivo.tsx" />`;
 
+const PATCH_RULES = `PARCHES (para archivos existentes de más de ~120 líneas, OBLIGATORIO en vez de reescribirlos):
+<edit path="index.html">
+<search>
+líneas EXACTAS que ya existen en el archivo (copiadas carácter por carácter, 2-12 líneas, que aparezcan una sola vez)
+</search>
+<replace>
+las líneas nuevas que las sustituyen
+</replace>
+</edit>
+- Puedes poner varios bloques <search>/<replace> dentro del mismo <edit>, y varios <edit>.
+- Para AÑADIR código, usa como <search> una línea existente cercana y repítela en <replace> junto al código nuevo.
+- Nunca pongas "..." ni resúmenes dentro de <search>: debe coincidir exactamente con el archivo actual.
+- Archivos pequeños o nuevos: devuélvelos completos con <file>.`;
+
 const BUILD_SYSTEM = `Eres NONA, un ingeniero senior de front-end que construye aplicaciones web completas a partir de una descripción, como Lovable o bolt.new.
 
 ${RUNTIME_RULES}
@@ -80,24 +94,33 @@ ${FORMAT_RULES}`;
 const EDIT_SYSTEM = `Eres NONA, un ingeniero senior de front-end. Estás MODIFICANDO una aplicación que ya existe. Recibirás todos sus archivos actuales.
 
 REGLAS DE EDICIÓN:
-- Aplica exactamente el cambio pedido y conserva todo lo demás (funcionalidad, estructura y estilo que no se pidió cambiar).
-- Devuelve SOLO los archivos que cambian o que creas, y cada uno COMPLETO (nunca fragmentos, nunca "// resto igual").
-- Si el proyecto es un único "index.html", edita y devuelve ese index.html completo.
-- Si un cambio afecta a varios archivos (por ejemplo un nombre que aparece en varios sitios), devuélvelos todos.
+- Aplica exactamente el cambio pedido y conserva todo lo demás (funcionalidad, estructura y estilo que no se pidió cambiar). NUNCA sustituyas la app por otra distinta.
+- Cambia solo lo necesario: archivos grandes con parches <edit>; archivos pequeños o nuevos completos con <file> (nunca fragmentos ni "// resto igual" dentro de <file>).
+- Si un cambio afecta a varios archivos (por ejemplo un nombre que aparece en varios sitios), cámbialos todos.
+- Si te piden corregir errores, busca la causa en el código y arréglala sin rehacer la app.
 
 ${RUNTIME_RULES}
 
 ${QUALITY_RULES}
 
-${FORMAT_RULES}`;
+${FORMAT_RULES}
 
-const REPAIR_SYSTEM = `Eres NONA. La aplicación que generaste tiene errores que impiden que se ejecute. Corrígelos.
-- Devuelve COMPLETOS los archivos que corrijas y crea los archivos que falten.
+${PATCH_RULES}`;
+
+const REPAIR_SYSTEM = `Eres NONA. La aplicación tiene errores que impiden que se ejecute. Corrígelos.
+- Arregla la causa con parches <edit> (archivos grandes) o devolviendo completos los archivos pequeños; crea los archivos que falten.
 - No cambies el diseño ni la funcionalidad: solo arregla los errores.
 
 ${RUNTIME_RULES}
 
-${FORMAT_RULES}`;
+${FORMAT_RULES}
+
+${PATCH_RULES}`;
+
+/** Reglas extra cuando el proyecto es una app HTML de un solo archivo (plantillas y apps antiguas). */
+const HTML_PROJECT_RULES = `ESTE PROYECTO ES UNA APP HTML (index.html con JavaScript y CSS dentro): mantén ese formato.
+- NO crees archivos .tsx/.jsx ni src/App.tsx: edita index.html con parches <edit>.
+- Las librerías se cargan con <script src="https://cdn..."> como ya hace el archivo.`;
 
 const languageOf = (path: string): string => {
   if (/\.(tsx|ts)$/.test(path)) return 'typescript';
@@ -118,11 +141,66 @@ const stripFences = (code: string) => {
   return c + '\n';
 };
 
+interface Patch { path: string; search: string; replace: string }
+
 interface Parsed {
   summary: string;
   files: Record<string, string>;
   deletes: string[];
   incomplete: string[];
+  edits: Patch[];
+}
+
+const hasOutput = (p: Parsed) => Object.keys(p.files).length > 0 || p.deletes.length > 0 || p.edits.length > 0;
+
+/** Busca `search` en `content`: exacto, luego ignorando espacios finales, luego ignorando la sangría. */
+function locate(content: string, search: string): { start: number; end: number } | null {
+  if (!search.trim()) return null;
+  const exact = content.indexOf(search);
+  if (exact !== -1) return { start: exact, end: exact + search.length };
+
+  const lines = content.split('\n');
+  const want = search.replace(/\n+$/, '').split('\n');
+  const norms: Array<(s: string) => string> = [s => s.replace(/\s+$/, ''), s => s.trim()];
+  for (const norm of norms) {
+    const w = want.map(norm);
+    while (w.length && w[0] === '') w.shift();
+    while (w.length && w[w.length - 1] === '') w.pop();
+    if (w.length === 0) continue;
+    const hits: number[] = [];
+    for (let i = 0; i + w.length <= lines.length; i++) {
+      let ok = true;
+      for (let j = 0; j < w.length; j++) if (norm(lines[i + j]) !== w[j]) { ok = false; break; }
+      if (ok) hits.push(i);
+    }
+    if (hits.length >= 1) {
+      const i = hits[0];
+      const start = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0);
+      const end = start + lines.slice(i, i + w.length).join('\n').length;
+      return { start, end };
+    }
+  }
+  return null;
+}
+
+/** Aplica parches y devuelve los problemas (bloques que no coinciden). */
+function applyPatches(files: Record<string, string>, edits: Patch[]): string[] {
+  const problems: string[] = [];
+  for (const e of edits) {
+    const content = files[e.path];
+    if (content === undefined) {
+      problems.push(`Parche para "${e.path}", pero ese archivo no existe. Devuélvelo completo con <file>.`);
+      continue;
+    }
+    const at = locate(content, e.search);
+    if (!at) {
+      const preview = e.search.trim().split('\n').slice(0, 2).join(' ⏎ ').slice(0, 120);
+      problems.push(`En "${e.path}" no se encontró el bloque <search> que empieza por: ${preview}. Copia las líneas EXACTAS del archivo actual.`);
+      continue;
+    }
+    files[e.path] = content.slice(0, at.start) + e.replace.replace(/\n+$/, '') + content.slice(at.end);
+  }
+  return problems;
 }
 
 export function parseBuilderOutput(raw: string): Parsed {
@@ -148,13 +226,33 @@ export function parseBuilderOutput(raw: string): Parsed {
   const delRe = /<delete\s+path\s*=\s*["']([^"']+)["']\s*\/?>/gi;
   while ((m = delRe.exec(text)) !== null) deletes.push(normPath(m[1]));
 
+  // Parches <edit path="..."><search>…</search><replace>…</replace></edit>
+  const edits: Patch[] = [];
+  const editRe = /<edit\s+path\s*=\s*["']([^"']+)["']\s*>([\s\S]*?)<\/edit>/gi;
+  while ((m = editRe.exec(text)) !== null) {
+    const path = normPath(m[1]);
+    const pairRe = /<search>\n?([\s\S]*?)\n?<\/search>\s*<replace>\n?([\s\S]*?)\n?<\/replace>/gi;
+    let pm: RegExpExecArray | null;
+    while ((pm = pairRe.exec(m[2])) !== null) edits.push({ path, search: pm[1], replace: pm[2] });
+  }
+  const openEdit = text.slice(text.lastIndexOf('</edit>') + 1).match(/<edit\s+path\s*=\s*["']([^"']+)["']\s*>/i);
+  if (openEdit && !/<\/edit>\s*$/.test(text.trim())) incomplete.push(normPath(openEdit[1]) + ' (parche)');
+
   // Respaldo: bloques markdown con la ruta en la línea de info (```tsx src/App.tsx)
-  if (Object.keys(files).length === 0) {
+  if (Object.keys(files).length === 0 && edits.length === 0) {
     const md = /```[\w-]*\s+([\w./-]+\.(?:tsx|ts|jsx|js|css|html))\s*\n([\s\S]*?)```/g;
     while ((m = md.exec(text)) !== null) files[normPath(m[1])] = m[2].replace(/\s+$/, '') + '\n';
   }
 
-  return { summary, files, deletes, incomplete };
+  return { summary, files, deletes, incomplete, edits };
+}
+
+/** Aplica al proyecto todo lo que devolvió la IA (archivos, parches y borrados). */
+function applyParsed(files: Record<string, string>, parsed: Parsed): string[] {
+  Object.assign(files, parsed.files);
+  const problems = applyPatches(files, parsed.edits);
+  for (const d of parsed.deletes) delete files[d];
+  return problems;
 }
 
 const CODE_EXT = /\.(tsx|ts|jsx|js|mjs)$/;
@@ -188,6 +286,30 @@ export function validateProject(files: Record<string, string>): string[] {
     if (app && !/export\s+default/.test(app)) problems.push('"src/App.tsx" no tiene "export default".');
   } else if (!files['index.html']) {
     problems.push('El proyecto no contiene "src/App.tsx" ni "index.html".');
+  }
+
+  // Scripts dentro de archivos HTML (plantillas y apps de un solo archivo)
+  for (const [path, html] of Object.entries(files)) {
+    if (!path.endsWith('.html')) continue;
+    const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+    let sm: RegExpExecArray | null;
+    let n = 0;
+    while ((sm = scriptRe.exec(html)) !== null) {
+      const attrs = sm[1];
+      const body = sm[2];
+      if (/\bsrc\s*=/.test(attrs) || !body.trim()) continue;
+      if (/type\s*=\s*["'](?:importmap|application\/json|application\/ld\+json|text\/(?:template|x-template|plain|babel|tailwindcss))["']/i.test(attrs)) continue;
+      n++;
+      const line = html.slice(0, sm.index).split('\n').length;
+      if (/type\s*=\s*["']module["']/i.test(attrs)) {
+        const err = VirtualMultiFileBundler.checkSyntax(body, 'inline-module.ts');
+        if (err) problems.push(`Error de sintaxis en el <script type="module"> nº${n} de "${path}" (empieza en la línea ${line}): ${err}`);
+      } else {
+        try { new Function(body); } catch (e: any) {
+          problems.push(`Error de sintaxis en el <script> nº${n} de "${path}" (empieza en la línea ${line}): ${String(e?.message || e).slice(0, 200)}`);
+        }
+      }
+    }
   }
 
   for (const [path, code] of Object.entries(files)) {
@@ -292,7 +414,8 @@ function scanContrast(doc: Document | null, win: Window | null): string[] {
   if (!doc || !win) return [];
   const out: string[] = [];
   const seen = new Set<string>();
-  const els = Array.from(doc.querySelectorAll('#root *')).slice(0, 1500) as HTMLElement[];
+  const scope = doc.getElementById('root') ? '#root *' : 'body *';
+  const els = Array.from(doc.querySelectorAll(scope)).filter(e => !(e as HTMLElement).closest?.('#nona-badge')).slice(0, 1500) as HTMLElement[];
   for (const el of els) {
     if (out.length >= 6) break;
     const text = Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent || '').join('').trim();
@@ -335,9 +458,20 @@ function scanContrast(doc: Document | null, win: Window | null): string[] {
 export async function runtimeCheck(files: Record<string, string>, timeoutMs = 7000, design?: string[]): Promise<string[]> {
   if (typeof document === 'undefined' || typeof window === 'undefined') return [];
   const hasReact = Object.keys(files).some(p => /\.(tsx|jsx)$/.test(p));
-  if (!hasReact) return [];
   let srcDoc = '';
-  try { srcDoc = VirtualMultiFileBundler.bundle(files).srcDoc; } catch (e: any) { return [`Error al empaquetar: ${e?.message || e}`]; }
+  if (hasReact) {
+    try { srcDoc = VirtualMultiFileBundler.bundle(files).srcDoc; } catch (e: any) { return [`Error al empaquetar: ${e?.message || e}`]; }
+  } else if (files['index.html']) {
+    // App HTML de un solo archivo: se ejecuta tal cual con un capturador de errores al inicio del <head>.
+    const capture = `<script>(function(){function s(m){try{parent.postMessage({type:'SANDBOX_RUNTIME_ERROR',level:'error',msg:String(m)},'*')}catch(e){}}
+window.addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&t.tagName){if(t.tagName==='SCRIPT')s('No se pudo cargar el script '+(t.src||''));return;}s((e.message||'Error')+(e.lineno?' (línea '+e.lineno+')':''));},true);
+window.addEventListener('unhandledrejection',function(e){var r=e.reason;s('Promesa rechazada: '+(r&&(r.message||r)));});
+var ce=console.error;console.error=function(){s([].map.call(arguments,function(a){return a&&a.message?a.message:String(a)}).join(' '));ce.apply(console,arguments);};})();</script>`;
+    const html = files['index.html'];
+    srcDoc = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, m => m + capture) : capture + html;
+  } else {
+    return [];
+  }
 
   return new Promise(resolve => {
     const errors: string[] = [];
@@ -380,7 +514,8 @@ export async function runtimeCheck(files: Record<string, string>, timeoutMs = 70
     let renderedAt = 0;
     const poll = setInterval(() => {
       try {
-        const root = iframe.contentDocument?.getElementById('root');
+        const doc = iframe.contentDocument;
+        const root = hasReact ? doc?.getElementById('root') : doc?.body;
         if (!renderedAt && root && root.innerHTML.trim().length > 0) renderedAt = Date.now();
       } catch {}
       if (errors.length > 0 && Date.now() - started > 1500) finish();
@@ -416,11 +551,12 @@ export class AppBuilderAgent {
     return this.ai.streamChat(
       [{ role: 'system', content: system }, { role: 'user', content: user }],
       (_t, full) => {
-        const re = /<file\s+path\s*=\s*["']([^"']+)["']/gi;
+        const re = /<(file|edit)\s+path\s*=\s*["']([^"']+)["']/gi;
         let m: RegExpExecArray | null;
         while ((m = re.exec(full)) !== null) {
-          const p = normPath(m[1]);
-          if (!seen.has(p)) { seen.add(p); onProgress(`${label}\n✍️ Escribiendo ${p}…`, true); }
+          const p = normPath(m[2]);
+          const key = m[1] + p;
+          if (!seen.has(key)) { seen.add(key); onProgress(`${label}\n✍️ ${m[1] === 'edit' ? 'Editando' : 'Escribiendo'} ${p}…`, true); }
         }
       },
       { signal, model: 'auto', maxTokens, temperature: 0.2 }
@@ -436,8 +572,8 @@ export class AppBuilderAgent {
         if (i > 0) onProgress(`${label}\n🔁 Reintentando con otro modelo (${lastErr.slice(0, 80)})…`, true);
         const raw = await this.ask(system, user, maxTokens, onProgress, label, signal);
         const parsed = parseBuilderOutput(raw);
-        if (Object.keys(parsed.files).length === 0 && parsed.deletes.length === 0) {
-          lastErr = 'la IA no devolvió archivos';
+        if (!hasOutput(parsed)) {
+          lastErr = 'la IA no devolvió archivos ni parches';
           continue;
         }
         return parsed;
@@ -465,12 +601,21 @@ export class AppBuilderAgent {
 
     let parsed: Parsed;
     let files: Record<string, string>;
+    let patchProblems: string[] = [];
+    const isHtmlProject = isEdit && !!current['index.html'] && !Object.keys(current).some(p => /\.(tsx|jsx)$/.test(p));
 
     if (isEdit) {
-      const user = `${history ? `CONVERSACIÓN RECIENTE:\n${history}\n\n` : ''}ARCHIVOS ACTUALES DEL PROYECTO:\n${filesAsContext(current)}\n\nCAMBIO PEDIDO POR EL USUARIO:\n"${instruction}"`;
-      parsed = await this.askWithRetry(EDIT_SYSTEM, user, 14000, onProgress, label, opts?.signal);
-      files = { ...current, ...parsed.files };
-      for (const d of parsed.deletes) delete files[d];
+      const lines = (s: string) => s.split('\n').length;
+      const tree = Object.entries(current).map(([p, c]) => `- ${p} (${lines(c)} líneas${lines(c) > 120 ? ' → usa <edit>' : ''})`).join('\n');
+      const system = isHtmlProject ? `${EDIT_SYSTEM}\n\n${HTML_PROJECT_RULES}` : EDIT_SYSTEM;
+      const user = `${history ? `CONVERSACIÓN RECIENTE:\n${history}\n\n` : ''}ARCHIVOS DEL PROYECTO:\n${tree}\n\nCONTENIDO ACTUAL:\n${filesAsContext(current)}\n\nCAMBIO PEDIDO POR EL USUARIO:\n"${instruction}"`;
+      parsed = await this.askWithRetry(system, user, 12000, onProgress, label, opts?.signal);
+      files = { ...current };
+      patchProblems = applyParsed(files, parsed);
+      if (isHtmlProject) {
+        // Una app HTML no debe convertirse en otra app React a mitad de una edición
+        for (const p of Object.keys(files)) if (/\.(tsx|jsx)$/.test(p) && !(p in current)) delete files[p];
+      }
     } else {
       const user = `${history ? `CONVERSACIÓN RECIENTE (contexto):\n${history}\n\n` : ''}PEDIDO DEL USUARIO:\n"${instruction}"\n\nConstruye la aplicación completa.`;
       parsed = await this.askWithRetry(BUILD_SYSTEM, user, 16000, onProgress, label, opts?.signal);
@@ -480,6 +625,7 @@ export class AppBuilderAgent {
     }
 
     const mainSummary = parsed.summary;
+    let warning = '';
 
     // Validación + reparación
     for (let round = 0; round < 3; round++) {
@@ -488,20 +634,22 @@ export class AppBuilderAgent {
       dropMissingAssetImports(files);
       const problems = [
         ...parsed.incomplete.map(p => `El archivo "${p}" quedó incompleto (la respuesta se cortó).`),
+        ...patchProblems,
         ...validateProject(files),
       ];
+      patchProblems = [];
       if (problems.length === 0) break;
       if (round === 2) {
-        throw new Error(`La app generada tiene errores que no se pudieron corregir:\n- ${problems.slice(0, 5).join('\n- ')}`);
+        throw new Error(`La app tiene errores que no se pudieron corregir:\n- ${problems.slice(0, 5).join('\n- ')}`);
       }
       onProgress(`${label}\n🩺 Corrigiendo ${problems.length} problema(s)…`, true);
       const broken = Object.keys(files).filter(p => problems.some(pr => pr.includes(`"${p}"`)));
       const context: Record<string, string> = {};
       for (const p of (broken.length ? broken : Object.keys(files))) context[p] = files[p];
-      const user = `ARCHIVOS EXISTENTES: ${Object.keys(files).join(', ')}\n\nPROBLEMAS DETECTADOS:\n- ${problems.join('\n- ')}\n\nARCHIVOS CON PROBLEMAS:\n${filesAsContext(context, 90000)}\n\nPedido original del usuario: "${instruction}"`;
-      parsed = await this.askWithRetry(REPAIR_SYSTEM, user, 14000, onProgress, label, opts?.signal);
-      Object.assign(files, parsed.files);
-      for (const d of parsed.deletes) delete files[d];
+      const repairSystem = isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM;
+      const user = `ARCHIVOS EXISTENTES: ${Object.keys(files).join(', ')}\n\nPROBLEMAS DETECTADOS:\n- ${problems.join('\n- ')}\n\nARCHIVOS CON PROBLEMAS (contenido actual):\n${filesAsContext(context, 90000)}\n\nPedido original del usuario: "${instruction}"`;
+      parsed = await this.askWithRetry(repairSystem, user, 12000, onProgress, label, opts?.signal);
+      patchProblems = applyParsed(files, parsed);
     }
 
     // Prueba de ejecución real (como hacen Lovable/bolt): si la app falla al arrancar, se corrige sola.
@@ -510,15 +658,23 @@ export class AppBuilderAgent {
       const runtimeErrors = await runtimeCheck(files);
       if (runtimeErrors.length === 0) break;
       if (round === 1) {
+        // En una edición: si esos errores ya estaban antes del cambio, no se bloquea la edición del usuario.
+        if (isEdit) {
+          const before = await runtimeCheck(current);
+          if (before.length > 0 && runtimeErrors.every(e => before.includes(e))) {
+            warning = `\n\n⚠️ La app ya tenía este error antes del cambio y no pude corregirlo del todo: ${runtimeErrors[0].slice(0, 160)}`;
+            break;
+          }
+        }
         throw new Error(`La app se generó pero falla al ejecutarse:\n- ${runtimeErrors.slice(0, 4).join('\n- ')}`);
       }
       onProgress(`${label}\n🩺 Corrigiendo error al ejecutar: ${runtimeErrors[0].slice(0, 90)}…`, true);
       const user = `La app compila, pero al EJECUTARLA en el navegador aparecen estos errores:\n- ${runtimeErrors.join('\n- ')}\n\nCausas típicas: import por defecto de una librería que solo tiene exports nombrados (usa import { create } from 'zustand'), API antigua de una librería, variable indefinida, acceso a propiedades de undefined.\n\nARCHIVOS DEL PROYECTO:\n${filesAsContext(files, 100000)}\n\nPedido original del usuario: "${instruction}"`;
-      const fix = await this.askWithRetry(REPAIR_SYSTEM, user, 14000, onProgress, label, opts?.signal);
-      Object.assign(files, fix.files);
-      for (const d of fix.deletes) delete files[d];
+      const repairSystem = isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM;
+      const fix = await this.askWithRetry(repairSystem, user, 12000, onProgress, label, opts?.signal);
+      const fixProblems = applyParsed(files, fix);
       ensureRuntimeHelpers(files);
-      const staticProblems = validateProject(files);
+      const staticProblems = [...fixProblems, ...validateProject(files)];
       if (staticProblems.length > 0) {
         throw new Error(`La corrección introdujo errores:\n- ${staticProblems.slice(0, 4).join('\n- ')}`);
       }
@@ -531,11 +687,12 @@ export class AppBuilderAgent {
       if (design.length > 0) {
         onProgress(`${label}\n🎨 Ajustando el contraste (${design.length} texto(s) poco legibles)…`, true);
         const user = `La app funciona, pero la revisión visual encontró textos casi ilegibles:\n- ${design.join('\n- ')}\n\nCorrige SOLO los colores (clases de Tailwind) para que todo el texto tenga buen contraste con su fondo. No cambies la funcionalidad ni la estructura.\n\nARCHIVOS DEL PROYECTO:\n${filesAsContext(files, 100000)}`;
-        const fix = await this.askWithRetry(REPAIR_SYSTEM, user, 12000, onProgress, label, opts?.signal);
-        const candidate = { ...files, ...fix.files };
+        const fix = await this.askWithRetry(isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM, user, 12000, onProgress, label, opts?.signal);
+        const candidate = { ...files };
+        const fixProblems = applyParsed(candidate, fix);
         ensureRuntimeHelpers(candidate);
-        if (validateProject(candidate).length === 0 && (await runtimeCheck(candidate)).length === 0) {
-          Object.assign(files, fix.files);
+        if (fixProblems.length === 0 && validateProject(candidate).length === 0 && (await runtimeCheck(candidate)).length === 0) {
+          Object.assign(files, candidate);
         }
       }
     } catch (e: any) {
@@ -557,9 +714,9 @@ export class AppBuilderAgent {
     project.framework = files['src/App.tsx'] ? 'react-vite' : 'html-tailwind';
     project.updatedAt = new Date().toISOString();
 
-    const summary = mainSummary || (isEdit
+    const summary = (mainSummary || (isEdit
       ? `Listo, apliqué el cambio en ${changedPaths.length} archivo(s): ${changedPaths.join(', ')}.`
-      : `Construí la app con ${Object.keys(files).length} archivo(s).`);
+      : `Construí la app con ${Object.keys(files).length} archivo(s).`)) + warning;
     return { files, summary, changedPaths };
   }
 }

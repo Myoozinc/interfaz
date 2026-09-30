@@ -7,6 +7,7 @@
  */
 
 import { transform } from 'sucrase';
+import { NONA_BADGE_HTML } from './ProjectStructureDefaults';
 
 export interface BundlerResult {
   srcDoc: string;
@@ -1443,6 +1444,7 @@ export class VirtualMultiFileBundler {
   <script type="module">
     ${mountScript}
   </script>
+  ${NONA_BADGE_HTML}
 </body>
 </html>`;
 

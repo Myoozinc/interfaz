@@ -13,7 +13,8 @@ export const DEFAULT_PACKAGE_JSON = JSON.stringify({
   type: "module",
   scripts: {
     dev: "vite",
-    build: "tsc && vite build",
+    build: "vite build",
+    typecheck: "tsc --noEmit",
     preview: "vite preview"
   },
   dependencies: {
@@ -42,6 +43,67 @@ export const DEFAULT_PACKAGE_JSON = JSON.stringify({
     vite: "^6.0.7"
   }
 }, null, 2);
+
+
+/** Sello "Hecho con NONA" que se añade a la vista previa y a los proyectos exportados. */
+export const NONA_BADGE_HTML = `<div id="nona-badge" style="position:fixed;right:12px;bottom:12px;z-index:2147483000;display:flex;align-items:center;gap:2px;font:600 11px/1 system-ui,-apple-system,Segoe UI,sans-serif;opacity:.8">
+  <a href="https://interfaz-hazel.vercel.app" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px 0 0 999px;background:rgba(15,23,42,.85);color:#fff;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.25)">⚡ Hecho con NONA</a>
+  <button type="button" aria-label="Ocultar sello" onclick="this.parentNode.remove()" style="all:unset;cursor:pointer;padding:7px 9px;border-radius:0 999px 999px 0;background:rgba(15,23,42,.85);color:#cbd5e1;box-shadow:0 4px 14px rgba(0,0,0,.25)">×</button>
+</div>`;
+
+/** Inserta el sello antes de </body> si todavía no está. */
+export function injectNonaBadge(html: string): string {
+  if (!html || html.includes('id="nona-badge"')) return html;
+  return /<\/body>/i.test(html) ? html.replace(/<\/body>(?![\s\S]*<\/body>)/i, `${NONA_BADGE_HTML}\n</body>`) : html + NONA_BADGE_HTML;
+}
+
+/** Versiones conocidas para paquetes habituales; el resto se instala como "latest". */
+const KNOWN_VERSIONS: Record<string, string> = {
+  'react-router-dom': '^6.28.0', 'react-router': '^6.28.0', 'framer-motion': '^11.11.17', 'recharts': '^2.13.3',
+  'zustand': '^5.0.1', 'date-fns': '^4.1.0', 'chess.js': '^1.0.0', 'matter-js': '^0.20.0', 'marked': '^15.0.0',
+  'uuid': '^11.0.3', 'howler': '^2.2.4', 'three': '^0.170.0', 'tone': '^14.8.49', 'canvas-confetti': '^1.9.4',
+  'lucide-react': '^0.469.0', 'clsx': '^2.1.1', 'tailwind-merge': '^2.5.5', 'chart.js': '^4.4.7', 'cannon-es': '^0.20.0',
+  'axios': '^1.7.9', 'lodash': '^4.17.21', '@supabase/supabase-js': '^2.47.10', 'react-chartjs-2': '^5.2.0',
+};
+const NODE_BUILTINS = new Set(['fs', 'path', 'os', 'crypto', 'http', 'https', 'url', 'util', 'events', 'stream', 'child_process', 'buffer']);
+
+/** Paquetes npm que importa el código (para declararlos en package.json al exportar). */
+export function detectNpmDependencies(files: Record<string, string>): Record<string, string> {
+  const deps: Record<string, string> = {};
+  const re = /(?:import|export)\s+(?:[^;'"]*?\s+from\s+)?['"]([^'".\/][^'"]*)['"]|import\(\s*['"]([^'".\/][^'"]*)['"]\s*\)/g;
+  for (const [p, code] of Object.entries(files)) {
+    if (!/\.(tsx|ts|jsx|js|mjs)$/.test(p)) continue;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code)) !== null) {
+      const spec = (m[1] || m[2] || '').trim();
+      if (!spec || spec.startsWith('@/') || spec.startsWith('http') || spec.startsWith('node:')) continue;
+      const name = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0];
+      if (NODE_BUILTINS.has(name)) continue;
+      deps[name] = KNOWN_VERSIONS[name] || 'latest';
+    }
+  }
+  return deps;
+}
+
+export const NONA_README = (name: string) => `# ${name}
+
+App generada con **NONA** (https://interfaz-hazel.vercel.app).
+
+## Ejecutar en tu computadora
+
+\`\`\`bash
+npm install
+npm run dev
+\`\`\`
+
+## Publicar
+
+\`\`\`bash
+npm run build   # genera la carpeta dist/
+\`\`\`
+
+Puedes subir este proyecto a GitHub e importarlo en Vercel o Netlify: se detecta como proyecto Vite automáticamente.
+`;
 
 export const DEFAULT_VITE_CONFIG = `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -94,6 +156,7 @@ export const DEFAULT_INDEX_HTML = `<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NONA App</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>try { tailwind.config = { darkMode: 'class' }; } catch (e) {}</script>
   </head>
   <body class="bg-slate-950 text-white min-h-screen">
     <div id="root"></div>
@@ -302,6 +365,21 @@ export function ensureCompleteViteProject(
   options?: { includeBaaS?: boolean }
 ): Record<string, string> {
   const result: Record<string, string> = { ...files };
+  const hasCode = Object.keys(files).some(k => /\.(tsx|jsx|ts)$/.test(k) && !k.endsWith('.d.ts'));
+
+  // App HTML de un solo archivo (plantillas): se exporta tal cual, con un package.json mínimo para servirla con Vite.
+  if (!hasCode && result['index.html']) {
+    result['index.html'] = injectNonaBadge(result['index.html']);
+    if (!result['package.json']) {
+      result['package.json'] = JSON.stringify({
+        name: 'nona-app', private: true, version: '0.1.0', type: 'module',
+        scripts: { dev: 'vite', build: 'vite build', preview: 'vite preview' },
+        devDependencies: { vite: '^6.0.7' },
+      }, null, 2);
+    }
+    if (!result['README.md']) result['README.md'] = NONA_README('App NONA');
+    return result;
+  }
 
   if (!result['package.json']) {
     result['package.json'] = DEFAULT_PACKAGE_JSON;
@@ -356,6 +434,12 @@ export function ensureCompleteViteProject(
       };
 
       let modified = false;
+      for (const [lib, ver] of Object.entries(detectNpmDependencies(result))) {
+        if (!pkg.dependencies[lib] && !(pkg.devDependencies || {})[lib]) {
+          pkg.dependencies[lib] = ver;
+          modified = true;
+        }
+      }
       for (const [lib, ver] of Object.entries(libraryMap)) {
         if ((allCode.includes(`'${lib}'`) || allCode.includes(`"${lib}"`) || allCode.includes(`'${lib}/`) || allCode.includes(`"${lib}/`)) && !pkg.dependencies[lib]) {
           pkg.dependencies[lib] = ver;
@@ -385,6 +469,9 @@ export function ensureCompleteViteProject(
   if (usesCn && !result['src/lib/utils.ts'] && !result['src/lib/utils.js']) {
     result['src/lib/utils.ts'] = DEFAULT_LIB_UTILS;
   }
+
+  result['index.html'] = injectNonaBadge(result['index.html']);
+  if (!result['README.md']) result['README.md'] = NONA_README('App NONA');
 
   return result;
 }

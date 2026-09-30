@@ -57,13 +57,21 @@ const STATIC_MODELS: Record<Kind, string[]> = {
 };
 
 // Límite de caracteres por mensaje: los proveedores con TPM bajo necesitan compactar; los de contexto grande no.
+// Nunca se recorta código a la mitad (rompería los parches): si no cabe, el proveedor lo rechaza y se pasa al siguiente.
 const MSG_LIMIT: Record<Kind, number> = {
-  groq: 14000,
-  cerebras: 20000,
-  sambanova: 24000,
-  gemini: 200000,
-  openrouter: 80000,
+  groq: 400000,
+  cerebras: 400000,
+  sambanova: 400000,
+  gemini: 400000,
+  openrouter: 400000,
 };
+
+// Tokens por minuto del plan gratuito de Groq (aprox.). Una petición (entrada + salida) debe caber en el TPM del modelo.
+const GROQ_TPM: Array<[RegExp, number]> = [
+  [/scout/i, 30000], [/llama-3\.3-70b/i, 12000], [/kimi/i, 10000], [/gpt-oss-120b/i, 8000],
+  [/gpt-oss-20b/i, 8000], [/qwen3?.*32b/i, 6000], [/maverick/i, 6000], [/llama-3\.1-8b/i, 6000],
+];
+const groqTpm = (m: string) => (GROQ_TPM.find(([re]) => re.test(m)) || [null, 6000])[1];
 
 const START_BUDGET_MS = 60000;   // tiempo máximo para encontrar un proveedor que responda
 const FIRST_TOKEN_MS = 20000;    // espera máxima al primer token de cada intento
@@ -348,8 +356,15 @@ export default async function handler(req: any, res?: any) {
     const orRanked = oList.length ? rankOpenRouter(oList) : [];
     const orModels = [...orRanked.slice(0, 6), 'openrouter/free'];
 
-    // Groq: los modelos grandes tienen un TPM bajo en el plan gratis, así que su salida se limita.
-    const groqOut = (m: string) => (/120b|70b|32b|maverick|kimi/i.test(m) ? 6000 : 8000);
+    // Groq: la entrada + salida debe caber en el TPM del modelo. Se estima la entrada y se eligen solo modelos
+    // donde quepa (p. ej. editar una plantilla de 40 KB solo cabe en Llama 4 Scout), con la salida que quede libre.
+    const inTokens = Math.ceil(totalChars / 3.2) + 300;
+    const groqFit = groqModels.filter(m => groqTpm(m) - inTokens >= 1000);
+    // Salida: la de siempre para peticiones normales (medido: funciona), reducida solo si la entrada es muy grande.
+    const groqOut = (m: string) => {
+      const usual = /120b|70b|32b|maverick|kimi/i.test(m) ? 6000 : 8000;
+      return inTokens < 4000 ? usual : Math.max(1000, Math.min(usual, groqTpm(m) - inTokens - 200));
+    };
 
     if (hasImages) {
       // Visión: Gemini → OpenRouter (gemini) → Groq vision
@@ -364,14 +379,14 @@ export default async function handler(req: any, res?: any) {
       //  - Cerebras / SambaNova: rápidos cuando hay llave.
       //  - OpenRouter free: funciona pero puede tardar >90 s.
       //  - Gemini free: el stream se corta a mitad sin avisar → último recurso.
-      push('groq', groqModels, 2, groqOut);
+      push('groq', groqFit, 2, groqOut);
       push('cerebras', cerModels, 2, () => 8000);
       push('sambanova', samModels, 2, () => 8000);
       push('openrouter', orModels, 4, () => 16000);
       push('gemini', gemModels, 3, () => 32000);
     } else {
       // Ediciones pequeñas: velocidad primero
-      push('groq', groqModels, 2, groqOut);
+      push('groq', groqFit, 2, groqOut);
       push('cerebras', cerModels, 1, () => 8000);
       push('gemini', gemModels.filter(m => /flash/.test(m)), 3, () => 16000);
       push('sambanova', samModels, 1, () => 8000);
