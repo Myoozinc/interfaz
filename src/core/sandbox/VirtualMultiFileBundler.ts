@@ -29,7 +29,7 @@ export class VirtualMultiFileBundler {
     clean = clean.replace(/(?:^|\n)\s*(?:const|var|let)\s+React\s*=\s*(?:window\.)?React\s*;?/g, '\n/* [redundant-react] */');
 
     // 2. Extraer todos los imports de 'react' o "react"
-    const reactImportRegex = /import\s+([\s\S]*?)\s+from\s+['"]react['"];?/g;
+    const reactImportRegex = /import\s+([^;'"]*?)\s+from\s+['"]react['"];?/g;
     let hasReactDefault = false;
     let hasReactNamespace = false;
     const namedImports = new Set<string>();
@@ -68,7 +68,7 @@ export class VirtualMultiFileBundler {
 
     if (foundAnyReactImport || usesReactGlobal) {
       // Reemplazar todos los imports existentes de 'react' por un placeholder
-      clean = clean.replace(/import\s+[\s\S]*?\s+from\s+['"]react['"];?/g, '/* [react-import-placeholder] */');
+      clean = clean.replace(/import\s+[^;'"]*?\s+from\s+['"]react['"];?/g, '/* [react-import-placeholder] */');
 
       // Construir la única declaración unificada canónica
       let unified = '';
@@ -894,7 +894,7 @@ export class VirtualMultiFileBundler {
 
     // 3c. Auto-registro dinámico de paquetes npm externos (CDN esm.sh / shims)
     const allCodeText = Object.values(normalizedFiles).join('\n');
-    const bareImportRegex = /(?:^|\n|\r)\s*(?:import|export)\s+(?:[\s\S]*?from\s+)?['"]([a-zA-Z0-9@][^'"]*)['"]/g;
+    const bareImportRegex = /(?:^|\n|\r)\s*(?:import|export)\s+(?:[^;'"]*?from\s+)?['"]([a-zA-Z0-9@][^'"]*)['"]/g;
     let bareMatch: RegExpExecArray | null;
     while ((bareMatch = bareImportRegex.exec(allCodeText)) !== null) {
       const spec = bareMatch[1].trim();
