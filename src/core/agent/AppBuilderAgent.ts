@@ -27,7 +27,7 @@ type Progress = (text: string, isThinking?: boolean) => void;
 const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navegador, sin npm install ni servidor):
 - React 18 + TypeScript (.tsx). Importa hooks desde 'react' (import { useState } from 'react').
 - Punto de entrada OBLIGATORIO: "src/App.tsx" con "export default function App()". NO crees main.tsx ni index.html: la vista previa monta App sola.
-- Estilos con clases de Tailwind CSS (ya cargado). CSS propio opcional en "src/index.css" (CSS normal, sin @apply ni @tailwind).
+- Estilos con clases de Tailwind CSS (ya cargado, con darkMode: 'class': para modo oscuro añade/quita la clase 'dark' en document.documentElement y usa variantes dark:). CSS propio opcional en "src/index.css" (CSS normal, sin @apply ni @tailwind).
 - Puedes importar cualquier paquete npm que funcione en el navegador (se carga automáticamente desde esm.sh; no hace falta instalar nada). Usa librerías probadas en vez de reescribir lógica compleja:
   · varias páginas/pantallas: react-router-dom (BrowserRouter, Routes, Route, Link, useNavigate) · iconos: lucide-react · animación: framer-motion · gráficos: recharts · estado: zustand · fechas: date-fns · 3D: three · audio: tone o howler · física 2D: matter-js · markdown: marked
   · AJEDREZ: usa SIEMPRE 'chess.js' (import { Chess } from 'chess.js') para reglas, movimientos legales, jaque y fin de partida; la IA rival elige entre chess.moves() con minimax sobre copias de Chess.

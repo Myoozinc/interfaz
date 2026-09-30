@@ -1372,6 +1372,7 @@ export class VirtualMultiFileBundler {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NONA Multi-File Preview</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>try { tailwind.config = { darkMode: 'class' }; } catch (e) {}</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
