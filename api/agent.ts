@@ -263,6 +263,17 @@ export default async function handler(req: any, res?: any) {
     return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
   };
 
+  // CORS: las apps generadas (preview y exportadas) llaman a este endpoint vía src/lib/ai.ts
+  const CORS: Record<string, string> = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+  if (isNode) for (const [k, v] of Object.entries(CORS)) res.setHeader(k, v);
+  if (req.method === 'OPTIONS') {
+    if (isNode) return res.status(204).end();
+    return new Response(null, { status: 204, headers: CORS });
+  }
   if (req.method !== 'POST') return reply(405, { error: 'Method not allowed' });
 
   try {

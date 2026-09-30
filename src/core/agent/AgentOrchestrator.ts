@@ -8,7 +8,7 @@ import { intentRouter, type IntentClassificationResult } from './IntentRouter';
 import { formatConversationHistory } from './historyUtils';
 import { multiAgentPlanPipeline } from './MultiAgentPlanPipeline';
 import { agentCollaborationCouncil } from './AgentCollaborationCouncil';
-import { appBuilderAgent } from './AppBuilderAgent';
+import { appBuilderAgent, filesAsContext } from './AppBuilderAgent';
 
 export interface AgentExecutionResult {
   responseText: string;
@@ -99,13 +99,12 @@ REGLAS ABSOLUTAS DE TRANSPARENCIA:
 1. NUNCA inventes que utilizas OpenAI GPT-4, Anthropic Claude 3.5, Microsoft Copilot, Notion AI o OpenAI Code Interpreter. Sé 100% honesta, técnica y veraz sobre tu arquitectura real (Groq + Qwen 3.8 27B + Gemini Flash + PatchEngine).
 2. NO generes el documento HTML completo en una consulta conceptual a menos que te pidan explícitamente un snippet.
 3. Da respuestas concisas, didácticas, directas y bien formateadas en Markdown.
-4. Si la pregunta es sobre el código del proyecto actual, analiza el contexto y explica directamente cómo está estructurado.`;
+4. Si la pregunta es sobre el proyecto actual, tienes TODOS sus archivos: respóndela leyéndolos (nunca digas que necesitas ver el código).
+5. Si el usuario describe algo que no funciona, explica en 2-4 frases la causa concreta que ves en el código y termina diciendo: "Escribe *arréglalo* y lo corrijo." No pegues bloques de código largos.`;
 
       const consultUserPrompt = `${historyContext}
-CÓDIGO ACTUAL DE LA APLICACIÓN:
-\`\`\`html
-${currentCode.slice(0, 3500)}
-\`\`\`
+ARCHIVOS ACTUALES DE LA APLICACIÓN:
+${filesAsContext(Object.fromEntries(Object.entries(project.files).map(([p, f]) => [p, f.content])), 60000)}
 
 PREGUNTA DEL USUARIO:
 "${userInstruction}"

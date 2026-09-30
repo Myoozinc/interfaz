@@ -28,7 +28,16 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
 - React 18 + TypeScript (.tsx). Importa hooks desde 'react' (import { useState } from 'react').
 - Punto de entrada OBLIGATORIO: "src/App.tsx" con "export default function App()". NO crees main.tsx ni index.html: la vista previa monta App sola.
 - Estilos con clases de Tailwind CSS (ya cargado). CSS propio opcional en "src/index.css" (CSS normal, sin @apply ni @tailwind).
-- Paquetes disponibles: react, lucide-react (iconos), framer-motion, clsx, tailwind-merge, zustand, date-fns, three, tone, canvas-confetti, recharts. No uses ningún otro paquete.
+- Puedes importar cualquier paquete npm que funcione en el navegador (se carga automáticamente desde esm.sh; no hace falta instalar nada). Usa librerías probadas en vez de reescribir lógica compleja:
+  · iconos: lucide-react · animación: framer-motion · gráficos: recharts · estado: zustand · fechas: date-fns · 3D: three · audio: tone o howler · física 2D: matter-js · markdown: marked
+  · AJEDREZ: usa SIEMPRE 'chess.js' (import { Chess } from 'chess.js') para reglas, movimientos legales, jaque y fin de partida; la IA rival elige entre chess.moves() con minimax sobre copias de Chess.
+  · Damas, sudoku, tetris, etc.: implementa la lógica en un archivo aparte (src/lib/) con funciones puras y pruébala mentalmente con un caso antes de escribir la interfaz.
+- IA INCLUIDA (sin API keys): si la app necesita un modelo de lenguaje (chatbot, asistente, generar/resumir/traducir/clasificar texto, recomendaciones), usa el helper ya disponible:
+    import { askAI, chatAI } from './lib/ai';   // ruta relativa desde el archivo que lo usa
+    const texto = await askAI('prompt', { system: 'instrucciones opcionales' });
+    const respuesta = await chatAI([{ role: 'user', content: 'hola' }], { onToken: (parcial) => setTexto(parcial) });
+  NO crees src/lib/ai.ts: NONA lo añade solo. Muestra un estado de carga mientras responde y maneja errores con un mensaje amable.
+  Esto es para modelos de LENGUAJE. La "IA" de un juego (rival de ajedrez, enemigos) se programa con algoritmos (minimax, reglas), no con askAI.
 - Sin backend: guarda datos con localStorage cuando haga falta persistencia. Datos de ejemplo realistas escritos en el código.
 - Juegos: usa <canvas> con requestAnimationFrame y controles de teclado + botones táctiles.
 - Todos los imports relativos deben apuntar a archivos que TÚ entregas (ej: import { Board } from './components/Board').`;
@@ -36,7 +45,8 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
 const QUALITY_RULES = `CALIDAD:
 - Usa EXACTAMENTE los nombres, textos, colores y estilo que pide el usuario (si pide que se llame "X", la app se llama "X").
 - Interfaz moderna y cuidada: jerarquía tipográfica clara, espaciado generoso, estados hover/activos, diseño responsive (móvil y escritorio).
-- Todo debe funcionar de verdad: nada de botones decorativos, "TODO", "lorem ipsum" ni funciones vacías.
+- Todo debe funcionar de verdad: nada de botones decorativos, "TODO", "lorem ipsum" ni funciones vacías. La interacción principal (mover una pieza, enviar un mensaje, añadir un elemento) debe funcionar al primer intento.
+- En juegos de tablero distingue visualmente los dos bandos (colores de pieza distintos) y resalta la selección y los movimientos posibles.
 - Código organizado en varios archivos pequeños (componentes en src/components/, lógica en src/hooks/ o src/lib/), tipado con TypeScript.
 - Sé conciso: entre 3 y 7 archivos, unas 300-450 líneas en total, sin comentarios largos ni repeticiones, para que quepa en una sola respuesta. Escribe src/App.tsx PRIMERO.`;
 
@@ -198,7 +208,60 @@ function dropMissingAssetImports(files: Record<string, string>) {
   }
 }
 
-function filesAsContext(files: Record<string, string>, maxChars = 120000): string {
+
+/** Helper de IA incluido en toda app generada (usa el gateway de NONA; sin llaves para el usuario). */
+export const NONA_AI_HELPER = `// Generado por NONA: acceso a IA sin API keys. No editar.
+export type ChatMsg = { role: 'system' | 'user' | 'assistant'; content: string };
+type Opts = { system?: string; onToken?: (textoParcial: string) => void; maxTokens?: number; temperature?: number };
+
+const ENDPOINT = 'https://interfaz-hazel.vercel.app/api/agent';
+
+export async function chatAI(messages: ChatMsg[], opts: Opts = {}): Promise<string> {
+  const msgs = opts.system ? [{ role: 'system', content: opts.system }, ...messages] : messages;
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'auto', messages: msgs, maxTokensRequested: opts.maxTokens ?? 1500, temperature: opts.temperature ?? 0.7 }),
+  });
+  if (!res.ok || !res.body) {
+    let msg = 'La IA no está disponible en este momento.';
+    try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+    throw new Error(msg);
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', full = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split('\\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      try {
+        const j = JSON.parse(line);
+        if (j.message?.content) {
+          full += j.message.content;
+          opts.onToken?.(full.replace(/<think>[\\s\\S]*?(<\\/think>|$)/g, '').trim());
+        }
+      } catch {}
+    }
+  }
+  return full.replace(/<think>[\\s\\S]*?<\\/think>/g, '').trim();
+}
+
+export function askAI(prompt: string, opts: Opts = {}): Promise<string> {
+  return chatAI([{ role: 'user', content: prompt }], opts);
+}
+`;
+
+/** Añade src/lib/ai.ts si algún archivo lo importa. */
+function ensureRuntimeHelpers(files: Record<string, string>) {
+  const usesAI = Object.entries(files).some(([p, c]) => CODE_EXT.test(p) && /from\s+['"](?:\.{1,2}\/)+(?:src\/)?lib\/ai['"]|from\s+['"]@\/lib\/ai['"]/.test(c));
+  if (usesAI) files['src/lib/ai.ts'] = NONA_AI_HELPER;
+}
+
+export function filesAsContext(files: Record<string, string>, maxChars = 120000): string {
   let out = '';
   for (const [p, c] of Object.entries(files)) {
     const block = `<file path="${p}">\n${c}\n</file>\n`;
@@ -289,6 +352,7 @@ export class AppBuilderAgent {
     // Validación + reparación
     for (let round = 0; round < 3; round++) {
       for (const p of parsed.incomplete) if (!(p in parsed.files)) delete files[p];
+      ensureRuntimeHelpers(files);
       dropMissingAssetImports(files);
       const problems = [
         ...parsed.incomplete.map(p => `El archivo "${p}" quedó incompleto (la respuesta se cortó).`),
