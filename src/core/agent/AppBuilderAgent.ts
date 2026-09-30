@@ -40,6 +40,7 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
   Esto es para modelos de LENGUAJE. La "IA" de un juego (rival de ajedrez, enemigos) se programa con algoritmos (minimax, reglas), no con askAI.
 - Sin backend: guarda datos con localStorage cuando haga falta persistencia. Datos de ejemplo realistas escritos en el código.
 - Juegos: usa <canvas> con requestAnimationFrame y controles de teclado + botones táctiles.
+- Usa la API ACTUAL de cada librería con imports nombrados cuando corresponda (import { create } from 'zustand'; import { Chess } from 'chess.js'; import { motion } from 'framer-motion').
 - Todos los imports relativos deben apuntar a archivos que TÚ entregas (ej: import { Board } from './components/Board').`;
 
 const QUALITY_RULES = `CALIDAD:
@@ -261,6 +262,70 @@ function ensureRuntimeHelpers(files: Record<string, string>) {
   if (usesAI) files['src/lib/ai.ts'] = NONA_AI_HELPER;
 }
 
+
+/**
+ * Ejecuta la app en un iframe oculto (mismo empaquetador que la vista previa) y devuelve los errores
+ * de arranque: imports inexistentes, exports incorrectos de librerías, excepciones al renderizar, etc.
+ * Solo funciona en el navegador; en Node devuelve [].
+ */
+export async function runtimeCheck(files: Record<string, string>, timeoutMs = 7000): Promise<string[]> {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return [];
+  const hasReact = Object.keys(files).some(p => /\.(tsx|jsx)$/.test(p));
+  if (!hasReact) return [];
+  let srcDoc = '';
+  try { srcDoc = VirtualMultiFileBundler.bundle(files).srcDoc; } catch (e: any) { return [`Error al empaquetar: ${e?.message || e}`]; }
+
+  return new Promise(resolve => {
+    const errors: string[] = [];
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:800px;opacity:0;pointer-events:none;';
+    const w = window as any;
+    w.__nonaCheckFrames = w.__nonaCheckFrames || new Set();
+    const ignore = /ResizeObserver|Tone\.js|favicon|AudioContext|autoplay|user gesture|Download the React DevTools/i;
+
+    const onMsg = (ev: MessageEvent) => {
+      if (ev.source !== iframe.contentWindow) return;
+      const d = ev.data || {};
+      const isErr = d.type === 'SANDBOX_RUNTIME_ERROR' || (d.type === 'NONA_LOG' && d.level === 'error');
+      if (!isErr) return;
+      const msg = String(d.msg || '').split('\n').slice(0, 3).join(' ').slice(0, 300);
+      if (msg && !ignore.test(msg) && !errors.includes(msg)) errors.push(msg);
+    };
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('message', onMsg);
+      clearInterval(poll);
+      clearTimeout(hard);
+      w.__nonaCheckFrames.delete(iframe.contentWindow);
+      iframe.remove();
+      resolve(errors);
+    };
+    window.addEventListener('message', onMsg);
+    document.body.appendChild(iframe);
+    w.__nonaCheckFrames.add(iframe.contentWindow);
+    iframe.srcdoc = srcDoc;
+
+    const started = Date.now();
+    let renderedAt = 0;
+    const poll = setInterval(() => {
+      try {
+        const root = iframe.contentDocument?.getElementById('root');
+        if (!renderedAt && root && root.innerHTML.trim().length > 0) renderedAt = Date.now();
+      } catch {}
+      if (errors.length > 0 && Date.now() - started > 1500) finish();
+      else if (renderedAt && Date.now() - renderedAt > 1500) finish();
+    }, 250);
+    const hard = setTimeout(() => {
+      if (!renderedAt && errors.length === 0) errors.push('La app no mostró nada en pantalla tras cargar (el componente App no renderizó contenido).');
+      finish();
+    }, timeoutMs);
+  });
+}
+
 export function filesAsContext(files: Record<string, string>, maxChars = 120000): string {
   let out = '';
   for (const [p, c] of Object.entries(files)) {
@@ -370,6 +435,26 @@ export class AppBuilderAgent {
       parsed = await this.askWithRetry(REPAIR_SYSTEM, user, 14000, onProgress, label, opts?.signal);
       Object.assign(files, parsed.files);
       for (const d of parsed.deletes) delete files[d];
+    }
+
+    // Prueba de ejecución real (como hacen Lovable/bolt): si la app falla al arrancar, se corrige sola.
+    for (let round = 0; round < 2; round++) {
+      onProgress(`${label}\n▶️ Probando la app…`, true);
+      const runtimeErrors = await runtimeCheck(files);
+      if (runtimeErrors.length === 0) break;
+      if (round === 1) {
+        throw new Error(`La app se generó pero falla al ejecutarse:\n- ${runtimeErrors.slice(0, 4).join('\n- ')}`);
+      }
+      onProgress(`${label}\n🩺 Corrigiendo error al ejecutar: ${runtimeErrors[0].slice(0, 90)}…`, true);
+      const user = `La app compila, pero al EJECUTARLA en el navegador aparecen estos errores:\n- ${runtimeErrors.join('\n- ')}\n\nCausas típicas: import por defecto de una librería que solo tiene exports nombrados (usa import { create } from 'zustand'), API antigua de una librería, variable indefinida, acceso a propiedades de undefined.\n\nARCHIVOS DEL PROYECTO:\n${filesAsContext(files, 100000)}\n\nPedido original del usuario: "${instruction}"`;
+      const fix = await this.askWithRetry(REPAIR_SYSTEM, user, 14000, onProgress, label, opts?.signal);
+      Object.assign(files, fix.files);
+      for (const d of fix.deletes) delete files[d];
+      ensureRuntimeHelpers(files);
+      const staticProblems = validateProject(files);
+      if (staticProblems.length > 0) {
+        throw new Error(`La corrección introdujo errores:\n- ${staticProblems.slice(0, 4).join('\n- ')}`);
+      }
     }
 
     const changedPaths = Object.keys(files).filter(p => files[p] !== current[p]);

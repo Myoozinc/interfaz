@@ -552,6 +552,9 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   // Handle postMessage logs, runtime errors, and element inspection from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Ignorar los iframes ocultos con los que NONA prueba la app antes de entregarla
+      const checkFrames = (window as any).__nonaCheckFrames as Set<unknown> | undefined;
+      if (checkFrames && checkFrames.has(event.source)) return;
       if (event.data?.type === 'SANDBOX_RUNTIME_ERROR' || event.data?.type === 'NONA_LOG') {
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const isRuntimeErr = event.data.type === 'SANDBOX_RUNTIME_ERROR';
