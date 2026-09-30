@@ -50,7 +50,7 @@ const BASE: Record<Kind, string> = {
 // Respaldo si el descubrimiento de modelos falla (ids estables conocidos).
 const STATIC_MODELS: Record<Kind, string[]> = {
   groq: ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
-  gemini: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+  gemini: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'],
   cerebras: ['gpt-oss-120b', 'llama-3.3-70b'],
   sambanova: ['DeepSeek-V3.1', 'Meta-Llama-3.3-70B-Instruct'],
   openrouter: ['openrouter/free'],
@@ -82,9 +82,9 @@ function coolByStatus(a: Attempt, status: number, body: string) {
   const mid = `${a.kind}:${a.model}`;
   const kid = `${a.kind}:key:${a.key.slice(-6)}`;
   if (status === 401 || status === 403) cool(kid, 10 * 60_000);
-  else if (status === 404 || (status === 400 && /model|not found|does not exist|decommission/i.test(body))) cool(mid, 30 * 60_000);
+  else if (status === 404 || status === 410 || (status === 400 && /model|not found|does not exist|decommission/i.test(body))) cool(mid, 6 * 60 * 60_000);
   else if (status === 413) cool(mid, 5 * 60_000);
-  else if (status === 429) cool(mid, /quota|per day|daily/i.test(body) ? 30 * 60_000 : 45_000);
+  else if (status === 429) cool(mid, /limit:\s*0|free.?tier/i.test(body) ? 6 * 60 * 60_000 : /quota|per day|daily/i.test(body) ? 30 * 60_000 : 45_000);
   else if (status >= 500) cool(mid, 30_000);
   else cool(mid, 60_000);
 }
@@ -157,12 +157,14 @@ function rankSamba(list: any[]): string[] {
 
 function rankGemini(list: any[]): string[] {
   const ids: string[] = list.map(m => String(m.id || m.name || '').replace(/^models\//, '')).filter(Boolean);
-  const bad = /embed|tts|image|imagen|veo|live|audio|aqa|gemma|robotics|computer|learnlm|exp|thinking|latest-|deep-research/i;
+  const bad = /embed|tts|image|imagen|veo|live|audio|aqa|gemma|robotics|computer|learnlm|exp|thinking|latest-|deep-research|customtools|nano|banana/i;
+  // Plan gratuito: los modelos "Pro" casi nunca tienen cuota gratis (429 / 404), así que se prueban al final.
+  // Primero Flash (rápido, gratis y muy bueno en código), luego Flash-Lite, y por último Pro.
   const scored = ids
     .filter(id => /^gemini-/.test(id) && !bad.test(id))
     .map(id => {
       const ver = parseFloat((id.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || '1');
-      const fam = /flash-lite/.test(id) ? 120 : /flash/.test(id) ? 200 : /pro/.test(id) ? 300 : 100;
+      const fam = /flash-lite/.test(id) ? 250 : /flash/.test(id) ? 300 : /pro/.test(id) ? 100 : 50;
       const preview = /preview|\d{2}-\d{2}/.test(id) ? -3 : 0;
       return { id, s: fam + ver * 20 + preview };
     })
@@ -340,14 +342,14 @@ export default async function handler(req: any, res?: any) {
 
     if (hasImages) {
       // Visión: Gemini → OpenRouter (gemini) → Groq vision
-      push('gemini', gemModels.filter(m => !/lite/.test(m)), 2, () => 8000);
+      push('gemini', gemModels.filter(m => !/lite/.test(m)), 3, () => 8000);
       if (keys.openrouter.length && !skipSet.has('openrouter')) {
         for (const key of keys.openrouter) attempts.push({ kind: 'openrouter', key, model: 'google/gemini-2.5-flash', maxOut: Math.min(want, 8000) });
       }
       push('groq', groqModels, 2, () => 2000);
     } else if (big) {
       // Construcciones grandes: capacidad y tokens de salida primero
-      push('gemini', gemModels, 3, () => 32000);
+      push('gemini', gemModels, 5, () => 32000);
       push('cerebras', cerModels, 2, () => 8000);
       push('sambanova', samModels, 2, () => 8000);
       push('openrouter', orModels, 5, () => 16000);
@@ -356,7 +358,7 @@ export default async function handler(req: any, res?: any) {
       // Ediciones pequeñas: velocidad primero
       push('groq', groqModels, 2, groqOut);
       push('cerebras', cerModels, 1, () => 8000);
-      push('gemini', gemModels.filter(m => /flash/.test(m)), 2, () => 16000);
+      push('gemini', gemModels.filter(m => /flash/.test(m)), 3, () => 16000);
       push('sambanova', samModels, 1, () => 8000);
       push('openrouter', orModels, 3, () => 12000);
     }
