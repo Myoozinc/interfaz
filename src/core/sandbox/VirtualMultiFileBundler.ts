@@ -652,12 +652,26 @@ export class VirtualMultiFileBundler {
     `;
     const utilsShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(utilsShimCode);
 
+    // 2a. React Router: la vista previa corre en un iframe srcdoc (location = about:srcdoc), donde
+    // BrowserRouter/HashRouter fallan con "Invalid URL". Se sustituyen por sus equivalentes en memoria.
+    const RR = 'https://esm.sh/react-router-dom@6.28.0?external=react,react-dom';
+    const routerShimCode = `
+      export * from '${RR}';
+      import { MemoryRouter, createMemoryRouter } from '${RR}';
+      export { MemoryRouter as BrowserRouter, MemoryRouter as HashRouter };
+      export const createBrowserRouter = (routes, opts) => createMemoryRouter(routes, opts);
+      export const createHashRouter = (routes, opts) => createMemoryRouter(routes, opts);
+    `;
+    const routerShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(routerShimCode);
+
     // 2b. Construir Import Map con resolución local y paquetes externos predeterminados
     const importMap: Record<string, string> = {
       "react": reactShimUri,
       "react-dom": reactDomShimUri,
       "react-dom/client": reactDomClientShimUri,
       "react/jsx-runtime": reactJsxRuntimeShimUri,
+      "react-router-dom": routerShimUri,
+      "react-router": routerShimUri,
       "lucide-react": lucideReactShimUri,
       "clsx": clsxShimUri,
       "tailwind-merge": twMergeShimUri,
