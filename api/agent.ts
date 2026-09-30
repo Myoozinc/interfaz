@@ -1,6 +1,6 @@
 export const config = {
   runtime: 'nodejs',
-  maxDuration: 60,
+  maxDuration: 300,
 };
 
 /**
@@ -65,9 +65,9 @@ const MSG_LIMIT: Record<Kind, number> = {
   openrouter: 80000,
 };
 
-const START_BUDGET_MS = 30000;   // tiempo máximo para encontrar un proveedor que responda
+const START_BUDGET_MS = 60000;   // tiempo máximo para encontrar un proveedor que responda
 const FIRST_TOKEN_MS = 20000;    // espera máxima al primer token de cada intento
-const STREAM_DEADLINE_MS = 56000; // Vercel corta a los 60 s: cerramos limpio antes
+const STREAM_DEADLINE_MS = 285000; // maxDuration 300 s: cerramos limpio antes
 
 // ---------------------------------------------------------------------------------------------
 // Estado en memoria (persiste mientras la instancia serverless esté caliente)
@@ -361,6 +361,13 @@ export default async function handler(req: any, res?: any) {
       push('gemini', gemModels.filter(m => /flash/.test(m)), 3, () => 16000);
       push('sambanova', samModels, 1, () => 8000);
       push('openrouter', orModels, 3, () => 12000);
+    }
+
+    // Si el cliente pidió omitir proveedores y eso deja la lista vacía (p. ej. solo hay Gemini),
+    // se ignora la omisión: es mejor reintentar el mismo proveedor que no probar ninguno.
+    if (attempts.length === 0 && skipSet.size > 0) {
+      skipSet.clear();
+      return handler({ ...req, method: 'POST', body: { ...body, skip: [] }, headers: req.headers, json: async () => ({ ...body, skip: [] }) }, res);
     }
 
     // Quitar los que están en enfriamiento (salvo que no quede ninguno: disponibilidad ante todo)
