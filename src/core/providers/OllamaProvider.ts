@@ -201,7 +201,7 @@ export class OllamaProvider implements AIProvider {
     if (truncatedReason || streamError) {
       if (provider) OllamaProvider.skipUntil.set(provider, Date.now() + 5 * 60_000);
       const why = truncatedReason
-        ? `la respuesta de ${usedModel || provider || 'la IA'} se cortó (${truncatedReason === 'time' ? 'límite de tiempo' : 'límite de tokens'})`
+        ? `la respuesta de ${usedModel || provider || 'la IA'} se cortó (${truncatedReason === 'time' ? 'límite de tiempo' : truncatedReason === 'length' ? 'límite de tokens' : 'conexión cortada por el proveedor'})`
         : streamError;
       throw new Error(`Salida incompleta: ${why}. Reintentando con otro modelo.`);
     }

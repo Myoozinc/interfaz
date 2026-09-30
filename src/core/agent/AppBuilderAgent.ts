@@ -38,7 +38,7 @@ const QUALITY_RULES = `CALIDAD:
 - Interfaz moderna y cuidada: jerarquía tipográfica clara, espaciado generoso, estados hover/activos, diseño responsive (móvil y escritorio).
 - Todo debe funcionar de verdad: nada de botones decorativos, "TODO", "lorem ipsum" ni funciones vacías.
 - Código organizado en varios archivos pequeños (componentes en src/components/, lógica en src/hooks/ o src/lib/), tipado con TypeScript.
-- Sé conciso: código completo pero sin comentarios largos ni repeticiones, para que quepa en una sola respuesta.`;
+- Sé conciso: entre 3 y 7 archivos, unas 300-450 líneas en total, sin comentarios largos ni repeticiones, para que quepa en una sola respuesta. Escribe src/App.tsx PRIMERO.`;
 
 const FORMAT_RULES = `FORMATO DE RESPUESTA (obligatorio, nada fuera de esto):
 <summary>Una o dos frases en español explicando lo que hiciste.</summary>

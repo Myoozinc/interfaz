@@ -338,7 +338,7 @@ export default async function handler(req: any, res?: any) {
     const orModels = [...orRanked.slice(0, 6), 'openrouter/free'];
 
     // Groq: los modelos grandes tienen un TPM bajo en el plan gratis, así que su salida se limita.
-    const groqOut = (m: string) => (/70b|120b|32b|maverick|kimi/i.test(m) ? 4000 : 8000);
+    const groqOut = (m: string) => (/120b|70b|32b|maverick|kimi/i.test(m) ? 6000 : 8000);
 
     if (hasImages) {
       // Visión: Gemini → OpenRouter (gemini) → Groq vision
@@ -348,12 +348,16 @@ export default async function handler(req: any, res?: any) {
       }
       push('groq', groqModels, 2, () => 2000);
     } else if (big) {
-      // Construcciones grandes: capacidad y tokens de salida primero
-      push('gemini', gemModels, 5, () => 32000);
+      // Construcciones grandes. Orden medido en producción (sept 2026):
+      //  - Groq gpt-oss-120b: ~5 s por app completa, fiable → primero.
+      //  - Cerebras / SambaNova: rápidos cuando hay llave.
+      //  - OpenRouter free: funciona pero puede tardar >90 s.
+      //  - Gemini free: el stream se corta a mitad sin avisar → último recurso.
+      push('groq', groqModels, 2, groqOut);
       push('cerebras', cerModels, 2, () => 8000);
       push('sambanova', samModels, 2, () => 8000);
-      push('openrouter', orModels, 5, () => 16000);
-      push('groq', groqModels, 2, groqOut);
+      push('openrouter', orModels, 4, () => 16000);
+      push('gemini', gemModels, 3, () => 32000);
     } else {
       // Ediciones pequeñas: velocidad primero
       push('groq', groqModels, 2, groqOut);
@@ -410,7 +414,7 @@ export default async function handler(req: any, res?: any) {
             temperature: temp,
             max_tokens: a.maxOut,
           };
-          if (a.kind === 'gemini' && withReasoning) payload.reasoning_effort = 'low';
+          if (withReasoning && (a.kind === 'gemini' || /gpt-oss/.test(a.model))) payload.reasoning_effort = 'low';
           const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${a.key}` };
           if (a.kind === 'openrouter') {
             headers['HTTP-Referer'] = 'https://interfaz-hazel.vercel.app';
@@ -437,7 +441,7 @@ export default async function handler(req: any, res?: any) {
 
       let out = await callOnce(true);
       // Si Gemini rechaza reasoning_effort, reintenta el mismo modelo sin él
-      if (!out.ok && a.kind === 'gemini' && out.status === 400 && /reasoning/i.test(out.txt)) out = await callOnce(false);
+      if (!out.ok && out.status === 400 && /reasoning/i.test(out.txt)) out = await callOnce(false);
 
       if (out.ok) {
         chosen = { a, it: out.it, first: out.first, ctl: out.ctl };
@@ -456,6 +460,7 @@ export default async function handler(req: any, res?: any) {
     const enc = new TextEncoder();
     let thinking = false;
     let truncated: string | null = null;
+    let finishReason = '';
 
     const pump = async (write: (o: any) => void) => {
       write({ meta: { provider: a.kind, model: a.model } });
@@ -468,7 +473,8 @@ export default async function handler(req: any, res?: any) {
           if (thinking) { write({ message: { content: '\n</think>\n' } }); thinking = false; }
           write({ message: { content: e.v } });
         } else if (e.t === 'finish') {
-          if (e.reason === 'length') truncated = 'length';
+          finishReason = e.reason;
+          if (!/^(stop|end_turn|eos|STOP)$/i.test(e.reason)) truncated = e.reason === 'length' ? 'length' : e.reason;
         } else if (e.t === 'error') {
           write({ error: e.v });
         }
@@ -486,6 +492,8 @@ export default async function handler(req: any, res?: any) {
         if (!truncated) write({ error: `Conexión con ${a.kind} interrumpida: ${e?.message || 'stream cortado'}` });
       }
       if (thinking) write({ message: { content: '\n</think>\n' } });
+      // Stream cerrado sin finish_reason: el proveedor cortó la conexión (visto en Gemini free).
+      if (!truncated && !finishReason) truncated = 'eof';
       if (truncated) write({ meta: { truncated: true, reason: truncated, provider: a.kind, model: a.model } });
     };
 
