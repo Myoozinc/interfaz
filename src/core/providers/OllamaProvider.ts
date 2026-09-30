@@ -72,11 +72,26 @@ export class OllamaProvider implements AIProvider {
     return this.streamChat(messages, () => {}, options);
   }
 
+  /** Proveedores que cortaron la salida o fallaron a mitad de stream: el gateway los omite un rato. */
+  private static skipUntil = new Map<string, number>();
+
+  private static activeSkips(): string[] {
+    const now = Date.now();
+    const out: string[] = [];
+    for (const [k, until] of OllamaProvider.skipUntil) {
+      if (until > now) out.push(k);
+      else OllamaProvider.skipUntil.delete(k);
+    }
+    return out;
+  }
+
   async streamChat(
     messages: AIMessage[],
     onToken: (token: string, fullText: string, isThinking?: boolean) => void,
     options?: AICompletionOptions
   ): Promise<string> {
+    // Los ids de modelo de la UI (p. ej. "qwen/qwen3.8-27b") son solo una preferencia: el gateway descubre
+    // los modelos gratuitos reales de cada proveedor y elige el mejor disponible.
     const model = options?.model || this.defaultModel;
     const openrouterKey = localStorage.getItem('nona_openrouter_key') || localStorage.getItem('nona_cloud_api_key') || '';
     const groqKey = localStorage.getItem('nona_groq_key') || '';
@@ -90,16 +105,11 @@ export class OllamaProvider implements AIProvider {
       };
     });
 
-    const isGroq = model.includes('llama') || model.includes('mixtral') || model.startsWith('groq/');
-    onToken(isGroq ? '⚡ Conectando con Groq LPU (Ultra-rápido)...' : '⚡ Conectando con Cloud Engine...', '', false);
+    onToken('⚡ Buscando el mejor modelo gratuito disponible...', '', false);
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    let res = await fetch('/api/agent', {
+    const post = () => fetch('/api/agent', {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model,
         messages: formattedMessages,
@@ -107,70 +117,41 @@ export class OllamaProvider implements AIProvider {
         groqKey: groqKey.trim() || undefined,
         maxTokensRequested: options?.maxTokens,
         temperature: options?.temperature,
+        skip: OllamaProvider.activeSkips(),
         stream: true,
       }),
       signal: options?.signal,
     });
 
-    // Client-side automatic fallback to Groq LPU / OpenRouter Free if primary model times out or errors
-    if (!res.ok) {
-      onToken('⚡ Conmutando automáticamente a Groq LPU de alta velocidad (~450 t/s)...', '', false);
-      try {
-        const fallbackRes = await fetch('/api/agent', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            messages: formattedMessages,
-            openrouterKey: openrouterKey.trim() || undefined,
-            groqKey: groqKey.trim() || undefined,
-            maxTokensRequested: Math.min(options?.maxTokens || 4000, 4000),
-            temperature: options?.temperature,
-            stream: true,
-          }),
-          signal: options?.signal,
-        });
-        if (fallbackRes.ok) {
-          res = fallbackRes;
-        } else {
-          // Second fallback to OpenRouter universal free router
-          onToken('⚡ Conmutando a OpenRouter Free Gateway...', '', false);
-          const orFreeRes = await fetch('/api/agent', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              model: 'openrouter/free',
-              messages: formattedMessages,
-              openrouterKey: openrouterKey.trim() || undefined,
-              groqKey: groqKey.trim() || undefined,
-              maxTokensRequested: Math.min(options?.maxTokens || 8000, 8000),
-              temperature: options?.temperature,
-              stream: true,
-            }),
-            signal: options?.signal,
-          });
-          if (orFreeRes.ok) {
-            res = orFreeRes;
-          }
-        }
-      } catch {}
+    let res: Response;
+    try {
+      res = await post();
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e;
+      // Un único reintento ante fallo de red transitorio
+      await new Promise(r => setTimeout(r, 1200));
+      res = await post();
+    }
+    if (!res.ok && (res.status >= 500 || res.status === 429) && res.status !== 502) {
+      await new Promise(r => setTimeout(r, 1500));
+      res = await post();
     }
 
     if (!res.ok) {
       let errorDetail = '';
       try {
-        const errJson = await res.json();
-        errorDetail = errJson.error || errJson.message || '';
-      } catch {
+        const rawText = await res.text();
         try {
-          const rawText = await res.text();
+          const errJson = JSON.parse(rawText);
+          errorDetail = errJson.error || errJson.message || '';
+        } catch {
           if (rawText.includes('FUNCTION_INVOCATION_TIMEOUT') || res.status === 504) {
-            errorDetail = 'Tiempo de espera agotado en el servidor cloud (504 Gateway Timeout). Por favor reintenta; el sistema conmutará automáticamente a Groq LPU.';
+            errorDetail = 'Tiempo de espera agotado en el servidor cloud (504). Reintenta: el gateway conmutará de proveedor.';
           } else if (rawText) {
-            errorDetail = rawText.slice(0, 150);
+            errorDetail = rawText.slice(0, 200);
           }
-        } catch {}
-      }
+        }
+      } catch {}
       if (!errorDetail) {
         errorDetail = res.status ? `Error HTTP ${res.status} (${res.statusText || 'Error de conexión'})` : 'Error de conexión con el servidor cloud';
       }
@@ -183,92 +164,46 @@ export class OllamaProvider implements AIProvider {
     const decoder = new TextDecoder();
     let fullText = '';
     let lineBuffer = '';
+    let provider = '';
+    let usedModel = '';
+    let truncatedReason = '';
+    let streamError = '';
+
+    const handleLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      let parsed: any;
+      try { parsed = JSON.parse(trimmed); } catch { return; }
+      if (parsed.message?.content) {
+        fullText += parsed.message.content;
+        onToken(parsed.message.content, fullText, false);
+      } else if (parsed.meta) {
+        if (parsed.meta.provider) provider = parsed.meta.provider;
+        if (parsed.meta.model) usedModel = parsed.meta.model;
+        if (parsed.meta.truncated) truncatedReason = parsed.meta.reason || 'length';
+      } else if (parsed.error) {
+        streamError = String(parsed.error);
+      }
+    };
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
       lineBuffer += decoder.decode(value, { stream: true });
       const lines = lineBuffer.split('\n');
       lineBuffer = lines.pop() || '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-
-        try {
-          const parsed = JSON.parse(trimmed);
-          const msg = parsed.message;
-          if (msg && msg.content) {
-            fullText += msg.content;
-            onToken(msg.content, fullText, false);
-          }
-        } catch {}
-      }
+      for (const line of lines) handleLine(line);
     }
+    if (lineBuffer.trim()) handleLine(lineBuffer);
 
-    if (lineBuffer.trim()) {
-      try {
-        const parsed = JSON.parse(lineBuffer.trim());
-        const msg = parsed.message;
-        if (msg && msg.content) {
-          fullText += msg.content;
-          onToken(msg.content, fullText, false);
-        }
-      } catch {}
-    }
-
-    if (fullText.trim().length === 0) {
-      try {
-        onToken('⚡ Reintentando automáticamente con Groq LPU (~450 t/s)...', '', false);
-        const retryRes = await fetch('/api/agent', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: formattedMessages,
-            openrouterKey: openrouterKey.trim() || undefined,
-            groqKey: groqKey.trim() || undefined,
-            maxTokensRequested: Math.min(options?.maxTokens || 12000, 16000),
-            temperature: options?.temperature,
-            stream: true,
-          }),
-          signal: options?.signal,
-        });
-        if (retryRes.ok && retryRes.body) {
-          const retryReader = retryRes.body.getReader();
-          let retryLineBuffer = '';
-          while (true) {
-            const { done, value } = await retryReader.read();
-            if (done) break;
-            retryLineBuffer += decoder.decode(value, { stream: true });
-            const lines = retryLineBuffer.split('\n');
-            retryLineBuffer = lines.pop() || '';
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed) continue;
-              try {
-                const parsed = JSON.parse(trimmed);
-                const msg = parsed.message;
-                if (msg && msg.content) {
-                  fullText += msg.content;
-                  onToken(msg.content, fullText, false);
-                }
-              } catch {}
-            }
-          }
-          if (retryLineBuffer.trim()) {
-            try {
-              const parsed = JSON.parse(retryLineBuffer.trim());
-              const msg = parsed.message;
-              if (msg && msg.content) {
-                fullText += msg.content;
-                onToken(msg.content, fullText, false);
-              }
-            } catch {}
-          }
-        }
-      } catch {}
+    // Salida incompleta o proveedor caído a mitad de respuesta: NUNCA se entrega código a medias.
+    // Se marca el proveedor para que el siguiente intento use otro modelo.
+    if (truncatedReason || streamError) {
+      if (provider) OllamaProvider.skipUntil.set(provider, Date.now() + 5 * 60_000);
+      const why = truncatedReason
+        ? `la respuesta de ${usedModel || provider || 'la IA'} se cortó (${truncatedReason === 'time' ? 'límite de tiempo' : 'límite de tokens'})`
+        : streamError;
+      throw new Error(`Salida incompleta: ${why}. Reintentando con otro modelo.`);
     }
 
     if (fullText.trim().length === 0) {

@@ -153,7 +153,7 @@ Entrega los bloques <<<<<<< SEARCH / ======= / >>>>>>> REPLACE para corregir o m
         {
           signal,
           model: routingDecision.model,
-          maxTokens: Math.min(routingDecision.maxTokens, 4000),
+          maxTokens: routingDecision.maxTokens,
           temperature: 0.1
         }
       );
@@ -381,7 +381,7 @@ Por favor entrega la corrección mediante bloques <<<<<<< SEARCH / ======= / >>>
           {
             signal,
             model: routingDecision.model,
-            maxTokens: Math.min(routingDecision.maxTokens, 6000),
+            maxTokens: routingDecision.maxTokens,
             temperature: 0.1
           }
         );

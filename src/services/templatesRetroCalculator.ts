@@ -5,7 +5,7 @@
  * soporte trigonométrico (DEG/RAD), memoria M+/MR/MC, historial en vivo y atajos de teclado.
  */
 
-export const RETRO_CALCULATOR_HTML = `<!DOCTYPE html>
+export const RETRO_CALCULATOR_HTML = String.raw`<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">

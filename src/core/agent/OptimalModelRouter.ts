@@ -135,8 +135,8 @@ export class OptimalModelRouter {
       return {
         server: 'openrouter',
         model: 'google/gemini-2.5-flash',
-        rationale: '⚡ Enrutado a Google Gemini 2.5 Flash por requerimiento de visión computacional y análisis multimodal.',
-        maxTokens: 4000,
+        rationale: '⚡ Enrutado a Gemini (visión) por requerimiento de análisis multimodal.',
+        maxTokens: 8000,
         temperature: 0.2,
         routeCategory: 'multimodal',
         complexityScore: 5,
@@ -171,15 +171,14 @@ export class OptimalModelRouter {
                               requestedModel.includes('llama') ||
                               requestedModel.includes('qwen');
 
-      const resolvedModel = (requestedModel.includes('qwen') || requestedModel.includes('instant'))
-        ? 'llama-3.3-70b-versatile'
-        : requestedModel;
+      // El gateway trata el modelo pedido como preferencia y cae al mejor disponible si no existe.
+      const resolvedModel = requestedModel;
 
       return {
         server: isGroqExclusive ? 'groq' : 'openrouter',
         model: resolvedModel,
         rationale: `🎯 Enrutado al modelo específico seleccionado: ${resolvedModel}.`,
-        maxTokens: isGroqExclusive ? 4000 : 8192,
+        maxTokens: 12000,
         temperature: 0.15,
         routeCategory: 'complex_build',
         complexityScore: 5
@@ -215,10 +214,10 @@ export class OptimalModelRouter {
 
     if (isSmallIncrementalEdit) {
       return {
-        server: 'groq',
-        model: 'llama-3.3-70b-versatile',
-        rationale: '⚡ Enrutado a Groq LPU (Llama 3.3 70B Versatile) para iteración incremental rápida y económica (~450 tokens/s).',
-        maxTokens: 4000,
+        server: 'openrouter',
+        model: 'auto',
+        rationale: '⚡ Edición puntual: se prioriza el modelo gratuito más rápido disponible (Groq / Cerebras / Gemini Flash).',
+        maxTokens: 6000,
         temperature: 0.10,
         routeCategory: 'incremental_edit',
         complexityScore: 1,
@@ -238,10 +237,10 @@ export class OptimalModelRouter {
 
     if (isMultiFileIncrementalEdit) {
       return {
-        server: 'groq',
-        model: 'llama-3.3-70b-versatile',
-        rationale: `⚡ Enrutado a Groq LPU (Llama 3.3 70B Versatile, 4,000 tokens) para edición multi-archivo en proyecto existente (~${estimatedAffectedFiles} archivos afectados).`,
-        maxTokens: 4000,
+        server: 'openrouter',
+        model: 'auto',
+        rationale: `🧠 Edición multi-archivo (~${estimatedAffectedFiles} archivos): se prioriza el mejor modelo gratuito disponible con salida amplia.`,
+        maxTokens: 12000,
         temperature: 0.15,
         routeCategory: 'complex_build',
         complexityScore: 4,
@@ -256,10 +255,10 @@ export class OptimalModelRouter {
     // de alta velocidad (~450 tokens/s) sin saturar límites de tokens por minuto (TPM).
     // ---------------------------------------------------------------------------------
     return {
-      server: 'groq',
-      model: 'llama-3.3-70b-versatile',
-      rationale: `🚀 Enrutado a Groq LPU (Llama 3.3 70B Versatile) para generación inicial completa React + Vite (~${estimatedAffectedFiles} archivos previstos).`,
-      maxTokens: 4000,
+      server: 'openrouter',
+      model: 'auto',
+      rationale: `🚀 Construcción completa (~${estimatedAffectedFiles} archivos): se usa el mejor modelo gratuito disponible (Gemini → Cerebras → SambaNova → OpenRouter → Groq).`,
+      maxTokens: 16000,
       temperature: 0.15,
       routeCategory: 'complex_build',
       complexityScore: 5,

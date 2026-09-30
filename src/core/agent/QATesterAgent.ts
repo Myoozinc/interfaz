@@ -234,6 +234,15 @@ export class QATesterAgent {
           }
         }
 
+        // D0. Sintaxis real con el compilador de la vista previa (detecta código truncado / JSX sin cerrar)
+        const strictSyntaxError = VirtualMultiFileBundler.checkSyntax(content, filePath);
+        if (strictSyntaxError) {
+          const msg = `Error de sintaxis en "${filePath}": ${strictSyntaxError}`;
+          errors.push(msg);
+          syntaxErrors.push({ file: filePath, error: strictSyntaxError });
+          continue;
+        }
+
         // D. Prueba de transpilación rápida de TypeScript
         try {
           const transpiled = VirtualMultiFileBundler.transpileTypeScript(content);

@@ -52,7 +52,7 @@ const decisionNewApp = optimalModelRouter.selectOptimalModel(
 );
 
 assert(decisionNewApp.server === 'openrouter', 'Enruta a OpenRouter para app nueva multi-pantalla', decisionNewApp.server);
-assert(decisionNewApp.model === 'deepseek/deepseek-chat', 'Selecciona el modelo de mayor capacidad (DeepSeek-V3)', decisionNewApp.model);
+assert(decisionNewApp.model === 'auto', 'Delega en el gateway la elección del mejor modelo gratuito disponible', decisionNewApp.model);
 assert(decisionNewApp.maxTokens >= 8000 && decisionNewApp.maxTokens <= 16000, 'maxTokens está en el rango exigido de 8,000 a 16,000', `Tokens: ${decisionNewApp.maxTokens}`);
 assert(decisionNewApp.routeCategory === 'complex_build', 'Categoría es complex_build');
 assert((decisionNewApp.estimatedAffectedFiles || 0) >= 4, 'Estima >= 4 archivos para la creación inicial');
@@ -71,9 +71,9 @@ const decisionColorEdit = optimalModelRouter.selectOptimalModel(
   { hasExistingProject: true, projectFileCount: 6, isEdit: true }
 );
 
-assert(decisionColorEdit.server === 'groq', 'Enruta a Groq LPU para cambio cosmético puntual', decisionColorEdit.server);
-assert(decisionColorEdit.model === 'llama-3.3-70b-versatile', 'Selecciona el modelo rápido y económico Llama 3.3 70B', decisionColorEdit.model);
-assert(decisionColorEdit.maxTokens === 4000, 'maxTokens es 4,000 para iteración rápida', `Tokens: ${decisionColorEdit.maxTokens}`);
+assert(decisionColorEdit.routeCategory === 'incremental_edit', 'Cambio cosmético puntual es edición incremental');
+assert(decisionColorEdit.model === 'auto', 'Edición puntual usa selección automática (prioriza velocidad)', decisionColorEdit.model);
+assert(decisionColorEdit.maxTokens >= 4000 && decisionColorEdit.maxTokens < 8000, 'maxTokens moderado para iteración rápida', `Tokens: ${decisionColorEdit.maxTokens}`);
 assert(decisionColorEdit.routeCategory === 'incremental_edit', 'Categoría es incremental_edit');
 assert(decisionColorEdit.estimatedAffectedFiles === 1, 'Archivos afectados estimados es 1');
 
@@ -91,8 +91,7 @@ const decisionTextEdit = optimalModelRouter.selectOptimalModel(
   { hasExistingProject: true, projectFileCount: 6, isEdit: true }
 );
 
-assert(decisionTextEdit.server === 'groq', 'Enruta a Groq para cambio de texto', decisionTextEdit.server);
-assert(decisionTextEdit.model === 'llama-3.3-70b-versatile', 'Usa modelo rápido Llama 3.3 70B');
+assert(decisionTextEdit.model === 'auto', 'Cambio de texto usa selección automática');
 assert(decisionTextEdit.estimatedAffectedFiles === 1, 'Estima 1 archivo afectado');
 
 // =========================================================================
@@ -110,8 +109,8 @@ const decisionComplexEdit = optimalModelRouter.selectOptimalModel(
 );
 
 assert(decisionComplexEdit.server === 'openrouter', 'Enruta a OpenRouter por edición compleja multi-archivo', decisionComplexEdit.server);
-assert(decisionComplexEdit.model === 'deepseek/deepseek-chat', 'Usa modelo capaz DeepSeek-V3');
-assert(decisionComplexEdit.maxTokens === 8192, 'maxTokens es 8,192 para edición multi-archivo');
+assert(decisionComplexEdit.model === 'auto', 'Edición compleja usa selección automática del mejor modelo');
+assert(decisionComplexEdit.maxTokens >= 8000, 'maxTokens amplio para edición multi-archivo', `Tokens: ${decisionComplexEdit.maxTokens}`);
 
 // =========================================================================
 // BLOQUE 6: Soporte Multimodal y Ollama Local

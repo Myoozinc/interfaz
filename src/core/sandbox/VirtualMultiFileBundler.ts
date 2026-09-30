@@ -140,9 +140,46 @@ export class VirtualMultiFileBundler {
 
       return transpiled;
     } catch (err: any) {
-      console.warn(`[VirtualMultiFileBundler] Fallback regex transpile para "${filePath}":`, err.message);
-      return this.fallbackRegexTranspile(code);
+      // El código no compila (típicamente salida truncada de la IA). Antes se intentaba un "fallback por regex"
+      // que producía JS roto y hacía caer TODA la vista previa con un SyntaxError opaco. Ahora el módulo se
+      // sustituye por un stub que falla con un mensaje claro al renderizarse, sin romper el resto de módulos.
+      console.warn(`[VirtualMultiFileBundler] "${filePath}" no compila:`, err.message);
+      return this.buildBrokenModuleStub(code, filePath, err.message);
     }
+  }
+
+  /**
+   * Comprueba la sintaxis real (TS/TSX/JS/JSX) con el mismo compilador que usa la vista previa.
+   * Devuelve null si compila, o el mensaje de error (con línea) si no.
+   */
+  public static checkSyntax(code: string, filePath = 'file.tsx'): string | null {
+    if (!code || !code.trim()) return null;
+    if (!/\.(tsx|ts|jsx|js|mjs)$/.test(filePath)) return null;
+    try {
+      const transforms: ('jsx' | 'typescript')[] = [];
+      if (/\.(tsx|ts)$/.test(filePath)) transforms.push('typescript');
+      if (/\.(tsx|jsx|js|mjs)$/.test(filePath) || code.includes('</')) transforms.push('jsx');
+      transform(code, { transforms, jsxRuntime: 'classic', production: true, filePath });
+      return null;
+    } catch (e: any) {
+      return String(e?.message || e).split('\n')[0].slice(0, 240);
+    }
+  }
+
+  /** Módulo sustituto para un archivo que no compila: conserva los exports para no romper el linkeo ESM. */
+  private static buildBrokenModuleStub(code: string, filePath: string, reason: string): string {
+    const names = new Set<string>();
+    const re = /export\s+(?:async\s+)?(?:function\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(code)) !== null) names.add(m[1]);
+    const msg = `Error de sintaxis en ${filePath}: ${reason}`;
+    return [
+      `const __msg = ${JSON.stringify(msg)};`,
+      `console.error(__msg);`,
+      `function __broken() { throw new Error(__msg); }`,
+      `export default __broken;`,
+      ...Array.from(names).map(n => `export const ${n} = __broken;`),
+    ].join('\n');
   }
 
   /**
