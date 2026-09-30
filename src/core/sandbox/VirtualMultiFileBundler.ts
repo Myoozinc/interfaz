@@ -581,7 +581,18 @@ export class VirtualMultiFileBundler {
           if (lucideGlobal && lucideGlobal.icons) {
             const kebab = iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
             const iconDef = lucideGlobal.icons[kebab] || lucideGlobal.icons[iconName.toLowerCase()] || lucideGlobal.icons[iconName];
-            if (iconDef && typeof iconDef.toSvg === 'function') {
+            if (iconDef && Array.isArray(iconDef) && R && R.createElement) {
+                  // lucide >= 0.3xx: el icono es un IconNode ([tag, attrs][] o ['svg', attrs, children])
+                  const nodes = iconDef[0] === 'svg' ? (iconDef[2] || []) : iconDef;
+                  const { size: _s, color: _c, strokeWidth: _w, className: _cn, absoluteStrokeWidth: _a, ...rest } = p;
+                  return R.createElement('svg', {
+                    xmlns: 'http://www.w3.org/2000/svg', width: size, height: size, viewBox: '0 0 24 24',
+                    fill: 'none', stroke: color, strokeWidth: strokeWidth, strokeLinecap: 'round', strokeLinejoin: 'round',
+                    className: 'lucide lucide-' + iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase() + ' ' + className,
+                    ...rest
+                  }, ...nodes.map((n, i) => R.createElement(n[0], { key: i, ...n[1] })));
+                }
+                if (iconDef && typeof iconDef.toSvg === 'function') {
               return R.createElement('span', {
                 className: 'inline-flex items-center justify-center ' + className,
                 dangerouslySetInnerHTML: { __html: iconDef.toSvg({ width: size, height: size, color, 'stroke-width': strokeWidth, class: className }) }
@@ -1148,6 +1159,17 @@ export class VirtualMultiFileBundler {
               if (lucideGlobal && lucideGlobal.icons) {
                 const kebab = iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
                 const iconDef = lucideGlobal.icons[kebab] || lucideGlobal.icons[iconName.toLowerCase()] || lucideGlobal.icons[iconName];
+                if (iconDef && Array.isArray(iconDef) && R && R.createElement) {
+                  // lucide >= 0.3xx: el icono es un IconNode ([tag, attrs][] o ['svg', attrs, children])
+                  const nodes = iconDef[0] === 'svg' ? (iconDef[2] || []) : iconDef;
+                  const { size: _s, color: _c, strokeWidth: _w, className: _cn, absoluteStrokeWidth: _a, ...rest } = p;
+                  return R.createElement('svg', {
+                    xmlns: 'http://www.w3.org/2000/svg', width: size, height: size, viewBox: '0 0 24 24',
+                    fill: 'none', stroke: color, strokeWidth: strokeWidth, strokeLinecap: 'round', strokeLinejoin: 'round',
+                    className: 'lucide lucide-' + iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase() + ' ' + className,
+                    ...rest
+                  }, ...nodes.map((n, i) => R.createElement(n[0], { key: i, ...n[1] })));
+                }
                 if (iconDef && typeof iconDef.toSvg === 'function') {
                   return R ? R.createElement('span', {
                     className: 'inline-flex items-center justify-center ' + className,
