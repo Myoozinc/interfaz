@@ -10,7 +10,6 @@ import { transform } from 'sucrase';
 import { NONA_BADGE_HTML } from './ProjectStructureDefaults';
 
 export const THREE_VERSION = '0.170.0';
-const THREE_ESM = `https://esm.sh/three@${THREE_VERSION}`;
 
 export interface BundlerResult {
   srcDoc: string;
@@ -346,6 +345,130 @@ export class VirtualMultiFileBundler {
       'const $1 = (window.__nonaLucideProxy || {});'
     );
 
+    // 1c. Transformar imports de Three.js (three y three/...) para ejecución 100% libre de fallos ESM
+    result = result.replace(/import\s+type\s+[\s\S]*?from\s+['"]three(?:\/[^'"]*)?['"];?/g, '');
+
+    // A) import THREE, { a, b } from 'three'
+    result = result.replace(
+      /import\s+([A-Za-z0-9_]+)\s*,\s*\{([^}]+)\}\s+from\s+['"]three['"];?/g,
+      (_match, defaultName, namesStr) => {
+        const names = namesStr.split(',').map((n: string) => n.trim()).filter((n: string) => n && !n.startsWith('type '));
+        const decls = names.map((n: string) => {
+          if (n.includes(' as ')) {
+            const [orig, alias] = n.split(' as ').map((s: string) => s.trim());
+            return `const ${alias} = (window.THREE ? window.THREE[${JSON.stringify(orig)}] : undefined);`;
+          }
+          return `const ${n} = (window.THREE ? window.THREE[${JSON.stringify(n)}] : undefined);`;
+        }).join(' ');
+        return `const ${defaultName} = (window.THREE || {}); ${decls}`;
+      }
+    );
+
+    // B) import * as THREE from 'three'
+    result = result.replace(
+      /import\s+\*\s+as\s+([A-Za-z0-9_]+)\s+from\s+['"]three['"];?/g,
+      'const $1 = (window.THREE || {});'
+    );
+
+    // C) import { a, b } from 'three'
+    result = result.replace(
+      /import\s+\{([^}]+)\}\s+from\s+['"]three['"];?/g,
+      (_match, namesStr) => {
+        const names = namesStr.split(',').map((n: string) => n.trim()).filter((n: string) => n && !n.startsWith('type '));
+        const decls = names.map((n: string) => {
+          if (n.includes(' as ')) {
+            const [orig, alias] = n.split(' as ').map((s: string) => s.trim());
+            return `const ${alias} = (window.THREE ? window.THREE[${JSON.stringify(orig)}] : undefined);`;
+          }
+          return `const ${n} = (window.THREE ? window.THREE[${JSON.stringify(n)}] : undefined);`;
+        }).join(' ');
+        return decls;
+      }
+    );
+
+    // D) import THREE from 'three'
+    result = result.replace(
+      /import\s+([A-Za-z0-9_]+)\s+from\s+['"]three['"];?/g,
+      'const $1 = (window.THREE || {});'
+    );
+
+    // E) import { OrbitControls, ... } from 'three/examples/...' o 'three/addons/...'
+    result = result.replace(
+      /import\s+\{([^}]+)\}\s+from\s+['"]three\/(?:examples\/jsm|addons)\/([^'"]+)['"];?/g,
+      (_match, namesStr, subPath) => {
+        const names = namesStr.split(',').map((n: string) => n.trim()).filter((n: string) => n && !n.startsWith('type '));
+        const lastPart = subPath.split('/').pop()?.replace(/\.(?:js|mjs|ts)$/, '') || '';
+        const decls = names.map((n: string) => {
+          let orig = n;
+          let alias = n;
+          if (n.includes(' as ')) {
+            [orig, alias] = n.split(' as ').map((s: string) => s.trim());
+          }
+          return `const ${alias} = (window.THREE?.[${JSON.stringify(orig)}] || window[${JSON.stringify(orig)}] || window.THREE?.[${JSON.stringify(lastPart)}] || window[${JSON.stringify(lastPart)}] || class ${alias} {});`;
+        }).join(' ');
+        return decls;
+      }
+    );
+
+    // F) import OrbitControls from 'three/examples/...' o 'three/addons/...'
+    result = result.replace(
+      /import\s+([A-Za-z0-9_]+)\s+from\s+['"]three\/(?:examples\/jsm|addons)\/([^'"]+)['"];?/g,
+      (_match, defaultName, subPath) => {
+        const lastPart = subPath.split('/').pop()?.replace(/\.(?:js|mjs|ts)$/, '') || defaultName;
+        return `const ${defaultName} = (window.THREE?.[${JSON.stringify(lastPart)}] || window[${JSON.stringify(lastPart)}] || window.THREE?.[${JSON.stringify(defaultName)}] || class ${defaultName} {});`;
+      }
+    );
+
+    // 1d. Transformar imports de Tone.js (tone)
+    result = result.replace(/import\s+type\s+[\s\S]*?from\s+['"]tone(?:\/[^'"]*)?['"];?/g, '');
+    result = result.replace(
+      /import\s+\*\s+as\s+([A-Za-z0-9_]+)\s+from\s+['"]tone['"];?/g,
+      'const $1 = (window.Tone || {});'
+    );
+    result = result.replace(
+      /import\s+([A-Za-z0-9_]+)\s+from\s+['"]tone['"];?/g,
+      'const $1 = (window.Tone || {});'
+    );
+    result = result.replace(
+      /import\s+\{([^}]+)\}\s+from\s+['"]tone['"];?/g,
+      (_match, namesStr) => {
+        const names = namesStr.split(',').map((n: string) => n.trim()).filter((n: string) => n && !n.startsWith('type '));
+        const decls = names.map((n: string) => {
+          if (n.includes(' as ')) {
+            const [orig, alias] = n.split(' as ').map((s: string) => s.trim());
+            return `const ${alias} = (window.Tone ? window.Tone[${JSON.stringify(orig)}] : undefined);`;
+          }
+          return `const ${n} = (window.Tone ? window.Tone[${JSON.stringify(n)}] : undefined);`;
+        }).join(' ');
+        return decls;
+      }
+    );
+
+    // 1e. Transformar imports de Cannon.js (cannon-es)
+    result = result.replace(/import\s+type\s+[\s\S]*?from\s+['"]cannon-es(?:\/[^'"]*)?['"];?/g, '');
+    result = result.replace(
+      /import\s+\*\s+as\s+([A-Za-z0-9_]+)\s+from\s+['"]cannon-es['"];?/g,
+      'const $1 = (window.CANNON || {});'
+    );
+    result = result.replace(
+      /import\s+([A-Za-z0-9_]+)\s+from\s+['"]cannon-es['"];?/g,
+      'const $1 = (window.CANNON || {});'
+    );
+    result = result.replace(
+      /import\s+\{([^}]+)\}\s+from\s+['"]cannon-es['"];?/g,
+      (_match, namesStr) => {
+        const names = namesStr.split(',').map((n: string) => n.trim()).filter((n: string) => n && !n.startsWith('type '));
+        const decls = names.map((n: string) => {
+          if (n.includes(' as ')) {
+            const [orig, alias] = n.split(' as ').map((s: string) => s.trim());
+            return `const ${alias} = (window.CANNON ? window.CANNON[${JSON.stringify(orig)}] : undefined);`;
+          }
+          return `const ${n} = (window.CANNON ? window.CANNON[${JSON.stringify(n)}] : undefined);`;
+        }).join(' ');
+        return decls;
+      }
+    );
+
     // 2. Reescribir imports/exports estáticos:
     // import ... from './...' | export ... from './...'
     result = result.replace(
@@ -648,6 +771,177 @@ export class VirtualMultiFileBundler {
     `;
     const routerShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(routerShimCode);
 
+    const threeShimCode = `
+      const T = (typeof window !== 'undefined' && window.THREE) ? window.THREE : {};
+      export const Object3D = T.Object3D || class Object3D {};
+      export const Scene = T.Scene || class Scene {};
+      export const PerspectiveCamera = T.PerspectiveCamera || class PerspectiveCamera {};
+      export const OrthographicCamera = T.OrthographicCamera || class OrthographicCamera {};
+      export const Camera = T.Camera || class Camera {};
+      export const WebGLRenderer = T.WebGLRenderer || class WebGLRenderer {};
+      export const WebGLRenderTarget = T.WebGLRenderTarget || class WebGLRenderTarget {};
+      export const Mesh = T.Mesh || class Mesh {};
+      export const Group = T.Group || class Group {};
+      export const BoxGeometry = T.BoxGeometry || class BoxGeometry {};
+      export const SphereGeometry = T.SphereGeometry || class SphereGeometry {};
+      export const PlaneGeometry = T.PlaneGeometry || class PlaneGeometry {};
+      export const CylinderGeometry = T.CylinderGeometry || class CylinderGeometry {};
+      export const ConeGeometry = T.ConeGeometry || class ConeGeometry {};
+      export const TorusGeometry = T.TorusGeometry || class TorusGeometry {};
+      export const RingGeometry = T.RingGeometry || class RingGeometry {};
+      export const CircleGeometry = T.CircleGeometry || class CircleGeometry {};
+      export const BufferGeometry = T.BufferGeometry || class BufferGeometry {};
+      export const InstancedBufferGeometry = T.InstancedBufferGeometry || class InstancedBufferGeometry {};
+      export const MeshBasicMaterial = T.MeshBasicMaterial || class MeshBasicMaterial {};
+      export const MeshStandardMaterial = T.MeshStandardMaterial || class MeshStandardMaterial {};
+      export const MeshPhongMaterial = T.MeshPhongMaterial || class MeshPhongMaterial {};
+      export const MeshPhysicalMaterial = T.MeshPhysicalMaterial || class MeshPhysicalMaterial {};
+      export const MeshLambertMaterial = T.MeshLambertMaterial || class MeshLambertMaterial {};
+      export const MeshToonMaterial = T.MeshToonMaterial || class MeshToonMaterial {};
+      export const MeshNormalMaterial = T.MeshNormalMaterial || class MeshNormalMaterial {};
+      export const MeshDepthMaterial = T.MeshDepthMaterial || class MeshDepthMaterial {};
+      export const Material = T.Material || class Material {};
+      export const ShaderMaterial = T.ShaderMaterial || class ShaderMaterial {};
+      export const RawShaderMaterial = T.RawShaderMaterial || class RawShaderMaterial {};
+      export const LineBasicMaterial = T.LineBasicMaterial || class LineBasicMaterial {};
+      export const PointsMaterial = T.PointsMaterial || class PointsMaterial {};
+      export const Vector2 = T.Vector2 || class Vector2 {};
+      export const Vector3 = T.Vector3 || class Vector3 {};
+      export const Vector4 = T.Vector4 || class Vector4 {};
+      export const Matrix3 = T.Matrix3 || class Matrix3 {};
+      export const Matrix4 = T.Matrix4 || class Matrix4 {};
+      export const Quaternion = T.Quaternion || class Quaternion {};
+      export const Euler = T.Euler || class Euler {};
+      export const Color = T.Color || class Color {};
+      export const Raycaster = T.Raycaster || class Raycaster {};
+      export const Clock = T.Clock || class Clock {};
+      export const TextureLoader = T.TextureLoader || class TextureLoader {};
+      export const LoadingManager = T.LoadingManager || class LoadingManager {};
+      export const Texture = T.Texture || class Texture {};
+      export const CanvasTexture = T.CanvasTexture || class CanvasTexture {};
+      export const AmbientLight = T.AmbientLight || class AmbientLight {};
+      export const DirectionalLight = T.DirectionalLight || class DirectionalLight {};
+      export const PointLight = T.PointLight || class PointLight {};
+      export const SpotLight = T.SpotLight || class SpotLight {};
+      export const HemisphereLight = T.HemisphereLight || class HemisphereLight {};
+      export const RectAreaLight = T.RectAreaLight || class RectAreaLight {};
+      export const Light = T.Light || class Light {};
+      export const AudioListener = T.AudioListener || class AudioListener {};
+      export const Audio = T.Audio || class Audio {};
+      export const PositionalAudio = T.PositionalAudio || class PositionalAudio {};
+      export const AudioLoader = T.AudioLoader || class AudioLoader {};
+      export const Fog = T.Fog || class Fog {};
+      export const FogExp2 = T.FogExp2 || class FogExp2 {};
+      export const AnimationMixer = T.AnimationMixer || class AnimationMixer {};
+      export const AnimationClip = T.AnimationClip || class AnimationClip {};
+      export const AnimationAction = T.AnimationAction || class AnimationAction {};
+      export const KeyframeTrack = T.KeyframeTrack || class KeyframeTrack {};
+      export const InstancedMesh = T.InstancedMesh || class InstancedMesh {};
+      export const Line = T.Line || class Line {};
+      export const LineSegments = T.LineSegments || class LineSegments {};
+      export const LineLoop = T.LineLoop || class LineLoop {};
+      export const Points = T.Points || class Points {};
+      export const Sprite = T.Sprite || class Sprite {};
+      export const SpriteMaterial = T.SpriteMaterial || class SpriteMaterial {};
+      export const Curve = T.Curve || class Curve {};
+      export const CatmullRomCurve3 = T.CatmullRomCurve3 || class CatmullRomCurve3 {};
+      export const CurvePath = T.CurvePath || class CurvePath {};
+      export const Path = T.Path || class Path {};
+      export const Shape = T.Shape || class Shape {};
+      export const ShapeGeometry = T.ShapeGeometry || class ShapeGeometry {};
+      export const ExtrudeGeometry = T.ExtrudeGeometry || class ExtrudeGeometry {};
+      export const BufferAttribute = T.BufferAttribute || class BufferAttribute {};
+      export const Float32BufferAttribute = T.Float32BufferAttribute || class Float32BufferAttribute {};
+      export const Uint16BufferAttribute = T.Uint16BufferAttribute || class Uint16BufferAttribute {};
+      export const Uint32BufferAttribute = T.Uint32BufferAttribute || class Uint32BufferAttribute {};
+      export const Box3 = T.Box3 || class Box3 {};
+      export const Sphere = T.Sphere || class Sphere {};
+      export const Ray = T.Ray || class Ray {};
+      export const Plane = T.Plane || class Plane {};
+      export const Frustum = T.Frustum || class Frustum {};
+      export const Triangle = T.Triangle || class Triangle {};
+      export const MathUtils = T.MathUtils || { degToRad: (d) => d * Math.PI / 180, radToDeg: (r) => r * 180 / Math.PI };
+      export const Uniform = T.Uniform || class Uniform {};
+      export const OrbitControls = (typeof window !== 'undefined' && (window.THREE?.OrbitControls || window.OrbitControls)) || class OrbitControls {};
+      export const PointerLockControls = (typeof window !== 'undefined' && (window.THREE?.PointerLockControls || window.PointerLockControls)) || class PointerLockControls {};
+      export const GLTFLoader = (typeof window !== 'undefined' && (window.THREE?.GLTFLoader || window.GLTFLoader)) || class GLTFLoader {};
+      export const FontLoader = (typeof window !== 'undefined' && (window.THREE?.FontLoader || window.FontLoader)) || class FontLoader {};
+      export const TextGeometry = (typeof window !== 'undefined' && (window.THREE?.TextGeometry || window.TextGeometry)) || class TextGeometry {};
+      export default T;
+    `;
+    const threeShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(threeShimCode);
+
+    const threeAddonsShimCode = `
+      const T = (typeof window !== 'undefined' && window.THREE) ? window.THREE : {};
+      export const OrbitControls = T.OrbitControls || (typeof window !== 'undefined' && window.OrbitControls) || class OrbitControls {};
+      export const PointerLockControls = T.PointerLockControls || (typeof window !== 'undefined' && window.PointerLockControls) || class PointerLockControls {};
+      export const GLTFLoader = T.GLTFLoader || (typeof window !== 'undefined' && window.GLTFLoader) || class GLTFLoader {};
+      export const FontLoader = T.FontLoader || (typeof window !== 'undefined' && window.FontLoader) || class FontLoader {};
+      export const TextGeometry = T.TextGeometry || (typeof window !== 'undefined' && window.TextGeometry) || class TextGeometry {};
+      export default { OrbitControls, PointerLockControls, GLTFLoader, FontLoader, TextGeometry };
+    `;
+    const threeAddonsShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(threeAddonsShimCode);
+
+    const toneShimCode = `
+      const Tone = (typeof window !== 'undefined' && window.Tone) ? window.Tone : {};
+      export const Synth = Tone.Synth || class Synth {};
+      export const PolySynth = Tone.PolySynth || class PolySynth {};
+      export const MembraneSynth = Tone.MembraneSynth || class MembraneSynth {};
+      export const FMSynth = Tone.FMSynth || class FMSynth {};
+      export const AMSynth = Tone.AMSynth || class AMSynth {};
+      export const DuoSynth = Tone.DuoSynth || class DuoSynth {};
+      export const MetalSynth = Tone.MetalSynth || class MetalSynth {};
+      export const PluckSynth = Tone.PluckSynth || class PluckSynth {};
+      export const NoiseSynth = Tone.NoiseSynth || class NoiseSynth {};
+      export const Sampler = Tone.Sampler || class Sampler {};
+      export const Player = Tone.Player || class Player {};
+      export const Players = Tone.Players || class Players {};
+      export const Transport = Tone.Transport || {};
+      export const Sequence = Tone.Sequence || class Sequence {};
+      export const Loop = Tone.Loop || class Loop {};
+      export const Part = Tone.Part || class Part {};
+      export const Destination = Tone.Destination || {};
+      export const Gain = Tone.Gain || class Gain {};
+      export const Volume = Tone.Volume || class Volume {};
+      export const Filter = Tone.Filter || class Filter {};
+      export const FeedbackDelay = Tone.FeedbackDelay || class FeedbackDelay {};
+      export const Reverb = Tone.Reverb || class Reverb {};
+      export const Distortion = Tone.Distortion || class Distortion {};
+      export const Chorus = Tone.Chorus || class Chorus {};
+      export const Tremolo = Tone.Tremolo || class Tremolo {};
+      export const Vibrato = Tone.Vibrato || class Vibrato {};
+      export const Phaser = Tone.Phaser || class Phaser {};
+      export const PingPongDelay = Tone.PingPongDelay || class PingPongDelay {};
+      export const Freeverb = Tone.Freeverb || class Freeverb {};
+      export const JCReverb = Tone.JCReverb || class JCReverb {};
+      export const Limiter = Tone.Limiter || class Limiter {};
+      export const Compressor = Tone.Compressor || class Compressor {};
+      export const Frequency = Tone.Frequency || function(f) { return { toNote: () => f, toFrequency: () => 440 }; };
+      export const Time = Tone.Time || function(t) { return { toSeconds: () => 0 }; };
+      export const start = Tone.start || (async () => {});
+      export const now = Tone.now || (() => Date.now() / 1000);
+      export const context = Tone.context || {};
+      export default Tone;
+    `;
+    const toneShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(toneShimCode);
+
+    const cannonShimCode = `
+      const C = (typeof window !== 'undefined' && window.CANNON) ? window.CANNON : {};
+      export const World = C.World || class World {};
+      export const Body = C.Body || class Body {};
+      export const Box = C.Box || class Box {};
+      export const Sphere = C.Sphere || class Sphere {};
+      export const Plane = C.Plane || class Plane {};
+      export const Cylinder = C.Cylinder || class Cylinder {};
+      export const Vec3 = C.Vec3 || class Vec3 {};
+      export const Quaternion = C.Quaternion || class Quaternion {};
+      export const Material = C.Material || class Material {};
+      export const ContactMaterial = C.ContactMaterial || class ContactMaterial {};
+      export const RaycastVehicle = C.RaycastVehicle || class RaycastVehicle {};
+      export default C;
+    `;
+    const cannonShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(cannonShimCode);
+
     // 2b. Construir Import Map con resolución local y paquetes externos predeterminados
     const importMap: Record<string, string> = {
       "react": reactShimUri,
@@ -667,16 +961,35 @@ export class VirtualMultiFileBundler {
       "./utils": utilsShimUri,
       "../utils": utilsShimUri,
       "utils": utilsShimUri,
-      // three.js y Tone.js completos (misma versión que el package.json exportado). Antes eran shims recortados
-      // sobre la versión global r128: "import * as THREE from 'three'" solo exponía ~50 clases y Tone ninguna.
-      "three": THREE_ESM,
+      "three": threeShimUri,
+      "three/": threeShimUri,
+      "three/addons/controls/OrbitControls": threeAddonsShimUri,
+      "three/addons/controls/OrbitControls.js": threeAddonsShimUri,
+      "three/examples/jsm/controls/OrbitControls": threeAddonsShimUri,
+      "three/examples/jsm/controls/OrbitControls.js": threeAddonsShimUri,
+      "three/addons/controls/PointerLockControls": threeAddonsShimUri,
+      "three/addons/controls/PointerLockControls.js": threeAddonsShimUri,
+      "three/examples/jsm/controls/PointerLockControls": threeAddonsShimUri,
+      "three/examples/jsm/controls/PointerLockControls.js": threeAddonsShimUri,
+      "three/addons/loaders/GLTFLoader": threeAddonsShimUri,
+      "three/addons/loaders/GLTFLoader.js": threeAddonsShimUri,
+      "three/examples/jsm/loaders/GLTFLoader": threeAddonsShimUri,
+      "three/examples/jsm/loaders/GLTFLoader.js": threeAddonsShimUri,
+      "three/addons/loaders/FontLoader": threeAddonsShimUri,
+      "three/addons/loaders/FontLoader.js": threeAddonsShimUri,
+      "three/examples/jsm/loaders/FontLoader": threeAddonsShimUri,
+      "three/examples/jsm/loaders/FontLoader.js": threeAddonsShimUri,
+      "three/addons/geometries/TextGeometry": threeAddonsShimUri,
+      "three/addons/geometries/TextGeometry.js": threeAddonsShimUri,
+      "three/examples/jsm/geometries/TextGeometry": threeAddonsShimUri,
+      "three/examples/jsm/geometries/TextGeometry.js": threeAddonsShimUri,
       "canvas-confetti": confettiShimUri,
-      "tone": "https://esm.sh/tone@14.8.49",
+      "tone": toneShimUri,
       "vexflow": "https://esm.sh/vexflow@4.2.5?external=react,react-dom",
       "howler": "https://esm.sh/howler@2.2.4",
       "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
       "framer-motion": "https://esm.sh/framer-motion@11.11.17?external=react,react-dom",
-      "cannon-es": "https://esm.sh/cannon-es@0.20.0",
+      "cannon-es": cannonShimUri,
       "chart.js": "https://esm.sh/chart.js@4.4.7",
       "chart.js/auto": "https://esm.sh/chart.js@4.4.7/auto"
     };
@@ -889,16 +1202,13 @@ export class VirtualMultiFileBundler {
       } else if (spec === 'framer-motion') {
         importMap[spec] = 'https://esm.sh/framer-motion@11.11.17?external=react,react-dom';
       } else if (spec === 'cannon-es') {
-        importMap[spec] = 'https://esm.sh/cannon-es@0.20.0';
+        importMap[spec] = cannonShimUri;
       } else if (spec === 'tone') {
-        importMap[spec] = 'https://esm.sh/tone@14.8.49';
+        importMap[spec] = toneShimUri;
       } else if (spec === 'three') {
-        importMap[spec] = THREE_ESM;
+        importMap[spec] = threeShimUri;
       } else if (spec.startsWith('three/')) {
-        // Addons oficiales: three/addons/x -> three/examples/jsm/x(.js), compartiendo la misma instancia de three
-        let sub = spec.slice('three/'.length).replace(/^addons\//, 'examples/jsm/');
-        if (!/\.(m?js)$/.test(sub)) sub += '.js';
-        importMap[spec] = `https://esm.sh/three@${THREE_VERSION}/${sub}?external=three`;
+        importMap[spec] = threeAddonsShimUri;
       } else if (spec === 'canvas-confetti') {
         importMap[spec] = confettiShimUri;
       } else if (spec.startsWith('date-fns')) {
@@ -1375,9 +1685,25 @@ export class VirtualMultiFileBundler {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    try {
+      if (window.THREE) {
+        if (!window.THREE.OrbitControls && window.OrbitControls) window.THREE.OrbitControls = window.OrbitControls;
+        if (!window.THREE.PointerLockControls && window.PointerLockControls) window.THREE.PointerLockControls = window.PointerLockControls;
+        if (!window.THREE.GLTFLoader && window.GLTFLoader) window.THREE.GLTFLoader = window.GLTFLoader;
+        if (!window.THREE.FontLoader && window.FontLoader) window.THREE.FontLoader = window.FontLoader;
+        if (!window.THREE.TextGeometry && window.TextGeometry) window.THREE.TextGeometry = window.TextGeometry;
+      }
+    } catch(e) {}
+  </script>
   ${lucideScript}
   ${audioPolyfillScript}
   ${inspectElementScript}
