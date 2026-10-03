@@ -497,8 +497,6 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
@@ -509,8 +507,6 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
             if (!window.THREE.OrbitControls && window.OrbitControls) window.THREE.OrbitControls = window.OrbitControls;
             if (!window.THREE.PointerLockControls && window.PointerLockControls) window.THREE.PointerLockControls = window.PointerLockControls;
             if (!window.THREE.GLTFLoader && window.GLTFLoader) window.THREE.GLTFLoader = window.GLTFLoader;
-            if (!window.THREE.FontLoader && window.FontLoader) window.THREE.FontLoader = window.FontLoader;
-            if (!window.THREE.TextGeometry && window.TextGeometry) window.THREE.TextGeometry = window.TextGeometry;
           }
         } catch(e) {}
       </script>

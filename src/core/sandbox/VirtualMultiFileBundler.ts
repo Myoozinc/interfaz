@@ -1357,11 +1357,26 @@ export class VirtualMultiFileBundler {
 
       const rootEl = document.getElementById('root') || document.getElementById('app') || document.body;
 
+      function MountNotifier(props) {
+        React.useEffect(() => {
+          try {
+            window.parent.postMessage({ type: 'NONA_APP_RENDERED' }, '*');
+          } catch(e) {}
+        }, []);
+        return props.children;
+      }
+
       const renderApp = (Comp) => {
         if (!Comp) return;
         try {
           const root = ReactDOM.createRoot(rootEl);
-          root.render(React.createElement(NonaErrorBoundary, null, React.createElement(Comp)));
+          root.render(
+            React.createElement(NonaErrorBoundary, null,
+              React.createElement(MountNotifier, null,
+                React.createElement(Comp)
+              )
+            )
+          );
         } catch(err) {
           console.error('[NONA Render Error]:', err);
         }
@@ -1673,41 +1688,46 @@ export class VirtualMultiFileBundler {
       </script>
     `;
 
-    const srcDoc = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NONA Multi-File Preview</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>try { tailwind.config = { darkMode: 'class' }; } catch (e) {}</script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    const allCode = Object.values(normalizedFiles).join('\n');
+    const needsThree = /\b(three|THREE|WebGLRenderer|BoxGeometry|MeshStandardMaterial|Scene\(\)|OrbitControls|PointerLockControls|GLTFLoader)\b/i.test(allCode);
+    const needsTone = /\b(tone|Tone|PolySynth|MonoSynth|AudioContext|MembraneSynth)\b/i.test(allCode);
+    const needsCannon = /\b(cannon-es|cannon|CANNON|RaycastVehicle)\b/i.test(allCode);
+
+    const threeScripts = needsThree ? `
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
   <script>
     try {
       if (window.THREE) {
         if (!window.THREE.OrbitControls && window.OrbitControls) window.THREE.OrbitControls = window.OrbitControls;
         if (!window.THREE.PointerLockControls && window.PointerLockControls) window.THREE.PointerLockControls = window.PointerLockControls;
         if (!window.THREE.GLTFLoader && window.GLTFLoader) window.THREE.GLTFLoader = window.GLTFLoader;
-        if (!window.THREE.FontLoader && window.FontLoader) window.THREE.FontLoader = window.FontLoader;
-        if (!window.THREE.TextGeometry && window.TextGeometry) window.THREE.TextGeometry = window.TextGeometry;
       }
     } catch(e) {}
-  </script>
+  </script>` : '';
+
+    const toneScript = needsTone ? `\n  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>` : '';
+    const cannonScript = needsCannon ? `\n  <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>` : '';
+
+    const srcDoc = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NONA Multi-File Preview</title>
+  ${captureScripts}
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>try { tailwind.config = { darkMode: 'class' }; } catch (e) {}</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  ${threeScripts}${toneScript}${cannonScript}
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   ${lucideScript}
   ${audioPolyfillScript}
   ${inspectElementScript}
-  ${captureScripts}
   <style>
     *, *::before, *::after {
       box-sizing: border-box;
