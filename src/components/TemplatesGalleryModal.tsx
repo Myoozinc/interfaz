@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   X, LayoutGrid, Gamepad2, Music, Rocket, BarChart3, ShoppingBag, Smartphone, HeartHandshake, Search,
   ArrowRight, CheckCircle2, Box, Kanban, Code2, Plane, Anchor, Calculator, CarFront, Flag, Sword, Castle,
-  Globe, Loader2, Keyboard, Sparkles,
+  Globe, Loader2, Keyboard, Sparkles, Truck, Siren, PlaneLanding, Flame, TreePalm, Skull, Trophy,
 } from 'lucide-react';
 import { STARTER_TEMPLATES } from '../services/templates';
 import { GAME_TEMPLATES, GAME_CATEGORIES, REPLACED_TEMPLATE_IDS, resolveTemplateFiles } from '../services/gameTemplates';
@@ -22,7 +22,7 @@ const ALL_TEMPLATES: ProjectTemplate[] = [
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   Code2, Box, Gamepad2, Plane, Music, Rocket, BarChart3, ShoppingBag, Kanban, Smartphone, HeartHandshake,
-  Anchor, Calculator, CarFront, Flag, Sword, Castle, Globe,
+  Anchor, Calculator, CarFront, Flag, Sword, Castle, Globe, Truck, Siren, PlaneLanding, Flame, TreePalm, Skull, Trophy,
 };
 
 const CATEGORY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
