@@ -438,6 +438,70 @@ export function validateProject(files: Record<string, string>): string[] {
   return problems;
 }
 
+const ROUTER_NAMES = new Set(['BrowserRouter', 'HashRouter', 'MemoryRouter', 'Routes', 'Route', 'Link', 'NavLink', 'Navigate', 'Outlet', 'useNavigate', 'useParams', 'useLocation', 'useSearchParams']);
+const REACT_NAMES = new Set(['useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'useContext', 'useReducer', 'useId', 'useLayoutEffect', 'useTransition', 'useDeferredValue', 'createContext', 'Fragment', 'Suspense', 'lazy', 'memo', 'forwardRef']);
+
+function relSpec(from: string, to: string): string {
+  const a = from.split('/').slice(0, -1), b = to.replace(/\.(tsx|ts|jsx|js)$/, '').split('/');
+  let i = 0;
+  while (i < a.length && i < b.length - 1 && a[i] === b[i]) i++;
+  const up = a.length - i;
+  return (up ? '../'.repeat(up) : './') + b.slice(i).join('/');
+}
+
+/**
+ * Añade los imports que faltan (componentes, hooks y utilidades exportados por otros archivos del proyecto,
+ * hooks de React y componentes de react-router). Los modelos gratuitos los olvidan a menudo y la app
+ * fallaba con "X is not defined". Devuelve los nombres que siguen sin definirse.
+ */
+export function autoImportMissing(files: Record<string, string>): string[] {
+  const named = new Map<string, string>();   // nombre → archivo que lo exporta
+  const defaults = new Map<string, string>(); // nombre → archivo con export default de ese nombre
+  for (const [p, c] of Object.entries(files)) {
+    if (!/\.(tsx|ts|jsx|js)$/.test(p) || /(^|\/)main\.(t|j)sx?$/.test(p)) continue;
+    for (const m of c.matchAll(/export\s+(?:async\s+)?(?:function\*?|const|let|class)\s+([A-Za-z_$][\w$]*)/g)) if (!/^default$/.test(m[1])) named.set(m[1], p);
+    for (const m of c.matchAll(/export\s*\{([^}]*)\}(?!\s*from)/g)) for (const part of m[1].split(',')) {
+      const name = part.trim().split(/\s+as\s+/).pop()?.trim();
+      if (name && name !== 'default' && /^[A-Za-z_$][\w$]*$/.test(name)) named.set(name, p);
+    }
+    const d = c.match(/export\s+default\s+(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)/) || c.match(/export\s+default\s+([A-Z][\w$]*)\s*;?\s*$/m);
+    if (d) defaults.set(d[1], p);
+  }
+  const unresolved = new Set<string>();
+  for (const [p, c0] of Object.entries(files)) {
+    if (!/\.(tsx|jsx|ts|js)$/.test(p)) continue;
+    let c = c0;
+    const code = c.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '').replace(/(['"`])(?:\\.|(?!\1)[^\\\n])*\1/g, '""');
+    const declared = new Set<string>();
+    for (const m of code.matchAll(/import\s+([\s\S]*?)\s+from\s+["']/g)) for (const id of m[1].match(/[A-Za-z_$][\w$]*/g) || []) declared.add(id);
+    for (const m of code.matchAll(/(?:function\*?|class|const|let|var|type|interface|enum)\s+([A-Za-z_$][\w$]*)/g)) declared.add(m[1]);
+    for (const m of code.matchAll(/(?:const|let|var)\s*[{[]([^}\]=]*)[}\]]\s*=/g)) for (const id of m[1].match(/[A-Za-z_$][\w$]*/g) || []) declared.add(id);
+    const used = new Set<string>();
+    for (const m of code.matchAll(/<([A-Z][\w$]*)[\s/>]/g)) used.add(m[1]);
+    for (const m of code.matchAll(/(?<![\w$.])(use[A-Z][\w$]*|[a-z][\w$]*)\s*\(/g)) if (named.has(m[1]) || REACT_NAMES.has(m[1]) || ROUTER_NAMES.has(m[1])) used.add(m[1]);
+    const add: Record<string, { def?: string; names: Set<string> }> = {};
+    const want = (spec: string) => (add[spec] ||= { names: new Set() });
+    for (const name of used) {
+      if (declared.has(name)) continue;
+      if (named.has(name) && named.get(name) !== p) want(relSpec(p, named.get(name)!)).names.add(name);
+      else if (defaults.has(name) && defaults.get(name) !== p) want(relSpec(p, defaults.get(name)!)).def = name;
+      else if (REACT_NAMES.has(name)) want('react').names.add(name);
+      else if (ROUTER_NAMES.has(name)) want('react-router-dom').names.add(name);
+      else if (name === 'Router') want('react-router-dom').names.add('HashRouter as Router');
+      else if (/^[A-Z]/.test(name) && !/^(React|Array|Object|Math|Date|JSON|Number|String|Boolean|Promise|Map|Set|Error|Intl|URL|Symbol|RegExp)$/.test(name)) unresolved.add(`${name} (en "${p}")`);
+    }
+    const lines = Object.entries(add).map(([spec, { def, names }]) => {
+      const list = [...names];
+      return `import ${[def, list.length ? `{ ${list.join(', ')} }` : ''].filter(Boolean).join(', ')} from '${spec}';`;
+    });
+    if (lines.length) {
+      c = lines.join('\n') + '\n' + c;
+      files[p] = c;
+    }
+  }
+  return [...unresolved];
+}
+
 /** Quita imports de CSS/imágenes que no existen (la vista previa no los necesita). */
 function dropMissingAssetImports(files: Record<string, string>) {
   const all = new Set(Object.keys(files));
@@ -801,7 +865,13 @@ export class AppBuilderAgent {
         const user = `PEDIDO DEL USUARIO:\n"${instruction}"\n\nPLAN DE LA APP (síguelo al pie de la letra: nombres, paleta, tipografías, pantallas y rutas):\n${planText}\n\n${written ? `ARCHIVOS YA ESCRITOS:\n${written}\n\n` : ''}ESCRIBE AHORA SOLO ESTOS ARCHIVOS, completos y funcionales:\n${describe(pending)}`;
         try {
           const out = parseBuilderOutput(await this.ask(STAGE_SYSTEM, user, 5500, onProgress, label, signal));
-          for (const [p, c] of Object.entries(out.files)) files[p] = c;
+          for (const [p0, c] of Object.entries(out.files)) {
+            // Solo se aceptan los archivos pedidos en esta parte (los modelos débiles a veces escriben otros
+            // con rutas inventadas o un App.tsx prematuro); una ruta mal escrita se reasigna por nombre.
+            const base = p0.split('/').pop();
+            const p = pending.includes(p0) ? p0 : pending.find(x => x.split('/').pop() === base);
+            if (p && c.trim().length > 20) files[p] = c;
+          }
           incomplete.push(...out.incomplete.filter(p => !(p in out.files)));
         } catch (e: any) {
           if (e?.name === 'AbortError') throw e;
@@ -886,9 +956,11 @@ export class AppBuilderAgent {
       for (const p of parsed.incomplete) if (!(p in parsed.files)) delete files[p];
       ensureRuntimeHelpers(files);
       dropMissingAssetImports(files);
+      const undefinedNames = autoImportMissing(files);
       const problems = [
         ...parsed.incomplete.map(p => `El archivo "${p}" quedó incompleto (la respuesta se cortó).`),
         ...patchProblems,
+        ...undefinedNames.slice(0, 6).map(n => `Se usa el componente ${n} pero no está definido ni importado. Créalo o impórtalo.`),
         ...validateProject(files),
       ];
       patchProblems = [];
