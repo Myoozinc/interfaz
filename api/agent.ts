@@ -383,6 +383,8 @@ export default async function handler(req: any, res?: any) {
         configured: Object.fromEntries(Object.entries(keys).map(([k, v]) => [k, v.length])),
         discovered: { groq: gList.length, gemini: gemList.length, cerebras: cList.length, sambanova: sList.length, openrouter: oList.length },
         ranked: { groq: groqModels, gemini: gemModels, cerebras: cerModels, sambanova: samModels, openrouter: orModels, mistral: misModels, nvidia: nvModels, github: ghModels },
+        allGroq: gList.map((m: any) => m.id),
+        allGemini: gemList.map((m: any) => String(m.id || m.name)),
         allOpenRouterFree: oList.filter((m: any) => String(m.id).endsWith(':free')).map((m: any) => `${m.id} (${m.context_length})`),
         cooling: [...cooldown.entries()].filter(([, t]) => t > Date.now()).map(([k, t]) => `${k} ${Math.round((t - Date.now()) / 1000)}s`),
       });
@@ -445,6 +447,14 @@ export default async function handler(req: any, res?: any) {
       push('sambanova', samModels, 1, () => 8000);
       push('openrouter', orModels, 3, () => 12000);
       push('pollinations', poModels, 2, () => 8000);
+    }
+
+    // Prueba de un modelo concreto (diagnóstico/medición): body.only = "proveedor:modelo"
+    if (typeof body.only === 'string' && body.only.includes(':')) {
+      const i = body.only.indexOf(':');
+      const kind = body.only.slice(0, i) as Kind, m = body.only.slice(i + 1);
+      attempts.length = 0;
+      for (const key of keys[kind] || []) attempts.push({ kind, key, model: m, maxOut: want });
     }
 
     // Si el cliente pidió omitir proveedores y eso deja la lista vacía (p. ej. solo hay Gemini),
