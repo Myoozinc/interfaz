@@ -1178,7 +1178,7 @@ export class AppBuilderAgent {
         warning = `\n\n⚠️ Quedaron detalles por corregir: ${problems[0].slice(0, 180)}. Pulsa «Corregir con NONA» o escribe «arréglalo».`;
         break;
       }
-      onProgress(`${label}\n🩺 Corrigiendo ${problems.length} problema(s)…`, true);
+      onProgress(`${label}\n🩺 Corrigiendo ${problems.length} problema(s): ${problems[0].replace(/\s+/g, ' ').slice(0, 110)}…`, true);
       const broken = Object.keys(files).filter(p => problems.some(pr => pr.includes(`"${p}"`)));
       const context: Record<string, string> = {};
       for (const p of (broken.length ? broken : Object.keys(selectEditContext(files, problems.join(' '), '', 32000).included))) context[p] = files[p];
