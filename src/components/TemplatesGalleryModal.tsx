@@ -130,7 +130,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
           <div className="mx-4 sm:mx-6 mt-3 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">{error}</div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 content-start">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 auto-rows-max gap-4 content-start">
           {filtered.length > 0 ? filtered.map(t => {
             const loading = loadingId === t.id;
             return (
@@ -141,7 +141,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
                 {t.thumbnail ? (
                   <button
                     onClick={() => handleLoad(t)}
-                    className="relative block w-full aspect-[16/10] bg-slate-950 overflow-hidden cursor-pointer"
+                    className="relative block w-full shrink-0 aspect-[16/10] bg-slate-950 overflow-hidden cursor-pointer"
                     aria-label={`Cargar ${t.name}`}
                   >
                     <img
@@ -161,7 +161,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
                     )}
                   </button>
                 ) : (
-                  <div className="aspect-[16/10] bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 flex items-center justify-center text-indigo-300">
+                  <div className="shrink-0 aspect-[16/10] bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 flex items-center justify-center text-indigo-300">
                     {renderIcon(t.icon, 'w-10 h-10')}
                   </div>
                 )}
