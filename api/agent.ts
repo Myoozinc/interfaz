@@ -64,7 +64,7 @@ const STATIC_MODELS: Record<Kind, string[]> = {
   cerebras: ['gpt-oss-120b', 'llama-3.3-70b'],
   sambanova: ['DeepSeek-V3.1', 'Meta-Llama-3.3-70B-Instruct'],
   openrouter: ['openrouter/free'],
-  mistral: ['mistral-medium-latest', 'devstral-medium-latest', 'codestral-latest', 'mistral-large-latest'],
+  mistral: ['codestral-latest', 'devstral-medium-latest', 'mistral-medium-latest'], // plan gratuito: codestral responde; los demás dan 429 en cuentas nuevas
   nvidia: ['nvidia/nemotron-3-super-120b-a12b', 'nvidia/nemotron-3-ultra-550b-a55b', 'nvidia/nemotron-3.5-lightning-30b-a3b', 'moonshotai/kimi-k3'],
   github: ['openai/gpt-4.1', 'deepseek/DeepSeek-V3-0324', 'openai/gpt-4.1-mini'],
   pollinations: ['openai'],
