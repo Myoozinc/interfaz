@@ -1204,6 +1204,8 @@ export class VirtualMultiFileBundler {
     while ((bareMatch = bareImportRegex.exec(allCodeText)) !== null) {
       const spec = bareMatch[1].trim();
       if (!spec || spec.startsWith('app/') || spec.startsWith('.') || spec.startsWith('/')) continue;
+      // Imports por URL completa (https://esm.sh/uuid): el navegador los resuelve solo; antes se les volvía a anteponer esm.sh y daban 400
+      if (/^(https?:|data:|blob:)/.test(spec)) continue;
       if (importMap[spec]) continue;
 
       if (spec === 'vexflow' || spec.startsWith('vexflow/')) {

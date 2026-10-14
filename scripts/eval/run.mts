@@ -48,5 +48,6 @@ for (let i = from; i < to; i++) {
   const lines = Object.values(files).reduce((n, c) => n + c.split('\n').length, 0);
   const meta = { prompt, mode, seconds: Math.round((Date.now() - t0) / 1000), files: Object.keys(files).length, lines, error, summary: result?.summary || '', log };
   fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2));
+  if (process.env.EVAL_PAUSE) await new Promise(r => setTimeout(r, Number(process.env.EVAL_PAUSE) * 1000));
   console.log(`[${mode}] ${i + 1}. ${prompt.slice(0, 50)} → ${error ? 'ERROR ' + error.slice(0, 120) : `${meta.files} archivos, ${lines} líneas, ${meta.seconds}s`}`);
 }

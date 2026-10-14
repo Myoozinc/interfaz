@@ -5,6 +5,12 @@ on:
       modes:
         description: 'Modos separados por espacio (single staged)'
         default: 'single staged'
+      pause:
+        description: 'Segundos de pausa entre apps (simula uso real)'
+        default: '0'
+      range:
+        description: 'Rango de pedidos (desde hasta), p. ej. 0 10'
+        default: '0 10'
       shoot_only:
         description: 'Solo rehacer capturas de los resultados anteriores (sin generar)'
         default: 'no'
@@ -27,7 +33,7 @@ jobs:
       - name: Generar apps
         if: ${{ github.event.inputs.shoot_only != 'si' }}
         run: |
-          for m in ${{ github.event.inputs.modes || 'single staged' }}; do npx tsx scripts/eval/run.mts $m || true; done
+          for m in ${{ github.event.inputs.modes || 'single staged' }}; do EVAL_PAUSE=${{ github.event.inputs.pause || '0' }} npx tsx scripts/eval/run.mts $m ${{ github.event.inputs.range || '0 10' }} || true; done
       - name: Capturas
         run: npx tsx scripts/eval/shoot.mts || true
       - name: Publicar resultados en la rama eval-results

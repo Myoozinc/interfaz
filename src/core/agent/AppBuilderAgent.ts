@@ -38,11 +38,11 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
     const respuesta = await chatAI([{ role: 'user', content: 'hola' }], { onToken: (parcial) => setTexto(parcial) });
   NO crees src/lib/ai.ts: NONA lo añade solo. Muestra un estado de carga mientras responde y maneja errores con un mensaje amable.
   Esto es para modelos de LENGUAJE. La "IA" de un juego (rival de ajedrez, enemigos) se programa con algoritmos (minimax, reglas), no con askAI.
-- Sin backend: guarda datos con localStorage cuando haga falta persistencia. Datos de ejemplo realistas escritos en el código.
+- Sin backend: guarda datos con localStorage cuando haga falta persistencia. La app arranca con datos de ejemplo realistas (8–20 elementos), nunca vacía.
 - FOTOS reales disponibles (sin enlaces a Unsplash ni a otras webs): \`https://interfaz-hazel.vercel.app/templates/img/NOMBRE.jpg\` con NOMBRE en:
   cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1 (bandeja de platos), plato-2 (ensalada), plato-3 (pizza),
   prod-reloj (smartwatch), prod-audifonos, prod-camara, moda-1, moda-2, tienda-1, persona-1, persona-2, persona-3, persona-4, escritorio-1 (retrato de hombre joven),
-  barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1. Úsalas con object-cover y un fondo de color mientras cargan.
+  barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1. Úsalas solo si encajan con el tema, con object-cover y un fondo de color mientras cargan.
 - TIPOGRAFÍA: puedes cargar 1–2 familias de Google Fonts con @import url('https://fonts.googleapis.com/css2?family=...&display=swap'); en la PRIMERA línea de src/index.css (e importa './index.css' en App.tsx).
 - Juegos: usa <canvas> con requestAnimationFrame y controles de teclado + botones táctiles.
 - Usa la API ACTUAL de cada librería con imports nombrados cuando corresponda (import { create } from 'zustand'; import { Chess } from 'chess.js'; import { motion } from 'framer-motion').
@@ -104,6 +104,8 @@ const DESIGN_RULES = `DISEÑO (nivel producto real, no demo):
 - Evita los tics de diseño genérico: tarjetas idénticas con sombra gris y degradados de relleno, rótulos en MAYÚSCULAS sobre cada título, una sola palabra del titular en otro color, numeraciones 01/02/03 decorativas, "→" pegado a cada botón.
 - El elemento raíz fija SIEMPRE fondo y color de texto (min-h-screen + bg + text). Contraste AA en todo (botones, inputs, placeholders).
 - Contenido realista en español (nombres, precios en una moneda coherente, fechas, cifras creíbles). Nada de "Lorem ipsum", "Producto 1" ni "Usuario X".
+- La app ARRANCA LLENA: datos de ejemplo realistas (8–20 elementos) cargados la primera vez, nunca listas vacías al abrirla.
+- Fotos de la biblioteca solo si encajan de verdad con el tema (no pongas tazas de café en una tienda de velas); si ninguna encaja, usa color, tipografía, iconos e ilustraciones SVG sencillas.
 - Funciona de verdad: varias pantallas navegables (estado propio o react-router-dom), crear/editar/borrar donde tenga sentido, búsqueda y filtros que filtran, formularios con validación, persistencia en localStorage con datos de ejemplo y opción de restablecer, estados vacíos y de carga útiles.
 - Responsive de 360 px a 1440 px, foco de teclado visible, transiciones sutiles solo al abrir/cerrar o confirmar.`;
 
@@ -117,14 +119,20 @@ Responde SOLO con un objeto JSON válido (sin texto alrededor ni bloques de cód
 Reglas del plan:
 - Si el usuario da un nombre, colores o estilo, respétalos.
 - Apps sencillas (una calculadora, un temporizador): 3–5 archivos. Apps completas (tienda, panel, CRM, reservas, red social, juego elaborado…): 8–14 archivos.
-- Archivos pequeños (≤ 180 líneas cada uno). Incluye siempre: src/index.css, src/lib/types.ts (si hay datos), src/data/... (datos de ejemplo), src/lib/store.ts (estado + localStorage) cuando haya persistencia, los componentes/vistas, y src/App.tsx (último).
+- Archivos pequeños (≤ 150 líneas cada uno) y con responsabilidades claras. Incluye siempre: src/index.css, src/lib/types.ts (si hay datos), src/data/... (datos de ejemplo), src/lib/store.ts (estado + localStorage) cuando haya persistencia, los componentes/vistas, y src/App.tsx (último).
 - Nada de main.tsx ni index.html. Las rutas de imports deben coincidir con las rutas de "files".
 ${DESIGN_RULES}`;
 
-const STAGE_SYSTEM = `Eres NONA, ingeniero senior de front-end y diseñador. Estás construyendo UNA PARTE de una app siguiendo un plan ya decidido.
-Entrega SOLO los archivos que se te piden, completos, coherentes con el plan y con los archivos ya escritos (usa exactamente sus exports, tipos y rutas).
+const STAGE_RUNTIME = `ENTORNO: React 18 + TypeScript (.tsx) en el navegador, sin npm install. Hooks con imports nombrados desde 'react'. Clases de Tailwind CSS (ya cargado). Iconos: lucide-react (imports nombrados). Paquetes npm por nombre si hacen falta (react-router-dom, zustand con import { create }, date-fns, recharts, framer-motion); nunca URLs de CDN en los imports.
+- IA sin API keys: import { askAI, chatAI } from './lib/ai' (ruta relativa); no crees ese archivo.
+- Fotos (solo si encajan con el tema): https://interfaz-hazel.vercel.app/templates/img/NOMBRE.jpg (NOMBRE: cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1, plato-2, plato-3, prod-reloj, prod-audifonos, prod-camara, moda-1, moda-2, tienda-1, persona-1…4, escritorio-1, barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1).
+- Google Fonts con @import en la primera línea de src/index.css; App.tsx importa './index.css'.
+- Todo import relativo debe apuntar a un archivo del plan. Exporta exactamente lo que dice el plan (exports nombrados salvo App, que es default).`;
 
-${RUNTIME_RULES}
+const STAGE_SYSTEM = `Eres NONA, ingeniero senior de front-end y diseñador. Estás construyendo UNA PARTE de una app siguiendo un plan ya decidido.
+Entrega SOLO los archivos que se te piden, completos, coherentes con el plan y con los archivos ya escritos (usa exactamente sus exports, tipos y rutas; si un dato o función no existe en los archivos ya escritos, defínelo en tu archivo).
+
+${STAGE_RUNTIME}
 
 ${DESIGN_RULES}
 
@@ -164,21 +172,25 @@ function planBatches(plan: AppPlan): string[][] {
   const base = paths.filter(isBase);
   const rest = paths.filter(p => !isBase(p) && p !== 'src/App.tsx');
   const batches: string[][] = [];
-  if (base.length) batches.push(base);
-  const size = rest.length <= 4 ? 4 : 3;
+  for (let i = 0; i < base.length; i += 3) batches.push(base.slice(i, i + 3));
+  const size = 2;
   for (let i = 0; i < rest.length; i += size) batches.push(rest.slice(i, i + size));
-  if (batches.length && batches[batches.length - 1].length < 3 && batches.length > 1) batches[batches.length - 1].push('src/App.tsx');
-  else batches.push(['src/App.tsx']);
+  batches.push(['src/App.tsx']);
   return batches;
 }
 
 /** Resumen compacto de un archivo ya escrito: completo si es pequeño o es base; si no, solo sus exports e interfaces. */
 function fileDigest(path: string, content: string): string {
   const lines = content.split('\n');
-  const full = /index\.css$|types?\.ts$|(^|\/)(lib|hooks|store)\//.test(path) && lines.length <= 140;
-  if (full || lines.length <= 40) return `<file path="${path}">\n${content}\n</file>`;
-  const sig = lines.filter(l => /^\s*export\s|^\s*(interface|type)\s/.test(l)).slice(0, 25).join('\n');
-  const head = /data\//.test(path) ? lines.slice(0, 30).join('\n') + '\n// …(más datos de ejemplo)' : sig;
+  if (/index\.css$/.test(path)) return `<file path="${path}" resumen="variables">\n${lines.filter(l => /@import|--[\w-]+\s*:|font-family/.test(l)).slice(0, 20).join('\n')}\n</file>`;
+  const full = /types?\.ts$/.test(path) && lines.length <= 90;
+  if (full || lines.length <= 25) return `<file path="${path}">\n${content}\n</file>`;
+  // Firmas exportadas (incluye la línea siguiente para ver props/parámetros)
+  const sig: string[] = [];
+  lines.forEach((l, i) => {
+    if (/^\s*export\s/.test(l)) { sig.push(l.length > 160 ? l.slice(0, 160) + '…' : l); if (!/[;{]\s*$/.test(l) && lines[i + 1]) sig.push(lines[i + 1].slice(0, 120)); }
+  });
+  const head = /data\//.test(path) ? lines.slice(0, 14).join('\n') + '\n// …(más datos)\n' + sig.join('\n') : sig.slice(0, 30).join('\n');
   return `<file path="${path}" resumen="solo exports">\n${head}\n</file>`;
 }
 
@@ -737,13 +749,13 @@ export class AppBuilderAgent {
     const planUser = `${history ? `CONVERSACIÓN RECIENTE (contexto):\n${history}\n\n` : ''}PEDIDO DEL USUARIO:\n"${instruction}"`;
     for (let i = 0; i < 2 && !plan; i++) {
       try {
-        plan = parsePlan(await this.ask(PLAN_SYSTEM, planUser, 3000, onProgress, label, signal, 'quality'));
+        plan = parsePlan(await this.ask(PLAN_SYSTEM, planUser, 3000, onProgress, label, signal));
       } catch (e: any) {
         if (e?.name === 'AbortError') throw e;
       }
     }
     if (!plan) return null;
-    const planText = JSON.stringify(plan);
+    const planText = JSON.stringify({ ...plan, files: plan.files.map(f => `${f.path} — ${f.purpose}${f.exports ? ` [${f.exports}]` : ''}`) });
     const files: Record<string, string> = {};
     const incomplete: string[] = [];
     const batches = planBatches(plan);
@@ -760,7 +772,7 @@ export class AppBuilderAgent {
         const written = Object.entries(files).map(([p, c]) => fileDigest(p, c)).join('\n');
         const user = `PEDIDO DEL USUARIO:\n"${instruction}"\n\nPLAN DE LA APP (síguelo al pie de la letra: nombres, paleta, tipografías, pantallas y rutas):\n${planText}\n\n${written ? `ARCHIVOS YA ESCRITOS:\n${written}\n\n` : ''}ESCRIBE AHORA SOLO ESTOS ARCHIVOS, completos y funcionales:\n${describe(pending)}`;
         try {
-          const out = parseBuilderOutput(await this.ask(STAGE_SYSTEM, user, 9000, onProgress, label, signal, 'quality'));
+          const out = parseBuilderOutput(await this.ask(STAGE_SYSTEM, user, 5500, onProgress, label, signal));
           for (const [p, c] of Object.entries(out.files)) files[p] = c;
           incomplete.push(...out.incomplete.filter(p => !(p in out.files)));
         } catch (e: any) {
