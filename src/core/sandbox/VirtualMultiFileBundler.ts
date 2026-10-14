@@ -1724,8 +1724,8 @@ export class VirtualMultiFileBundler {
   ${captureScripts}
   <script src="https://cdn.tailwindcss.com"></script>
   <script>try { tailwind.config = ${VirtualMultiFileBundler.tailwindConfigFor(normalizedFiles)}; } catch (e) {}</script>
-  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
   ${threeScripts}${toneScript}${cannonScript}
   <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script crossorigin="anonymous" src="https://unpkg.com/lucide@latest"></script>
