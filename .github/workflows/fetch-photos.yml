@@ -52,7 +52,6 @@ jobs:
           interior-1 1513694203232-719a280e022f
           codigo-1 1498050108023-c5249f4df085
           LIST
-          sed -i 's/^          //' /dev/null
           ls -la public/templates/img
           cat > public/templates/img/CREDITOS.txt <<'TXT'
           Fotos de Unsplash (https://unsplash.com/license): uso libre, incluido comercial, sin atribución obligatoria.
