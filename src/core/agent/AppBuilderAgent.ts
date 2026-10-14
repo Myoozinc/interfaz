@@ -29,7 +29,7 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
 - Punto de entrada OBLIGATORIO: "src/App.tsx" con "export default function App()". NO crees main.tsx ni index.html: la vista previa monta App sola.
 - Estilos con clases de Tailwind CSS (ya cargado, con darkMode: 'class': para modo oscuro añade/quita la clase 'dark' en document.documentElement y usa variantes dark:). CSS propio opcional en "src/index.css" (CSS normal, sin @apply ni @tailwind).
 - Puedes importar cualquier paquete npm que funcione en el navegador (se carga automáticamente desde esm.sh; no hace falta instalar nada). Usa librerías probadas en vez de reescribir lógica compleja:
-  · varias páginas/pantallas: react-router-dom (BrowserRouter, Routes, Route, Link, useNavigate) · iconos: lucide-react · animación: framer-motion · gráficos: recharts · estado: zustand · fechas: date-fns · 3D: three · audio: tone o howler · física 2D: matter-js · markdown: marked
+  · varias páginas/pantallas: react-router-dom (BrowserRouter, Routes, Route, Link, useNavigate) · iconos: lucide-react · animación: framer-motion · gráficos: recharts · estado: zustand · fechas: date-fns · 3D: @react-three/fiber + @react-three/drei (Canvas, useFrame, OrbitControls, Stars, Text, Html) o three directamente · audio: tone o howler · física 2D: matter-js · markdown: marked
   · AJEDREZ: usa SIEMPRE 'chess.js' (import { Chess } from 'chess.js') para reglas, movimientos legales, jaque y fin de partida; la IA rival elige entre chess.moves() con minimax sobre copias de Chess.
   · Damas, sudoku, tetris, etc.: implementa la lógica en un archivo aparte (src/lib/) con funciones puras y pruébala mentalmente con un caso antes de escribir la interfaz.
 - IA INCLUIDA (sin API keys): si la app necesita un modelo de lenguaje (chatbot, asistente, generar/resumir/traducir/clasificar texto, recomendaciones), usa el helper ya disponible:
@@ -43,6 +43,10 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
   cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1 (bandeja de platos), plato-2 (ensalada), plato-3 (pizza),
   prod-reloj (smartwatch), prod-audifonos, prod-camara, moda-1, moda-2, tienda-1, persona-1, persona-2, persona-3, persona-4, escritorio-1 (retrato de hombre joven),
   barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1. Úsalas solo si encajan con el tema, con object-cover y un fondo de color mientras cargan.
+- IMÁGENES GENERADAS CON IA (gratis, sin API key) para cualquier tema que no cubran las fotos (ilustraciones, planetas, personajes, productos inventados, fondos):
+  \`https://interfaz-hazel.vercel.app/api/image?prompt=\${encodeURIComponent('descripción detallada en inglés')}&w=800&h=600&seed=7\`
+  Cambia seed para variar; tarda unos segundos en cargar: pon fondo de color o esqueleto mientras carga. Sirven también como textura en three/canvas (tienen CORS).
+  Si la app debe GENERAR imágenes para el usuario (p. ej. "crea un logo"), construye esa URL con su texto y muéstrala en un <img>.
 - TIPOGRAFÍA: puedes cargar 1–2 familias de Google Fonts con @import url('https://fonts.googleapis.com/css2?family=...&display=swap'); en la PRIMERA línea de src/index.css (e importa './index.css' en App.tsx).
 - Juegos: usa <canvas> con requestAnimationFrame y controles de teclado + botones táctiles.
 - Usa la API ACTUAL de cada librería con imports nombrados cuando corresponda (import { create } from 'zustand'; import { Chess } from 'chess.js'; import { motion } from 'framer-motion').
@@ -125,6 +129,7 @@ ${DESIGN_RULES}`;
 
 const STAGE_RUNTIME = `ENTORNO: React 18 + TypeScript (.tsx) en el navegador, sin npm install. Hooks con imports nombrados desde 'react'. Clases de Tailwind CSS (ya cargado). Iconos: lucide-react (imports nombrados). Paquetes npm por nombre si hacen falta (react-router-dom, zustand con import { create }, date-fns, recharts, framer-motion); nunca URLs de CDN en los imports.
 - IA sin API keys: import { askAI, chatAI } from './lib/ai' (ruta relativa); no crees ese archivo.
+- Imágenes generadas con IA, gratis: https://interfaz-hazel.vercel.app/api/image?prompt=<descripción en inglés con encodeURIComponent>&w=800&h=600&seed=N (también para que la app genere imágenes al usuario). 3D: @react-three/fiber + @react-three/drei.
 - Fotos (solo si encajan con el tema): https://interfaz-hazel.vercel.app/templates/img/NOMBRE.jpg (NOMBRE: cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1, plato-2, plato-3, prod-reloj, prod-audifonos, prod-camara, moda-1, moda-2, tienda-1, persona-1…4, escritorio-1, barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1).
 - Google Fonts con @import en la primera línea de src/index.css; App.tsx importa './index.css'.
 - Todo import relativo debe apuntar a un archivo del plan. Exporta exactamente lo que dice el plan (exports nombrados salvo App, que es default).`;
@@ -142,7 +147,7 @@ ${FORMAT_RULES}`;
 export function isFullAppRequest(instruction: string): boolean {
   const t = instruction.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (/\b(calculadora|temporizador|cronometro|reloj|contador|conversor|tic.?tac|piedra papel|dado|ruleta)\b/.test(t) && t.length < 140) return false;
-  return /\b(tienda|e-?commerce|panel|dashboard|crm|gestor|gestion|inventario|reservas?|citas|agenda|clinica|restaurante|carta|menu|landing|web|pagina|portafolio|portfolio|blog|revista|red social|plataforma|marketplace|finanzas|gastos|presupuesto|fitness|habitos|recetas|cursos|escuela|inmobiliaria|saas|app para|aplicacion para|sistema)\b/.test(t) || t.length > 220;
+  return /\b(tienda|e-?commerce|panel|dashboard|crm|gestor|gestion|inventario|reservas?|citas|agenda|clinica|restaurante|carta|menu|landing|web|pagina|portafolio|portfolio|blog|revista|red social|plataforma|marketplace|finanzas|gastos|presupuesto|fitness|habitos|recetas|cursos|escuela|inmobiliaria|saas|app para|aplicacion para|sistema|simulador|simulacion|simular|3d|universo|visualizador|editor|estudio)\b/.test(t) || t.length > 220;
 }
 
 interface AppPlan {
@@ -926,7 +931,8 @@ export class AppBuilderAgent {
       // Primero, construcción por etapas (apps más completas y cuidadas); si falla, construcción en una sola respuesta.
       let staged: Parsed | null = null;
       // La construcción por etapas gasta ~3 veces más cupo de IA: se usa para apps completas, no para utilidades sencillas.
-      const wantsFullApp = opts?.mode === 'staged' || (opts?.mode !== 'single' && isFullAppRequest(instruction));
+      // Una confirmación corta ("ok, incluye todo eso") hereda el tamaño del pedido que se habló antes en el chat
+      const wantsFullApp = opts?.mode === 'staged' || (opts?.mode !== 'single' && (isFullAppRequest(instruction) || (instruction.length < 120 && isFullAppRequest(history.slice(-2500)))));
       if (wantsFullApp) {
         try {
           staged = await this.stagedBuild(instruction, history, onProgress, label, opts?.signal);

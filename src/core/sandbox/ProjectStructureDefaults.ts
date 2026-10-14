@@ -53,6 +53,7 @@ const KNOWN_VERSIONS: Record<string, string> = {
   'zustand': '^5.0.1', 'date-fns': '^4.1.0', 'chess.js': '^1.0.0', 'matter-js': '^0.20.0', 'marked': '^15.0.0',
   'uuid': '^11.0.3', 'howler': '^2.2.4', 'three': '^0.170.0', 'tone': '^14.8.49', 'canvas-confetti': '^1.9.4',
   'lucide-react': '^0.469.0', 'clsx': '^2.1.1', 'tailwind-merge': '^2.5.5', 'chart.js': '^4.4.7', 'cannon-es': '^0.20.0',
+  '@react-three/fiber': '^8.17.10', '@react-three/drei': '^9.117.3', '@react-three/postprocessing': '^2.16.3', 'three-stdlib': '^2.34.0',
   'axios': '^1.7.9', 'lodash': '^4.17.21', '@supabase/supabase-js': '^2.47.10', 'react-chartjs-2': '^5.2.0',
 };
 const NODE_BUILTINS = new Set(['fs', 'path', 'os', 'crypto', 'http', 'https', 'url', 'util', 'events', 'stream', 'child_process', 'buffer']);

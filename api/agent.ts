@@ -24,7 +24,7 @@ export const config = {
  *   {"error":"..."}                                     fallo a mitad del stream
  */
 
-type Kind = 'groq' | 'gemini' | 'cerebras' | 'sambanova' | 'openrouter';
+type Kind = 'groq' | 'gemini' | 'cerebras' | 'sambanova' | 'openrouter' | 'mistral' | 'nvidia' | 'github' | 'pollinations';
 
 interface Attempt {
   kind: Kind;
@@ -45,7 +45,13 @@ const BASE: Record<Kind, string> = {
   cerebras: 'https://api.cerebras.ai/v1',
   sambanova: 'https://api.sambanova.ai/v1',
   openrouter: 'https://openrouter.ai/api/v1',
+  mistral: 'https://api.mistral.ai/v1',          // plan gratuito "Experiment" (sin tarjeta)
+  nvidia: 'https://integrate.api.nvidia.com/v1', // build.nvidia.com: acceso gratuito para desarrolladores
+  github: 'https://models.github.ai/inference',  // GitHub Models: gratis con un token de GitHub
+  pollinations: 'https://text.pollinations.ai/openai', // sin llave (último recurso); con POLLINATIONS_API_KEY usa gen.pollinations.ai
 };
+const chatUrl = (kind: Kind, key: string) =>
+  kind === 'pollinations' ? (key === 'anon' ? BASE.pollinations : 'https://gen.pollinations.ai/v1/chat/completions') : `${BASE[kind]}/chat/completions`;
 
 // Respaldo si el descubrimiento de modelos falla (ids estables conocidos).
 const STATIC_MODELS: Record<Kind, string[]> = {
@@ -54,6 +60,10 @@ const STATIC_MODELS: Record<Kind, string[]> = {
   cerebras: ['gpt-oss-120b', 'llama-3.3-70b'],
   sambanova: ['DeepSeek-V3.1', 'Meta-Llama-3.3-70B-Instruct'],
   openrouter: ['openrouter/free'],
+  mistral: ['mistral-medium-latest', 'devstral-medium-latest', 'codestral-latest', 'mistral-large-latest'],
+  nvidia: ['qwen/qwen3-coder-480b-a35b-instruct', 'deepseek-ai/deepseek-v3.1', 'moonshotai/kimi-k2-instruct', 'openai/gpt-oss-120b'],
+  github: ['openai/gpt-4.1', 'deepseek/DeepSeek-V3-0324', 'openai/gpt-4.1-mini'],
+  pollinations: ['openai', 'qwen-coder'],
 };
 
 // Límite de caracteres por mensaje: los proveedores con TPM bajo necesitan compactar; los de contexto grande no.
@@ -64,6 +74,10 @@ const MSG_LIMIT: Record<Kind, number> = {
   sambanova: 400000,
   gemini: 400000,
   openrouter: 400000,
+  mistral: 400000,
+  nvidia: 400000,
+  github: 28000, // GitHub Models gratis: ~8k tokens de entrada
+  pollinations: 60000,
 };
 
 // Tokens por minuto del plan gratuito de Groq (aprox.). Una petición (entrada + salida) debe caber en el TPM del modelo.
@@ -315,6 +329,11 @@ export default async function handler(req: any, res?: any) {
       cerebras: uniq(envKeys('CEREBRAS_API_KEY', 'CEREBRAS_API_KEYS')).slice(0, 2),
       sambanova: uniq(envKeys('SAMBANOVA_API_KEY', 'SAMBANOVA_API_KEYS')).slice(0, 2),
       openrouter: uniq([pickUser('sk-or-'), (process.env.OPENROUTER_API_KEY || '').trim()]).slice(0, 2),
+      mistral: uniq(envKeys('MISTRAL_API_KEY', 'MISTRAL_API_KEYS')).slice(0, 2),
+      nvidia: uniq(envKeys('NVIDIA_API_KEY', 'NVIDIA_API_KEYS')).slice(0, 2),
+      github: uniq(envKeys('GITHUB_MODELS_TOKEN', 'GITHUB_MODELS_TOKENS')).slice(0, 2),
+      // Siempre disponible (sin llave): garantiza que NONA responda aunque todo lo demás esté al límite
+      pollinations: uniq([(process.env.POLLINATIONS_API_KEY || '').trim() || 'anon']),
     };
 
     const anyKey = (Object.values(keys) as string[][]).some(k => k.length > 0);
@@ -355,6 +374,8 @@ export default async function handler(req: any, res?: any) {
     const samModels = sList.length ? rankSamba(sList) : STATIC_MODELS.sambanova;
     const orRanked = oList.length ? rankOpenRouter(oList) : [];
     const orModels = [...orRanked.slice(0, 6), 'openrouter/free'];
+    const misModels = STATIC_MODELS.mistral, nvModels = STATIC_MODELS.nvidia, ghModels = STATIC_MODELS.github, poModels = STATIC_MODELS.pollinations;
+    const ghFits = totalChars < 26000; // GitHub Models gratis: entrada pequeña, salida ~4k
 
     // Groq: la entrada + salida debe caber en el TPM del modelo. Se estima la entrada y se eligen solo modelos
     // donde quepa (p. ej. editar una plantilla de 40 KB solo cabe en Llama 4 Scout), con la salida que quede libre.
@@ -378,11 +399,15 @@ export default async function handler(req: any, res?: any) {
       // Partes de una app construida por etapas: Gemini Flash escribe más y mejor en una respuesta;
       // si está saturado, Groq (los modelos donde quepa) y OpenRouter.
       push('gemini', gemModels.filter(m => /flash/.test(m) && !/lite/.test(m)), 2, () => 16000);
-      push('groq', groqFit, 2, groqOut);
-      push('openrouter', orModels, 3, () => 16000);
+      push('nvidia', nvModels, 2, () => 16000);
       push('cerebras', cerModels, 1, () => 8000);
+      push('mistral', misModels, 2, () => 16000);
+      push('groq', groqFit, 2, groqOut);
       push('sambanova', samModels, 1, () => 8000);
+      push('openrouter', orModels, 3, () => 16000);
       push('gemini', gemModels.filter(m => /lite/.test(m)), 1, () => 16000);
+      if (ghFits) push('github', ghModels, 2, () => 4000);
+      push('pollinations', poModels, 2, () => 12000);
     } else if (big) {
       // Construcciones grandes. Orden medido en producción (sept 2026):
       //  - Groq gpt-oss-120b: ~5 s por app completa, fiable → primero.
@@ -391,16 +416,24 @@ export default async function handler(req: any, res?: any) {
       //  - Gemini free: el stream se corta a mitad sin avisar → último recurso.
       push('groq', groqFit, 2, groqOut);
       push('cerebras', cerModels, 2, () => 8000);
+      push('nvidia', nvModels, 2, () => 16000);
+      push('mistral', misModels, 2, () => 16000);
       push('sambanova', samModels, 2, () => 8000);
       push('openrouter', orModels, 4, () => 16000);
       push('gemini', gemModels, 3, () => 32000);
+      if (ghFits) push('github', ghModels, 2, () => 4000);
+      push('pollinations', poModels, 2, () => 12000);
     } else {
       // Ediciones pequeñas: velocidad primero
       push('groq', groqFit, 2, groqOut);
       push('cerebras', cerModels, 1, () => 8000);
       push('gemini', gemModels.filter(m => /flash/.test(m)), 3, () => 16000);
+      if (ghFits) push('github', ghModels, 2, () => 4000);
+      push('nvidia', nvModels, 1, () => 8000);
+      push('mistral', misModels, 1, () => 8000);
       push('sambanova', samModels, 1, () => 8000);
       push('openrouter', orModels, 3, () => 12000);
+      push('pollinations', poModels, 2, () => 8000);
     }
 
     // Si el cliente pidió omitir proveedores y eso deja la lista vacía (p. ej. solo hay Gemini),
@@ -451,12 +484,13 @@ export default async function handler(req: any, res?: any) {
             max_tokens: a.maxOut,
           };
           if (withReasoning && (a.kind === 'gemini' || /gpt-oss/.test(a.model))) payload.reasoning_effort = 'low';
-          const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${a.key}` };
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (a.key !== 'anon') headers.Authorization = `Bearer ${a.key}`;
           if (a.kind === 'openrouter') {
             headers['HTTP-Referer'] = 'https://interfaz-hazel.vercel.app';
             headers['X-Title'] = 'NONA AI Software Factory';
           }
-          const r = await fetch(`${BASE[a.kind]}/chat/completions`, { method: 'POST', headers, body: JSON.stringify(payload), signal: ctl.signal });
+          const r = await fetch(chatUrl(a.kind, a.key), { method: 'POST', headers, body: JSON.stringify(payload), signal: ctl.signal });
           if (!r.ok) {
             const txt = await r.text().catch(() => '');
             clearTimeout(timer);
