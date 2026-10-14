@@ -1,0 +1,66 @@
+name: Descargar fotos de plantillas
+on:
+  push:
+    paths: ['.github/workflows/fetch-photos.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Descargar fotos (Unsplash License)
+        run: |
+          mkdir -p public/templates/img
+          while read -r name id; do
+            [ -z "$name" ] && continue
+            curl -sfL "https://images.unsplash.com/photo-${id}?w=1400&q=72&fm=jpg&fit=max" -o "public/templates/img/${name}.jpg" || echo "fallo $name"
+          done <<'LIST'
+          cafe-taza 1509042239860-f550ce710b93
+          cafe-interior 1501339847302-ac426a4a7cbb
+          cafe-granos 1495474472287-4d71bcdd2085
+          cafe-barra 1442512595331-e89e73853f31
+          cafe-latte 1511920170033-f8396924c348
+          resto-sala 1414235077428-338989a2e8c0
+          resto-interior 1517248135467-4c7edcad34c4
+          plato-1 1504674900247-0877df9cc836
+          plato-2 1540189549336-e6e99c3679fe
+          plato-3 1565299624946-b28f40a0ae38
+          prod-reloj 1523275335684-37898b6baf30
+          prod-audifonos 1505740420928-5e560c06d30e
+          prod-zapatilla 1542291026-7eec264c27ff
+          prod-camara 1526170375885-4d8ecf77b99f
+          persona-1 1494790108377-be9c29b29330
+          persona-2 1507003211169-0a1dd7228f2d
+          persona-3 1500648767791-00dcc994a43e
+          persona-4 1438761681033-6461ffad8d80
+          barber-1 1503951914875-452162b0f3f1
+          barber-2 1585747860715-2ba37e788b70
+          gym-1 1517836357463-d25dfeac3438
+          gym-2 1571019613454-1cb2f99b2d8b
+          paisaje-1 1469474968028-56623f02e42e
+          paisaje-2 1506905925346-21bda4d32df4
+          escritorio-1 1499996860823-5214fcc65f8f
+          oficina-1 1497366216548-37526070297c
+          estudio-1 1524758631624-e2822e304c36
+          datos-1 1460925895917-afdab827c52f
+          equipo-1 1522202176988-66273c2fd55f
+          tienda-1 1441986300917-64674bd600d8
+          moda-1 1490481651871-ab68de25d43d
+          moda-2 1512436991641-6745cdb1723f
+          interior-1 1513694203232-719a280e022f
+          codigo-1 1498050108023-c5249f4df085
+          LIST
+          sed -i 's/^          //' /dev/null
+          ls -la public/templates/img
+          cat > public/templates/img/CREDITOS.txt <<'TXT'
+          Fotos de Unsplash (https://unsplash.com/license): uso libre, incluido comercial, sin atribución obligatoria.
+          TXT
+      - name: Guardar en el repositorio
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add public/templates/img
+          git commit -m "Fotos de plantillas (Unsplash) [skip ci]" || echo "sin cambios"
+          git push
