@@ -89,7 +89,16 @@ export class ComfyUIProvider {
       }
     }
 
-    // High quality procedural SVG/Canvas graphics if ComfyUI is offline
+    // Sin ComfyUI local: imagen generada por IA con Pollinations (gratis y sin API key).
+    // La URL es estable: la misma descripción y semilla devuelven la misma imagen, así que se puede usar en el código de la app.
+    if (type !== 'video') {
+      const seed = Math.floor(Math.random() * 1_000_000);
+      const [w, h] = type === 'texture' ? [1024, 1024] : [1280, 800];
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 400))}?width=${w}&height=${h}&seed=${seed}&nologo=true${type === 'texture' ? '&tile=true' : ''}`;
+      return { id: 'asset_' + Date.now(), userId: 'user_1', projectId, type, url, prompt, createdAt: new Date().toISOString(), status: 'completed' };
+    }
+
+    // Vídeo sin ComfyUI: no hay generador gratuito fiable; se devuelve una tarjeta de marcador
     const svgContent = encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
         <defs>

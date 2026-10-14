@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   X, 
   Image as ImageIcon, 
-  Video, 
   Trash2, 
   ArrowDownToLine,
   Layers,
@@ -122,16 +121,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                   <Layers className="w-3.5 h-3.5" />
                   <span>Textura</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setAssetType('video')}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                    assetType === 'video' ? 'bg-accent text-white shadow-xs' : 'text-fg-2 hover:text-fg'
-                  }`}
-                >
-                  <Video className="w-3.5 h-3.5" />
-                  <span>Video</span>
-                </button>
+                
               </div>
 
               <button

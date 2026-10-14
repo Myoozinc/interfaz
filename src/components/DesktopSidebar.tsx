@@ -5,7 +5,6 @@ import {
   Wand2, 
   Activity, 
   Settings, 
-  Zap, 
   Download, 
   Trash2, 
   Copy, 
@@ -44,9 +43,9 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onNewProject,
   onDeleteProject,
   onDuplicateProject,
-  credits,
+  credits: _credits,
   currentUser,
-  onOpenCreditsModal,
+  onOpenCreditsModal: _onOpenCreditsModal,
   onOpenSettingsModal,
   onOpenProjectsModal,
   onOpenMediaModal,
@@ -224,15 +223,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
           className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-raised-2/60 transition-colors cursor-pointer text-left"
         >
           <div className="flex items-center gap-2 truncate">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0">
-              {currentUser?.name?.[0] || 'M'}
+            <div className="w-6 h-6 rounded-full bg-raised-2 flex items-center justify-center text-fg text-[11px] font-medium shrink-0">
+              {currentUser?.name?.[0] || 'I'}
             </div>
             <div className="truncate">
-              <div className="font-semibold text-fg truncate">{currentUser?.name || 'Myooz'}</div>
-              <div className="text-[10px] text-accent font-bold flex items-center gap-1">
-                <Zap className="w-2.5 h-2.5 fill-indigo-600" />
-                <span>{credits.balance} créditos</span>
-              </div>
+              <div className="font-semibold text-fg truncate">{currentUser?.name || 'Invitado'}</div>
+              <div className="text-[11px] text-muted">Beta gratuita</div>
             </div>
           </div>
           <ChevronUp className="w-3.5 h-3.5 text-muted shrink-0" />
@@ -241,13 +237,6 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         {/* Profile Dropdown Popup */}
         {isProfileMenuOpen && (
           <div className="absolute left-2 right-2 bottom-14 bg-panel rounded-2xl shadow-xl border border-line p-1.5 z-50 text-xs animate-fade-in space-y-0.5">
-            <button
-              onClick={() => { setIsProfileMenuOpen(false); onOpenCreditsModal(); }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-fg-2 hover:bg-canvas transition-colors cursor-pointer font-medium"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-500" />
-              <span>Planes & Recarga de Créditos</span>
-            </button>
             <button
               onClick={() => { setIsProfileMenuOpen(false); onExportZip(); }}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-fg-2 hover:bg-canvas transition-colors cursor-pointer"

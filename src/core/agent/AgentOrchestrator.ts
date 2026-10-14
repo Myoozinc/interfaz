@@ -23,7 +23,7 @@ export class AgentOrchestrator {
   private aiProvider: OllamaProvider;
 
   constructor() {
-    this.aiProvider = new OllamaProvider('/api/agent', 'qwen/qwen3.8-27b');
+    this.aiProvider = new OllamaProvider('/api/agent', 'auto');
   }
 
   setEndpoint(url: string) {
@@ -73,7 +73,11 @@ export class AgentOrchestrator {
     const currentCode = targetFile?.content || '';
 
     // Step 1: Intelligent Intent Classification & Routing with History
-    const intent = intentRouter.classifyIntent(userInstruction, currentCode, options?.history);
+    const classified = intentRouter.classifyIntent(userInstruction, currentCode, options?.history);
+    // Modo "Preguntar": el usuario quiere una respuesta, nunca que se construya o modifique la app.
+    const intent = options?.mode === 'chat' && classified.type !== 'INTERACTIVE_PLAN'
+      ? { ...classified, type: 'CHAT_CONSULT' as const }
+      : classified;
     agentEvents.emit('agent.started', `NONA Autonomous Engine [${intent.type}]: "${userInstruction.slice(0, 45)}..."`);
 
     // =========================================================================
@@ -85,18 +89,19 @@ export class AgentOrchestrator {
       const historyText = formatConversationHistory(options?.history, 6);
       const historyContext = historyText ? `\nHISTORIAL DE CONVERSACIÓN:\n${historyText}\n` : '';
 
-      const consultSystemPrompt = `Eres NONA (No-Code & Natural Architecture AI — Estándar Google Antigravity & Lovable).
-El usuario te está haciendo una pregunta o consulta técnica sobre tu funcionamiento, arquitectura o sobre el desarrollo de su aplicación.
+      const consultSystemPrompt = `Eres NONA, una plataforma que crea aplicaciones web y juegos a partir de una descripción en español, y que luego permite modificarlos conversando.
+El usuario te hace una pregunta (sobre NONA, sobre su app o sobre desarrollo en general). Respóndela; no construyas ni modifiques nada.
 
-TU IDENTIDAD Y ARQUITECTURA TÉCNICA REAL:
-- MOTOR DE GENERACIÓN DE CÓDIGO: Tu motor principal es **Qwen 3.8 27B** ejecutado sobre chips LPU de **Groq** para inferencia en tiempo real de ultra-baja latencia (~300-500 tokens/s).
-- VISIÓN COMPUTACIONAL (MULTIMODAL): Cuando el usuario adjunta capturas o imágenes, utilizas **Google Gemini 2.5 Flash** para análisis visual.
-- MOTOR DE PARCHES Y CONSISTENCIA: Utilizas un **PatchEngine Quirúrgico (Search & Replace Diff)** que modifica únicamente las líneas afectadas sin reescribir todo el código.
-- SANDBOX Y EJECUCIÓN: Todo el software se compila y ejecuta en un sandbox seguro de iframe en el navegador con soporte para Three.js (WebGL), Tailwind CSS, Canvas Confetti y Web Audio API.
-- CONEXIONES OPCIONALES: Puedes conectarte a modelos locales mediante **Ollama** si el usuario lo configura en Ajustes.
+CÓMO FUNCIONA NONA (sé fiel a esto si preguntan):
+- Genera proyectos React + TypeScript + Tailwind con varios archivos, que se ven funcionando al instante en la vista previa y se pueden descargar como proyecto Vite o subir a GitHub/Vercel.
+- Usa varios modelos de IA gratuitos (Groq, Google Gemini y modelos abiertos vía OpenRouter) y elige automáticamente el mejor disponible en cada momento.
+- Construye por etapas: planifica diseño, pantallas y datos; escribe la base y luego cada pantalla; prueba la app y corrige errores sola.
+- Las ediciones se aplican con parches sobre los archivos existentes, sin rehacer la app.
+- Las apps pueden incluir IA (chat, generar o resumir texto) sin API keys, guardar datos en el navegador y usar fotos de la biblioteca de NONA.
+- Tiene una galería con 12 apps profesionales y 20 juegos como punto de partida.
 
 REGLAS ABSOLUTAS DE TRANSPARENCIA:
-1. NUNCA inventes que utilizas OpenAI GPT-4, Anthropic Claude 3.5, Microsoft Copilot, Notion AI o OpenAI Code Interpreter. Sé 100% honesta, técnica y veraz sobre tu arquitectura real (Groq + Qwen 3.8 27B + Gemini Flash + PatchEngine).
+1. No inventes detalles técnicos que no aparecen arriba (modelos concretos, versiones, cifras de velocidad).
 2. NO generes el documento HTML completo en una consulta conceptual a menos que te pidan explícitamente un snippet.
 3. Da respuestas concisas, didácticas, directas y bien formateadas en Markdown.
 4. Si la pregunta es sobre el proyecto actual, tienes TODOS sus archivos: respóndela leyéndolos (nunca digas que necesitas ver el código).
@@ -121,7 +126,7 @@ Responde de forma clara, natural y profesional:`;
           responseText = full;
           onProgress(full, false);
         },
-        { signal: options?.signal, model: 'qwen/qwen3.8-27b', temperature: 0.3 }
+        { signal: options?.signal, model: 'auto', temperature: 0.3 }
       );
 
       agentEvents.emit('agent.completed', 'Consulta técnica respondida con éxito.');

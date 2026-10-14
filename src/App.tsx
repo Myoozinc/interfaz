@@ -423,11 +423,9 @@ export function App() {
   };
 
   // Credits & Monetization
+  // NONA es gratuito durante la beta: se registra el uso, pero nunca se bloquea al usuario
+  // (el sistema de pago era simulado y podía dejar a alguien sin poder generar).
   const handleDeductCredit = (amount: number = 5): boolean => {
-    if (credits.balance < amount) {
-      setIsCreditsModalOpen(true);
-      return false;
-    }
     setCredits(prev => ({
       ...prev,
       balance: Math.max(0, prev.balance - amount),
@@ -487,10 +485,7 @@ export function App() {
       model: customModel
     });
 
-    if (!handleDeductCredit(5)) {
-      alert('⚠️ No tienes suficientes créditos para esta generación (requiere 5 créditos).');
-      return;
-    }
+    handleDeductCredit(5);
 
     const userMessageId = Date.now().toString();
     const imgs = customImages && customImages.length > 0 ? customImages : undefined;

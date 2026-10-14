@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Download,
   Settings,
-  Zap,
   ChevronDown,
   Wand2,
   Activity,
@@ -79,8 +78,7 @@ const iconBtn = 'h-8 w-8 inline-flex items-center justify-center rounded-lg text
 
 export const Header: React.FC<HeaderProps> = ({
   projectName,
-  credits,
-  onOpenCreditsModal,
+  credits: _credits,
   onOpenSettingsModal,
   onOpenProjectsModal,
   onOpenMediaModal,
@@ -139,14 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden md:inline">{inWorkspace ? 'Conversación' : 'Vista previa y código'}</span>
         </button>
 
-        <button
-          onClick={onOpenCreditsModal}
-          title="Créditos disponibles"
-          className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-[13px] tabular-nums text-fg-2 hover:text-fg hover:bg-raised transition-colors cursor-pointer"
-        >
-          <Zap className="w-3.5 h-3.5 text-amber-300" />
-          {credits.balance}
-        </button>
+
 
         <Menu
           trigger={(open) => (

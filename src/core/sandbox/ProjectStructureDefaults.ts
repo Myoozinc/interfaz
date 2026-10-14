@@ -20,16 +20,6 @@ export const DEFAULT_PACKAGE_JSON = JSON.stringify({
   dependencies: {
     react: "^18.3.1",
     "react-dom": "^18.3.1",
-    "lucide-react": "^0.469.0",
-    clsx: "^2.1.1",
-    "tailwind-merge": "^2.5.5",
-    "@supabase/supabase-js": "^2.47.10",
-    "three": "^0.170.0",
-    "@types/three": "^0.170.0",
-    "canvas-confetti": "^1.9.4",
-    "cannon-es": "^0.20.0",
-    "tone": "^14.8.49",
-    "chart.js": "^4.4.7"
   },
   devDependencies: {
     "@types/react": "^18.3.18",
@@ -155,8 +145,6 @@ export const DEFAULT_INDEX_HTML = `<!DOCTYPE html>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NONA App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>try { tailwind.config = { darkMode: 'class' }; } catch (e) {}</script>
   </head>
   <body class="bg-slate-950 text-white min-h-screen">
     <div id="root"></div>
@@ -165,9 +153,30 @@ export const DEFAULT_INDEX_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+/** Tailwind compilado de verdad en el proyecto exportado (la vista previa usa el CDN, un proyecto real no debe). */
+export const DEFAULT_TAILWIND_CONFIG = `/** @type {import('tailwindcss').Config} */
+export default {
+  darkMode: 'class',
+  content: ['./index.html', './src/**/*.{ts,tsx,js,jsx}'],
+  theme: { extend: {} },
+  plugins: [],
+};
+`;
+
+export const DEFAULT_POSTCSS_CONFIG = `export default {
+  plugins: { tailwindcss: {}, autoprefixer: {} },
+};
+`;
+
+export const DEFAULT_TAILWIND_CSS = `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+`;
+
 export const DEFAULT_MAIN_TSX = `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './tailwind.css';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -395,7 +404,16 @@ export function ensureCompleteViteProject(
   }
   if (!result['src/main.tsx'] && !result['src/main.jsx'] && !result['src/main.js']) {
     result['src/main.tsx'] = DEFAULT_MAIN_TSX;
+    if (!result['src/tailwind.css']) result['src/tailwind.css'] = DEFAULT_TAILWIND_CSS;
   }
+  if (!result['tailwind.config.js'] && !result['tailwind.config.ts'] && !result['tailwind.config.cjs']) {
+    result['tailwind.config.js'] = DEFAULT_TAILWIND_CONFIG;
+  }
+  if (!result['postcss.config.js'] && !result['postcss.config.cjs']) {
+    result['postcss.config.js'] = DEFAULT_POSTCSS_CONFIG;
+  }
+  // La app puede importar './index.css' desde App.tsx; si no existe, main.tsx lo necesita igualmente
+  if (result['src/main.tsx'] === DEFAULT_MAIN_TSX && !result['src/index.css']) result['src/index.css'] = '';
   if (!result['src/index.css'] && !result['src/App.css'] && !result['index.css']) {
     result['src/index.css'] = DEFAULT_INDEX_CSS;
   }
@@ -419,29 +437,10 @@ export function ensureCompleteViteProject(
     try {
       const pkg = JSON.parse(result['package.json']);
       pkg.dependencies = pkg.dependencies || {};
-      const allCode = Object.values(result).join('\n');
       
-      const libraryMap: Record<string, string> = {
-        'three': '^0.170.0',
-        'cannon-es': '^0.20.0',
-        'tone': '^14.8.49',
-        'chart.js': '^4.4.7',
-        'canvas-confetti': '^1.9.4',
-        'lucide-react': '^0.469.0',
-        'clsx': '^2.1.1',
-        'tailwind-merge': '^2.5.5',
-        '@supabase/supabase-js': '^2.47.10'
-      };
-
       let modified = false;
       for (const [lib, ver] of Object.entries(detectNpmDependencies(result))) {
         if (!pkg.dependencies[lib] && !(pkg.devDependencies || {})[lib]) {
-          pkg.dependencies[lib] = ver;
-          modified = true;
-        }
-      }
-      for (const [lib, ver] of Object.entries(libraryMap)) {
-        if ((allCode.includes(`'${lib}'`) || allCode.includes(`"${lib}"`) || allCode.includes(`'${lib}/`) || allCode.includes(`"${lib}/`)) && !pkg.dependencies[lib]) {
           pkg.dependencies[lib] = ver;
           modified = true;
         }
