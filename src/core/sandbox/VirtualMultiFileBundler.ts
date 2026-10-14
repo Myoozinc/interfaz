@@ -1691,10 +1691,10 @@ export class VirtualMultiFileBundler {
     const needsCannon = /\b(cannon-es|cannon|CANNON|RaycastVehicle)\b/i.test(allCode);
 
     const threeScripts = needsThree ? `
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script>
     try {
       if (window.THREE) {
@@ -1705,8 +1705,8 @@ export class VirtualMultiFileBundler {
     } catch(e) {}
   </script>` : '';
 
-    const toneScript = needsTone ? `\n  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>` : '';
-    const cannonScript = needsCannon ? `\n  <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>` : '';
+    const toneScript = needsTone ? `\n  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>` : '';
+    const cannonScript = needsCannon ? `\n  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>` : '';
 
     const srcDoc = `<!DOCTYPE html>
 <html lang="es">
@@ -1724,11 +1724,11 @@ export class VirtualMultiFileBundler {
   ${captureScripts}
   <script src="https://cdn.tailwindcss.com"></script>
   <script>try { tailwind.config = ${VirtualMultiFileBundler.tailwindConfigFor(normalizedFiles)}; } catch (e) {}</script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   ${threeScripts}${toneScript}${cannonScript}
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/lucide@latest"></script>
   ${lucideScript}
   ${audioPolyfillScript}
   ${inspectElementScript}
