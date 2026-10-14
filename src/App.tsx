@@ -832,7 +832,7 @@ export function App() {
                         <PreviewPanel
                           files={files}
                           onElementSelect={(info) => setInspectedElement(info.selector ? `${info.tagName} (${info.selector})` : info.outerHTML)}
-                          onAutoFixErrors={(errors) => handleSendMessage('Corrige los siguientes errores de ejecución en consola y haz que el botón de jugar y todos los eventos funcionen al 100%:\n' + errors.map(e => '- ' + e).join('\n'), 'builder')}
+                          onAutoFixErrors={(errors) => handleSendMessage('Corrige estos errores de la vista previa para que la app funcione completa:\n' + errors.slice(-4).map(e => '- ' + e.replace(/data:text\/javascript[^\s)]*/g, '(módulo)').slice(0, 300)).join('\n'), 'builder')}
                         />
                       </div>
                     )}
@@ -874,7 +874,7 @@ export function App() {
                           <PreviewPanel
                             files={files}
                             onElementSelect={(info) => setInspectedElement(info.selector ? `${info.tagName} (${info.selector})` : info.outerHTML)}
-                            onAutoFixErrors={(errors) => handleSendMessage('Corrige los siguientes errores de ejecución en consola y haz que el botón de jugar y todos los eventos funcionen al 100%:\n' + errors.map(e => '- ' + e).join('\n'), 'builder')}
+                            onAutoFixErrors={(errors) => handleSendMessage('Corrige estos errores de la vista previa para que la app funcione completa:\n' + errors.slice(-4).map(e => '- ' + e.replace(/data:text\/javascript[^\s)]*/g, '(módulo)').slice(0, 300)).join('\n'), 'builder')}
                           />
                         </div>
                       </>

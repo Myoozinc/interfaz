@@ -40,6 +40,9 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
     const respuesta = await chatAI([{ role: 'user', content: 'hola' }], { onToken: (parcial) => setTexto(parcial) });
   NO crees src/lib/ai.ts: NONA lo añade solo. Muestra un estado de carga mientras responde y maneja errores con un mensaje amable.
   Esto es para modelos de LENGUAJE. La "IA" de un juego (rival de ajedrez, enemigos) se programa con algoritmos (minimax, reglas), no con askAI.
+- CÁMARA / MICRÓFONO: navigator.mediaDevices.getUserMedia en un useEffect con limpieza (detener las pistas al desmontar); asigna el stream con
+  if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); } y usa <video autoPlay playsInline muted>.
+  Nunca escribas una asignación con ?. a la izquierda (ref.current?.srcObject = x es un error). Muestra un mensaje claro si el permiso se deniega.
 - Sin backend: guarda datos con localStorage cuando haga falta persistencia. La app arranca con datos de ejemplo realistas (8–20 elementos), nunca vacía.
 - FOTOS reales disponibles (sin enlaces a Unsplash ni a otras webs): \`https://interfaz-hazel.vercel.app/templates/img/NOMBRE.jpg\` con NOMBRE en:
   cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1 (bandeja de platos), plato-2 (ensalada), plato-3 (pizza),
@@ -72,7 +75,7 @@ DISEÑO VISUAL (obligatorio):
 const SINGLE_SHOT_RULES = `TAMAÑO: entre 3 y 7 archivos, unas 300-450 líneas en total, sin comentarios largos ni repeticiones, para que quepa en una sola respuesta. Escribe src/App.tsx PRIMERO.`;
 
 const FORMAT_RULES = `FORMATO DE RESPUESTA (obligatorio, nada fuera de esto):
-<summary>Una o dos frases en español explicando lo que hiciste.</summary>
+<summary>Una o dos frases EN ESPAÑOL (nunca en inglés) explicando lo que hiciste, en lenguaje sencillo para el usuario.</summary>
 <file path="src/App.tsx">
 ...código completo del archivo, sin bloques \`\`\`...
 </file>
@@ -147,9 +150,11 @@ ${FORMAT_RULES}`;
 
 /** ¿El pedido es una app completa (varias pantallas, datos) o una utilidad/juego sencillo? */
 export function isFullAppRequest(instruction: string): boolean {
+  // Por defecto, toda app nueva se construye por etapas (plan + varias pantallas): es lo que da apps completas y cuidadas.
+  // Solo las utilidades mínimas y cortas se hacen en una sola respuesta.
   const t = instruction.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (/\b(calculadora|temporizador|cronometro|reloj|contador|conversor|tic.?tac|piedra papel|dado|ruleta)\b/.test(t) && t.length < 140) return false;
-  return /\b(tienda|e-?commerce|panel|dashboard|crm|gestor|gestion|inventario|reservas?|citas|agenda|clinica|restaurante|carta|menu|landing|web|pagina|portafolio|portfolio|blog|revista|red social|plataforma|marketplace|finanzas|gastos|presupuesto|fitness|habitos|recetas|cursos|escuela|inmobiliaria|saas|app para|aplicacion para|sistema|simulador|simulacion|simular|3d|universo|visualizador|editor|estudio)\b/.test(t) || t.length > 220;
+  const tiny = /\b(calculadora|temporizador|cronometro|reloj|contador|conversor|tic.?tac|piedra papel|dado|ruleta|hola mundo|boton)\b/.test(t);
+  return !(tiny && t.length < 120);
 }
 
 interface AppPlan {
@@ -622,6 +627,15 @@ export function fixWrongNamedImports(files: Record<string, string>): string[] {
   return problems;
 }
 
+/** `a?.b = c` es inválido en JavaScript: se convierte en `a!.b = c` (TypeScript) para que la app no se rompa. */
+function fixOptionalChainAssignments(files: Record<string, string>) {
+  for (const [p, c] of Object.entries(files)) {
+    if (!/\.(tsx|ts|jsx|js)$/.test(p)) continue;
+    const next = c.replace(/([\w$\]\)]+(?:\.[\w$]+)*)\?\.([\w$]+)(\s*)(=)(?![=>])/g, (_m, obj, prop, sp, eq) => /\.(tsx|ts)$/.test(p) ? `${obj}!.${prop}${sp}${eq}` : `${obj}.${prop}${sp}${eq}`);
+    if (next !== c) files[p] = next;
+  }
+}
+
 /** Quita imports de CSS/imágenes que no existen (la vista previa no los necesita). */
 function dropMissingAssetImports(files: Record<string, string>) {
   const all = new Set(Object.keys(files));
@@ -790,7 +804,9 @@ window.addEventListener('load',function(){try{parent.postMessage({type:'NONA_APP
       const isErr = d.type === 'SANDBOX_RUNTIME_ERROR' || (d.type === 'NONA_LOG' && d.level === 'error');
       if (!isErr) return;
       const msg = String(d.msg || '').split('\n').slice(0, 3).join(' ').slice(0, 300);
-      if (msg && !ignore.test(msg) && !errors.includes(msg)) errors.push(msg);
+      // En la prueba oculta no hay cámara ni micrófono: un permiso denegado no es un fallo de la app
+      const permissionOnly = /permission|denied|NotAllowed|NotFoundError|getUserMedia|NotReadableError/i.test(msg) && !/(Reference|Type|Syntax|Range)Error/.test(msg);
+      if (msg && !ignore.test(msg) && !permissionOnly && !errors.includes(msg)) errors.push(msg);
     };
     let settled = false;
     const finish = () => {
@@ -1109,6 +1125,7 @@ export class AppBuilderAgent {
       ensureRuntimeHelpers(files);
       dropMissingAssetImports(files);
       fixInventedPhotos(files);
+      fixOptionalChainAssignments(files);
       const wrongImports = fixWrongNamedImports(files);
       const undefinedNames = autoImportMissing(files);
       const problems = [

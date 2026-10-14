@@ -1686,6 +1686,13 @@ export class VirtualMultiFileBundler {
     const srcDoc = `<!DOCTYPE html>
 <html lang="es">
 <head>
+  <script>
+    // Cámara/vídeo: al asignar un stream a un <video> se reproduce solo (en el iframe de la vista previa
+    // los vídeos sin autoplay/muted/playsInline se quedaban en gris aunque la cámara estuviera encendida).
+    (function(){try{var d=Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,'srcObject');if(!d||!d.set)return;
+    Object.defineProperty(HTMLMediaElement.prototype,'srcObject',{configurable:true,enumerable:d.enumerable,get:d.get,set:function(v){d.set.call(this,v);
+    if(v&&this.tagName==='VIDEO'){try{this.muted=true;this.playsInline=true;this.autoplay=true;var p=this.play();if(p&&p.catch)p.catch(function(){});}catch(e){}}}});}catch(e){}})();
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NONA Multi-File Preview</title>
