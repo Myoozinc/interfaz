@@ -608,7 +608,8 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     }
   };
 
-  const errorLogs = useMemo(() => consoleLogs.filter(l => l.type === 'error'), [consoleLogs]);
+  // Los avisos de React en modo desarrollo ("Warning: …") no son errores de la app
+  const errorLogs = useMemo(() => consoleLogs.filter(l => l.type === 'error' && !/^\s*Warning:/.test(l.message)), [consoleLogs]);
 
   const handleTriggerAutoFix = () => {
     if (onAutoFixErrors && errorLogs.length > 0) {

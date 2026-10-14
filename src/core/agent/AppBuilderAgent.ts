@@ -793,7 +793,7 @@ window.addEventListener('load',function(){try{parent.postMessage({type:'NONA_APP
     iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:800px;opacity:0;pointer-events:none;';
     const w = window as any;
     w.__nonaCheckFrames = w.__nonaCheckFrames || new Set();
-    const ignore = /ResizeObserver|Tone\.js|favicon|AudioContext|autoplay|user gesture|Download the React DevTools/i;
+    const ignore = /ResizeObserver|Tone\.js|favicon|AudioContext|autoplay|user gesture|Download the React DevTools|^Warning:|^\[NONA Preview Error\]: Warning:/i;
 
     const onMsg = (ev: MessageEvent) => {
       if (ev.source !== iframe.contentWindow) return;
