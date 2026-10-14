@@ -775,8 +775,15 @@ export class VirtualMultiFileBundler {
     const RR = 'https://esm.sh/react-router-dom@6.28.0?external=react,react-dom';
     const routerShimCode = `
       export * from '${RR}';
-      import { MemoryRouter, createMemoryRouter } from '${RR}';
-      export { MemoryRouter as BrowserRouter, MemoryRouter as HashRouter };
+      import { MemoryRouter as RealMemoryRouter, createMemoryRouter, useInRouterContext } from '${RR}';
+      import { createElement, Fragment } from 'react';
+      // Router "tolerante": si ya hay uno por encima (NONA envuelve la app), no anida otro (evita
+      // "You cannot render a <Router> inside another <Router>"); así useLocation/useNavigate en App funcionan.
+      function SafeRouter(props) {
+        if (useInRouterContext()) return createElement(Fragment, null, props.children);
+        return createElement(RealMemoryRouter, props);
+      }
+      export { SafeRouter as BrowserRouter, SafeRouter as HashRouter, SafeRouter as MemoryRouter };
       export const createBrowserRouter = (routes, opts) => createMemoryRouter(routes, opts);
       export const createHashRouter = (routes, opts) => createMemoryRouter(routes, opts);
     `;
@@ -1383,13 +1390,18 @@ export class VirtualMultiFileBundler {
         if (!Comp) return;
         try {
           const root = ReactDOM.createRoot(rootEl);
-          root.render(
+          const mount = (inner) => root.render(
             React.createElement(NonaErrorBoundary, null,
-              React.createElement(MountNotifier, null,
-                React.createElement(Comp)
-              )
+              React.createElement(MountNotifier, null, inner)
             )
           );
+          if (window.__NONA_USES_ROUTER__) {
+            // La app usa react-router: se envuelve en un router para que los hooks funcionen aunque App los use
+            import('react-router-dom').then(RR => mount(React.createElement(RR.MemoryRouter, null, React.createElement(Comp))))
+              .catch(() => mount(React.createElement(Comp)));
+          } else {
+            mount(React.createElement(Comp));
+          }
         } catch(err) {
           console.error('[NONA Render Error]:', err);
         }
@@ -1776,6 +1788,7 @@ export class VirtualMultiFileBundler {
 <body class="bg-slate-950 text-white min-h-screen">
   <div id="root"></div>
   <div id="app"></div>
+  <script>window.__NONA_USES_ROUTER__ = ${Object.values(normalizedFiles).some(c => /from\s+['"]react-router(-dom)?['"]/.test(c)) ? 'true' : 'false'};</script>
   <script type="module">
     ${mountScript}
   </script>

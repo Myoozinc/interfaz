@@ -70,7 +70,7 @@ const FORMAT_RULES = `FORMATO DE RESPUESTA (obligatorio, nada fuera de esto):
 <file path="src/App.tsx">
 ...código completo del archivo, sin bloques \`\`\`...
 </file>
-<file path="src/components/Ejemplo.tsx">
+<file path="src/components/OtroArchivo.tsx">
 ...
 </file>
 Para borrar un archivo: <delete path="ruta/del/archivo.tsx" />`;
