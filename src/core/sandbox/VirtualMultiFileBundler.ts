@@ -595,7 +595,9 @@ export class VirtualMultiFileBundler {
         useDeferredValue, useTransition, useId, useInsertionEffect,
         useSyncExternalStore, createElement, createRef, Component,
         PureComponent, createContext, forwardRef, lazy, memo, Fragment,
-        Children, cloneElement, isValidElement, version, startTransition
+        Children, cloneElement, isValidElement, version, startTransition,
+        Suspense, StrictMode, Profiler, createFactory, act, unstable_act,
+        __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
       } = R;
     `;
     const reactShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(reactShimCode);
@@ -605,7 +607,9 @@ export class VirtualMultiFileBundler {
       export default RDOM;
       export const {
         render, hydrate, unmountComponentAtNode, findDOMNode,
-        createPortal, version
+        createPortal, version, flushSync, unstable_batchedUpdates,
+        createRoot, hydrateRoot,
+        __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
       } = RDOM;
     `;
     const reactDomShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(reactDomShimCode);
