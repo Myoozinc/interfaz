@@ -541,7 +541,8 @@ export function autoImportMissing(files: Record<string, string>): string[] {
     for (const m of code.matchAll(/(?:function\*?|class|const|let|var|type|interface|enum)\s+([A-Za-z_$][\w$]*)/g)) declared.add(m[1]);
     for (const m of code.matchAll(/(?:const|let|var)\s*[{[]([^}\]=]*)[}\]]\s*=/g)) for (const id of m[1].match(/[A-Za-z_$][\w$]*/g) || []) declared.add(id);
     const used = new Set<string>();
-    for (const m of code.matchAll(/<([A-Z][\w$]*)[\s/>]/g)) used.add(m[1]);
+    // Etiquetas JSX (no genéricos de TypeScript como useRef<HTMLVideoElement>, que van pegados a un identificador)
+    for (const m of code.matchAll(/(?<![\w$.])<([A-Z][\w$]*)[\s/>]/g)) if (!/^(HTML\w*Element|SVG\w*|Record|Partial|Array|Promise|Map|Set|Readonly|Pick|Omit|React)$/.test(m[1])) used.add(m[1]);
     for (const m of code.matchAll(/(?<![\w$.])(use[A-Z][\w$]*|[a-z][\w$]*)\s*\(/g)) if (named.has(m[1]) || REACT_NAMES.has(m[1]) || ROUTER_NAMES.has(m[1])) used.add(m[1]);
     const add: Record<string, { def?: string; names: Set<string> }> = {};
     const want = (spec: string) => (add[spec] ||= { names: new Set() });
