@@ -630,8 +630,11 @@ export function fixWrongNamedImports(files: Record<string, string>): string[] {
 
 /** `a?.b = c` es inválido en JavaScript: se convierte en `a!.b = c` (TypeScript) para que la app no se rompa. */
 function fixOptionalChainAssignments(files: Record<string, string>) {
-  for (const [p, c] of Object.entries(files)) {
+  for (const [p, c0] of Object.entries(files)) {
     if (!/\.(tsx|ts|jsx|js)$/.test(p)) continue;
+    // Tipos usados como funciones (number(x) → Number(x)): error típico de modelos pequeños
+    const c = c0.replace(/(?<![\w$.<:|&])(number|string|boolean)\((?!\s*\))/g, (m, t) => new RegExp(`(?:const|let|var|function)\\s+${t}\\b`).test(c0) ? m : `${t[0].toUpperCase()}${t.slice(1)}(`);
+    if (c !== c0) files[p] = c;
     const next = c.replace(/([\w$\]\)]+(?:\.[\w$]+)*)\?\.([\w$]+)(\s*)(=)(?![=>])/g, (_m, obj, prop, sp, eq) => /\.(tsx|ts)$/.test(p) ? `${obj}!.${prop}${sp}${eq}` : `${obj}.${prop}${sp}${eq}`);
     if (next !== c) files[p] = next;
   }
@@ -858,16 +861,25 @@ window.addEventListener('load',function(){try{parent.postMessage({type:'NONA_APP
         probing = true;
         (async () => {
           try {
-            const doc = iframe.contentDocument;
             const skip = /borrar|eliminar|delete|remove|reset|restablecer|vaciar|cerrar sesi|logout|salir|pagar|comprar ahora/i;
-            const buttons = Array.from(doc?.querySelectorAll('button, [role="button"], a[href^="#"]') || []).filter((b: any) => {
+            const usesRouter = !!(iframe.contentWindow as any)?.__NONA_USES_ROUTER__;
+            const visible = (sel: string) => Array.from(iframe.contentDocument?.querySelectorAll(sel) || []).filter((b: any) => {
               const r = b.getBoundingClientRect?.();
               return r && r.width > 0 && r.height > 0 && !b.disabled && !skip.test(b.textContent || b.getAttribute('aria-label') || '');
-            }).slice(0, 10);
-            for (const b of buttons) {
-              if (errors.length > 0) break;
-              try { (b as HTMLElement).click(); } catch {}
-              await new Promise(r => setTimeout(r, 180));
+            }) as HTMLElement[];
+            const click = async (b: HTMLElement) => { try { b.click(); } catch {} await new Promise(r => setTimeout(r, 200)); };
+            // 1) Botones de la pantalla inicial
+            for (const b of visible('button, [role="button"], a[href^="#"]').slice(0, 8)) { if (errors.length) break; await click(b); }
+            // 2) Cada pantalla enlazada (react-router en memoria: los enlaces no salen del iframe) y sus botones
+            if (usesRouter && !errors.length) {
+              const links = visible('a[href^="/"]').map(a => a.getAttribute('href')).filter((h, i, arr) => h && arr.indexOf(h) === i).slice(0, 6);
+              for (const href of links) {
+                if (errors.length) break;
+                const a = visible(`a[href="${href}"]`)[0];
+                if (!a) continue;
+                await click(a);
+                for (const b of visible('button, [role="button"]').slice(0, 4)) { if (errors.length) break; await click(b); }
+              }
             }
             await new Promise(r => setTimeout(r, 400));
           } catch {}
