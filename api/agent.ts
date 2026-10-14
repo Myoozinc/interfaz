@@ -377,6 +377,17 @@ export default async function handler(req: any, res?: any) {
     const misModels = STATIC_MODELS.mistral, nvModels = STATIC_MODELS.nvidia, ghModels = STATIC_MODELS.github, poModels = STATIC_MODELS.pollinations;
     const ghFits = totalChars < 26000; // GitHub Models gratis: entrada pequeña, salida ~4k
 
+    // Diagnóstico (sin llaves): qué proveedores están configurados y qué modelos se eligen en cada uno
+    if (body.diag) {
+      return reply(200, {
+        configured: Object.fromEntries(Object.entries(keys).map(([k, v]) => [k, v.length])),
+        discovered: { groq: gList.length, gemini: gemList.length, cerebras: cList.length, sambanova: sList.length, openrouter: oList.length },
+        ranked: { groq: groqModels, gemini: gemModels, cerebras: cerModels, sambanova: samModels, openrouter: orModels, mistral: misModels, nvidia: nvModels, github: ghModels },
+        allOpenRouterFree: oList.filter((m: any) => String(m.id).endsWith(':free')).map((m: any) => `${m.id} (${m.context_length})`),
+        cooling: [...cooldown.entries()].filter(([, t]) => t > Date.now()).map(([k, t]) => `${k} ${Math.round((t - Date.now()) / 1000)}s`),
+      });
+    }
+
     // Groq: la entrada + salida debe caber en el TPM del modelo. Se estima la entrada y se eligen solo modelos
     // donde quepa (p. ej. editar una plantilla de 40 KB solo cabe en Llama 4 Scout), con la salida que quede libre.
     const inTokens = Math.ceil(totalChars / 3.2) + 300;
