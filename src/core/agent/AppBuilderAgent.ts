@@ -899,10 +899,10 @@ export class AppBuilderAgent {
       onProgress(`${label}\n🩺 Corrigiendo ${problems.length} problema(s)…`, true);
       const broken = Object.keys(files).filter(p => problems.some(pr => pr.includes(`"${p}"`)));
       const context: Record<string, string> = {};
-      for (const p of (broken.length ? broken : Object.keys(files))) context[p] = files[p];
+      for (const p of (broken.length ? broken : Object.keys(selectEditContext(files, problems.join(' '), '', 32000).included))) context[p] = files[p];
       const repairSystem = isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM;
-      const user = `ARCHIVOS EXISTENTES: ${Object.keys(files).join(', ')}\n\nPROBLEMAS DETECTADOS:\n- ${problems.join('\n- ')}\n\nARCHIVOS CON PROBLEMAS (contenido actual):\n${filesAsContext(context, 90000)}\n\nPedido original del usuario: "${instruction}"`;
-      parsed = await this.askWithRetry(repairSystem, user, 12000, onProgress, label, opts?.signal);
+      const user = `ARCHIVOS EXISTENTES: ${Object.keys(files).join(', ')}\n\nPROBLEMAS DETECTADOS:\n- ${problems.join('\n- ')}\n\nARCHIVOS CON PROBLEMAS (contenido actual):\n${filesAsContext(context, 40000)}\n\nPedido original del usuario: "${instruction}"`;
+      parsed = await this.askWithRetry(repairSystem, user, 8000, onProgress, label, opts?.signal);
       patchProblems = applyParsed(files, parsed);
     }
 
@@ -920,12 +920,25 @@ export class AppBuilderAgent {
             break;
           }
         }
-        throw new Error(`La app se generó pero falla al ejecutarse:\n- ${runtimeErrors.slice(0, 4).join('\n- ')}`);
+        // Se entrega igualmente (la vista previa muestra el error y el botón «Corregir con NONA») en vez de perder la app
+        warning = `\n\n⚠️ La app se creó, pero aún tiene un error al ejecutarse: ${runtimeErrors[0].slice(0, 160)}. Pulsa «Corregir con NONA» en la vista previa o escribe «arréglalo».`;
+        break;
       }
       onProgress(`${label}\n🩺 Corrigiendo error al ejecutar: ${runtimeErrors[0].slice(0, 90)}…`, true);
-      const user = `La app compila, pero al EJECUTARLA en el navegador aparecen estos errores:\n- ${runtimeErrors.join('\n- ')}\n\nCausas típicas: import por defecto de una librería que solo tiene exports nombrados (usa import { create } from 'zustand'), API antigua de una librería, variable indefinida, acceso a propiedades de undefined.\n\nARCHIVOS DEL PROYECTO:\n${filesAsContext(files, 100000)}\n\nPedido original del usuario: "${instruction}"`;
+      // Solo los archivos relacionados con el error (enviar el proyecto entero no cabe en los modelos gratuitos)
+      const { included: errFiles, omitted: errOmitted } = selectEditContext(files, runtimeErrors.join(' '), '', 32000);
+      const user = `La app compila, pero al EJECUTARLA en el navegador aparecen estos errores:\n- ${runtimeErrors.join('\n- ')}\n\nCausas típicas: import por defecto de una librería que solo tiene exports nombrados (usa import { create } from 'zustand'), API antigua de una librería, variable indefinida, acceso a propiedades de undefined, un export que no existe en el archivo importado.\n\nARCHIVOS DEL PROYECTO: ${Object.keys(files).join(', ')}\n\nARCHIVOS RELACIONADOS CON EL ERROR:\n${filesAsContext(errFiles, 40000)}${errOmitted.length ? `\n(No se muestran: ${errOmitted.join(', ')}. No los reescribas enteros.)` : ''}\n\nPedido original del usuario: "${instruction}"`;
       const repairSystem = isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM;
-      const fix = await this.askWithRetry(repairSystem, user, 12000, onProgress, label, opts?.signal);
+      let fix: Parsed;
+      try {
+        fix = await this.askWithRetry(repairSystem, user, 8000, onProgress, label, opts?.signal);
+      } catch (e: any) {
+        if (e?.name === 'AbortError') throw e;
+        // Sin cupo para reparar: se entrega la app con un aviso en lugar de bloquear o perder el trabajo
+        warning = `\n\n⚠️ La app se creó, pero tiene un error al ejecutarse que no pude corregir ahora (la IA gratuita está al límite): ${runtimeErrors[0].slice(0, 160)}. Escribe «arréglalo» en un par de minutos y lo corrijo.`;
+        break;
+      }
+      for (const p of errOmitted) delete fix.files[p];
       const fixProblems = applyParsed(files, fix);
       ensureRuntimeHelpers(files);
       const staticProblems = [...fixProblems, ...validateProject(files)];
@@ -940,8 +953,10 @@ export class AppBuilderAgent {
       await runtimeCheck(files, 7000, design);
       if (design.length > 0) {
         onProgress(`${label}\n🎨 Ajustando el contraste (${design.length} texto(s) poco legibles)…`, true);
-        const user = `La app funciona, pero la revisión visual encontró textos casi ilegibles:\n- ${design.join('\n- ')}\n\nCorrige SOLO los colores (clases de Tailwind) para que todo el texto tenga buen contraste con su fondo. No cambies la funcionalidad ni la estructura.\n\nARCHIVOS DEL PROYECTO:\n${filesAsContext(files, 100000)}`;
-        const fix = await this.askWithRetry(isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM, user, 12000, onProgress, label, opts?.signal);
+        const { included: dFiles, omitted: dOmitted } = selectEditContext(files, design.join(' '), '', 32000);
+        const user = `La app funciona, pero la revisión visual encontró textos casi ilegibles:\n- ${design.join('\n- ')}\n\nCorrige SOLO los colores (clases de Tailwind) para que todo el texto tenga buen contraste con su fondo. No cambies la funcionalidad ni la estructura.\n\nARCHIVOS:\n${filesAsContext(dFiles, 40000)}`;
+        const fix = await this.askWithRetry(isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM, user, 8000, onProgress, label, opts?.signal);
+        for (const p of dOmitted) delete fix.files[p];
         const candidate = { ...files };
         const fixProblems = applyParsed(candidate, fix);
         ensureRuntimeHelpers(candidate);
