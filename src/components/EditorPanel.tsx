@@ -31,28 +31,32 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
 
   const handleEditorWillMount = (monaco: Monaco) => {
     monaco.editor.defineTheme('nona-modern', {
-      base: 'vs',
+      base: 'vs-dark',
       inherit: true,
       rules: [
-        { token: 'comment', foreground: '94A3B8', fontStyle: 'italic' },
-        { token: 'keyword', foreground: '6366F1', fontStyle: 'bold' },
-        { token: 'string', foreground: '059669' },
-        { token: 'number', foreground: '7C3AED' },
-        { token: 'tag', foreground: '4F46E5' },
-        { token: 'attribute.name', foreground: '64748B' },
-        { token: 'attribute.value', foreground: '0D9488' },
+        { token: 'comment', foreground: '6B7389', fontStyle: 'italic' },
+        { token: 'keyword', foreground: '8FB0FF' },
+        { token: 'string', foreground: '9BD8A6' },
+        { token: 'number', foreground: 'F2B880' },
+        { token: 'tag', foreground: '7FB8FF' },
+        { token: 'attribute.name', foreground: 'C6A6FF' },
+        { token: 'attribute.value', foreground: '9BD8A6' },
+        { token: 'type', foreground: '7FD6D0' },
       ],
       colors: {
-        'editor.background': '#FFFFFF',
-        'editor.foreground': '#0F172A',
-        'editorLineNumber.foreground': '#CBD5E1',
-        'editorLineNumber.activeForeground': '#6366F1',
-        'editorCursor.foreground': '#4F46E5',
-        'editor.selectionBackground': '#E0E7FF',
-        'editor.inactiveSelectionBackground': '#EEF2FF',
-        'editorIndentGuide.background': '#F1F5F9',
-        'editorIndentGuide.activeBackground': '#CBD5E1',
-        'editorGutter.background': '#F8FAFC',
+        'editor.background': '#0F1219',
+        'editor.foreground': '#E7EAF2',
+        'editorLineNumber.foreground': '#3E4659',
+        'editorLineNumber.activeForeground': '#B9BFCD',
+        'editorCursor.foreground': '#5B8CFF',
+        'editor.selectionBackground': '#2A3A66',
+        'editor.inactiveSelectionBackground': '#1F2A47',
+        'editor.lineHighlightBackground': '#151923',
+        'editorIndentGuide.background': '#1C212D',
+        'editorIndentGuide.activeBackground': '#353C4E',
+        'editorGutter.background': '#0F1219',
+        'editorWidget.background': '#151923',
+        'editorWidget.border': '#262C3A',
       }
     });
   };
@@ -72,17 +76,17 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
 
   if (!activeFile) {
     return (
-      <div className="flex-1 bg-white flex items-center justify-center text-slate-400 text-xs">
+      <div className="flex-1 bg-panel flex items-center justify-center text-muted text-xs">
         No hay archivos abiertos.
       </div>
     );
   }
 
   return (
-    <section className="flex-1 bg-white flex flex-col h-full overflow-hidden border-r border-slate-200">
+    <section className="flex-1 bg-panel flex flex-col h-full overflow-hidden border-r border-line">
       
       {/* File Tabs Bar */}
-      <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center justify-between px-2 overflow-x-auto select-none">
+      <div className="h-10 bg-canvas border-b border-line flex items-center justify-between px-2 overflow-x-auto select-none">
         
         {/* Open Tabs */}
         <div className="flex items-center gap-1 overflow-x-auto">
@@ -94,13 +98,13 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                 onClick={() => onSelectFile(file.id)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-t-lg text-xs font-medium border-t border-x transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-white text-slate-900 border-slate-200 border-b-transparent shadow-2xs font-semibold'
-                    : 'bg-transparent text-slate-500 hover:bg-slate-100 border-transparent'
+                    ? 'bg-panel text-fg border-line border-b-transparent shadow-2xs font-semibold'
+                    : 'bg-transparent text-muted hover:bg-raised border-transparent'
                 }`}
               >
-                <FileCode className="w-3.5 h-3.5 text-indigo-600" />
+                <FileCode className="w-3.5 h-3.5 text-accent" />
                 <span>{file.name}</span>
-                {file.isModified && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />}
+                {file.isModified && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
               </button>
             );
           })}
@@ -111,8 +115,8 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           <button
             onClick={() => setWordWrap(wordWrap === 'on' ? 'off' : 'on')}
             title="Ajuste de línea (Word Wrap)"
-            className={`p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer ${
-              wordWrap === 'on' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'
+            className={`p-1.5 rounded-lg hover:bg-raised-2/60 transition-colors cursor-pointer ${
+              wordWrap === 'on' ? 'text-accent bg-accent/10' : 'text-muted'
             }`}
           >
             <WrapText className="w-3.5 h-3.5" />
@@ -121,7 +125,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           <button
             onClick={handleFormat}
             title="Formatear Código"
-            className="p-1.5 rounded-lg hover:bg-slate-200/60 text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-raised-2/60 text-muted hover:text-fg transition-colors cursor-pointer"
           >
             <Code2 className="w-3.5 h-3.5" />
           </button>
@@ -129,9 +133,9 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           <button
             onClick={handleCopy}
             title="Copiar Código"
-            className="p-1.5 rounded-lg hover:bg-slate-200/60 text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1 cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-raised-2/60 text-muted hover:text-fg transition-colors flex items-center gap-1 cursor-pointer"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
         </div>
 

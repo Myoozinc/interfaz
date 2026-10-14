@@ -51,20 +51,20 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 select-none">
-      <div className="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden animate-fade-in text-xs flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 bg-raised/40 backdrop-blur-xs flex items-center justify-center p-4 select-none">
+      <div className="bg-panel border border-line rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden animate-fade-in text-xs flex flex-col max-h-[85vh]">
         
         {/* Header */}
-        <div className="p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-6 bg-canvas border-b border-line flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/30 flex items-center justify-center text-accent shadow-xs">
               <FolderOpen className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-slate-900">
+              <h2 className="text-base font-extrabold text-fg">
                 Gestor de Proyectos & Memoria
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted">
                 {projects.length} proyecto(s) guardados con historial independiente
               </p>
             </div>
@@ -80,7 +80,7 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+              className="p-2 rounded-xl hover:bg-raised-2 text-muted hover:text-fg transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -92,14 +92,14 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
           
           {/* New Project Form */}
           {showCreateForm && (
-            <form onSubmit={handleCreateSubmit} className="p-4 bg-indigo-50/50 border border-indigo-200 rounded-2xl space-y-3 animate-fade-in">
-              <h3 className="font-bold text-xs text-indigo-900 flex items-center gap-1.5">
-                <FolderPlus className="w-3.5 h-3.5 text-indigo-600" />
+            <form onSubmit={handleCreateSubmit} className="p-4 bg-accent/10 border border-accent/30 rounded-2xl space-y-3 animate-fade-in">
+              <h3 className="font-bold text-xs text-accent flex items-center gap-1.5">
+                <FolderPlus className="w-3.5 h-3.5 text-accent" />
                 Crear Nuevo Proyecto
               </h3>
               
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Nombre del Proyecto</label>
+                <label className="text-[11px] font-semibold text-fg-2 block mb-1">Nombre del Proyecto</label>
                 <input
                   type="text"
                   required
@@ -107,16 +107,16 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   placeholder="Mi nueva app o juego..."
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900"
+                  className="w-full px-3 py-2 bg-panel border border-line rounded-xl text-xs outline-none focus:border-accent text-fg"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Plantilla Inicial</label>
+                <label className="text-[11px] font-semibold text-fg-2 block mb-1">Plantilla Inicial</label>
                 <select
                   value={selectedTemplateId}
                   onChange={(e) => setSelectedTemplateId(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none text-slate-900 cursor-pointer"
+                  className="w-full px-3 py-2 bg-panel border border-line rounded-xl text-xs outline-none text-fg cursor-pointer"
                 >
                   {STARTER_TEMPLATES.map(t => (
                     <option key={t.id} value={t.id}>{t.name} — {t.description.slice(0, 45)}...</option>
@@ -128,13 +128,13 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl border border-line text-fg-2 hover:bg-canvas font-semibold cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                  className="px-4 py-1.5 bg-accent hover:bg-accent-strong text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
                   Crear y Abrir
                 </button>
@@ -155,29 +155,29 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                   }}
                   className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
                     isActive
-                      ? 'bg-indigo-50/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-xs'
-                      : 'bg-slate-50 hover:bg-white border-slate-200 hover:border-indigo-200 hover:shadow-md'
+                      ? 'bg-accent/10 border-accent ring-2 ring-accent/20 shadow-xs'
+                      : 'bg-canvas hover:bg-panel border-line hover:border-accent/30 hover:shadow-md'
                   }`}
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 font-bold text-slate-900">
-                        <Layers className="w-4 h-4 text-indigo-600" />
+                      <div className="flex items-center gap-2 font-bold text-fg">
+                        <Layers className="w-4 h-4 text-accent" />
                         <span className="truncate max-w-[150px]">{proj.name}</span>
                       </div>
                       {isActive && (
-                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold text-accent bg-accent/15 px-2 py-0.5 rounded-full">
                           Activo
                         </span>
                       )}
                     </div>
 
-                    <p className="text-[11px] text-slate-500 line-clamp-2 mb-3">
+                    <p className="text-[11px] text-muted line-clamp-2 mb-3">
                       {proj.description || `${proj.files?.length || 0} archivos • ${proj.messages?.length || 0} mensajes`}
                     </p>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-400">
+                  <div className="pt-3 border-t border-line/80 flex items-center justify-between text-[10px] text-muted">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       {new Date(proj.updatedAt).toLocaleDateString()}
@@ -187,7 +187,7 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                       <button
                         onClick={() => onDuplicateProject(proj.id)}
                         title="Duplicar Proyecto"
-                        className="p-1 rounded-md hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-colors"
+                        className="p-1 rounded-md hover:bg-raised-2 text-muted hover:text-fg transition-colors"
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
@@ -199,12 +199,12 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                             }
                           }}
                           title="Eliminar Proyecto"
-                          className="p-1 rounded-md hover:bg-red-100 text-slate-500 hover:text-red-600 transition-colors"
+                          className="p-1 rounded-md hover:bg-red-500/15 text-muted hover:text-red-300 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      <span className="p-1 text-indigo-600 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
+                      <span className="p-1 text-accent font-bold group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
                         Abrir <ArrowRight className="w-3 h-3" />
                       </span>
                     </div>

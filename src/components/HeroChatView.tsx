@@ -1,29 +1,24 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { 
-  LayoutGrid,
   Code2, 
   Gamepad2, 
   BarChart3, 
   Music, 
-  Rocket, 
   Columns, 
   Play, 
   Check, 
   Copy,
   RefreshCw, 
   PlusCircle, 
-  Brain, 
   Globe,
   Video,
   FileText,
   ExternalLink,
-  ShieldCheck,
-  Cpu
 } from 'lucide-react';
 import { FloatingOmnibar } from './FloatingOmnibar';
 import { MarkdownViewer } from './MarkdownViewer';
 import { NonaLogo } from './NonaLogo';
-import type { ChatMessage, ChatAttachment } from '../types';
+import type { ChatMessage, ChatAttachment, ProjectTemplate } from '../types';
 
 interface HeroChatViewProps {
   messages: ChatMessage[];
@@ -41,6 +36,8 @@ interface HeroChatViewProps {
   inspectedElement?: string | null;
   onClearInspectedElement?: () => void;
   onOpenTemplatesModal?: () => void;
+  featuredTemplates?: ProjectTemplate[];
+  onSelectTemplate?: (t: ProjectTemplate) => void;
   isGenerating?: boolean;
   thinkingText?: string;
 }
@@ -61,6 +58,8 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   inspectedElement,
   onClearInspectedElement,
   onOpenTemplatesModal,
+  featuredTemplates = [],
+  onSelectTemplate,
   isGenerating = false,
   thinkingText = '',
 }) => {
@@ -100,26 +99,10 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
   };
 
   const quickActions = [
-    {
-      label: '🏎️ Carreras 3D Cyberpunk',
-      icon: Gamepad2,
-      prompt: 'Crea un juego de carreras 3D con Three.js, físicas de velocidad y derrape, velocímetro digital HUD, sonido de motor Web Audio y controles táctiles y de teclado',
-    },
-    {
-      label: '🎹 Sintetizador Web DAW',
-      icon: Music,
-      prompt: 'Crea una estación de producción musical y secuenciador por pasos con osciloscopio en tiempo real y efectos de audio',
-    },
-    {
-      label: '🚀 Simulador Espacial 3D',
-      icon: Rocket,
-      prompt: 'Crea un simulador de combate espacial 3D con campo de asteroides, disparos láser y efectos de partículas',
-    },
-    {
-      label: '📊 Dashboard SaaS & MRR',
-      icon: BarChart3,
-      prompt: 'Construye un dashboard SaaS moderno con métricas interactivas en tiempo real, gráficos Chart.js y modo oscuro',
-    },
+    { label: 'Panel de ventas', icon: BarChart3, prompt: 'Crea un panel de ventas profesional para una tienda online: KPIs del mes, gráfico de ingresos por día, tabla de pedidos recientes con filtros y estado, y vista de productos más vendidos' },
+    { label: 'Landing de una cafetería', icon: Globe, prompt: 'Crea una landing page elegante para una cafetería de especialidad: portada con foto, menú con precios, horarios, ubicación, reseñas y formulario de reservas' },
+    { label: 'Gestor de tareas en equipo', icon: Code2, prompt: 'Crea un gestor de tareas para equipos estilo tablero kanban: columnas arrastrables, responsables, fechas límite, etiquetas, búsqueda y guardado local' },
+    { label: 'Juego de carreras 3D', icon: Gamepad2, prompt: 'Crea un juego de carreras 3D con Three.js: circuito, rivales con IA, velocímetro, turbo, sonido y controles de teclado y táctiles' },
   ];
 
   const handleChipClick = (chip: string) => {
@@ -142,186 +125,130 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
     }
   };
 
-  // State 1: Fresh clean Hero view (no conversation yet)
+  // Estado 1: portada (todavía no hay conversación)
   if (!isConversing) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-white relative overflow-y-auto select-none font-sans">
-        <div className="max-w-2xl w-full z-10 space-y-6 text-center my-auto">
-          
-          {/* Centered Hero Header with Official NONA Emblem integrated seamlessly on infinite white */}
-          <div className="space-y-4">
-            
-            {/* Flagship Hero Logo Emblem */}
-            <div className="flex justify-center">
-              <div className="cursor-pointer transition-transform duration-300 hover:scale-105 select-none">
-                <NonaLogo size={84} />
+      <div className="flex-1 overflow-y-auto bg-canvas select-none">
+        <div className="min-h-full flex flex-col items-center justify-center px-4 py-12 sm:py-16">
+          <div className="w-full max-w-[720px]">
+            <h1 className="font-display text-[40px] sm:text-[56px] leading-[1.02] font-bold tracking-[-0.03em] text-fg text-center">
+              ¿Qué quieres crear?
+            </h1>
+            <p className="mt-4 text-[15px] sm:text-base text-fg-2 text-center max-w-[52ch] mx-auto leading-relaxed">
+              Describe tu app o tu juego. NONA escribe el código, te lo muestra funcionando y puedes seguir cambiándolo con el chat.
+            </p>
+
+            <div className="mt-8">
+              <FloatingOmnibar
+                initialText={omnibarInitialText}
+                onSendMessage={(prompt, mode, model, atts) => {
+                  setOmnibarInitialText('');
+                  onSendMessage(prompt, mode || 'builder', model, atts);
+                }}
+                isGenerating={isGenerating}
+                inspectedElement={inspectedElement}
+                onClearInspectedElement={onClearInspectedElement}
+                attachedImages={attachedImages}
+                onAddImage={onAddImage}
+                onRemoveImage={onRemoveImage}
+                attachments={attachments}
+                onAddAttachment={onAddAttachment}
+                onRemoveAttachment={onRemoveAttachment}
+                placeholder="Ej.: una app para reservar turnos en mi barbería, con calendario y recordatorios"
+              />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              {quickActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.label}
+                    type="button"
+                    onClick={() => setOmnibarInitialText(action.prompt)}
+                    title={action.prompt}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-line text-[13px] text-fg-2 hover:text-fg hover:border-line-strong hover:bg-panel transition-colors cursor-pointer"
+                  >
+                    <Icon className="w-3.5 h-3.5 text-muted" />
+                    {action.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {featuredTemplates.length > 0 && (
+            <div className="w-full max-w-[960px] mt-16">
+              <div className="flex items-baseline justify-between mb-3 px-1">
+                <h2 className="text-[13px] font-medium text-fg-2">O empieza desde una plantilla</h2>
+                {onOpenTemplatesModal && (
+                  <button onClick={onOpenTemplatesModal} className="text-[13px] text-accent hover:text-fg transition-colors cursor-pointer">
+                    Ver todas
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {featuredTemplates.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => onSelectTemplate?.(t)}
+                    className="group text-left rounded-xl overflow-hidden border border-line bg-panel hover:border-line-strong transition-colors cursor-pointer"
+                  >
+                    <div className="aspect-[16/10] bg-raised overflow-hidden">
+                      {t.thumbnail && (
+                        <img src={t.thumbnail} alt="" loading="lazy" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-[1.03] transition duration-300" />
+                      )}
+                    </div>
+                    <div className="px-3 py-2.5">
+                      <div className="text-[13px] font-medium text-fg truncate">{t.name}</div>
+                      <div className="text-[12px] text-muted">{t.category}</div>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
-
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50/90 border border-blue-200/70 text-[11px] font-bold text-blue-700 shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-              <span>NONA AI Software Factory • v5.2</span>
-            </div>
-
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-              ¿Qué deseas construir hoy?
-            </h1>
-
-            <p className="text-slate-500 text-xs sm:text-sm max-w-lg mx-auto leading-relaxed font-normal">
-              Describe cualquier aplicación, videojuego 3D, herramienta o flujo de trabajo. Un consejo de Meta-Agentes coordinará la arquitectura, código y ejecución en tiempo real.
-            </p>
-          </div>
-
-          {/* Centerpiece Floating Omnibar Prompt Box */}
-          <FloatingOmnibar
-            initialText={omnibarInitialText}
-            onSendMessage={(prompt, mode, model, atts) => {
-              setOmnibarInitialText('');
-              onSendMessage(prompt, mode || 'chat', model, atts);
-            }}
-            isGenerating={isGenerating}
-            inspectedElement={inspectedElement}
-            onClearInspectedElement={onClearInspectedElement}
-            attachedImages={attachedImages}
-            onAddImage={onAddImage}
-            onRemoveImage={onRemoveImage}
-            attachments={attachments}
-            onAddAttachment={onAddAttachment}
-            onRemoveAttachment={onRemoveAttachment}
-            placeholder="Describe tu idea o pega una URL de referencia (soporta audio, video, imágenes)..."
-          />
-
-          {/* Featured Templates Gallery Button */}
-          {onOpenTemplatesModal && (
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={onOpenTemplatesModal}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer hover:scale-102"
-              >
-                <LayoutGrid className="w-4 h-4 text-blue-400" />
-                <span>Explorar Galería de Plantillas y Videojuegos 3D</span>
-              </button>
-            </div>
           )}
-
-          {/* Quick Action Suggestion Chips */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 pt-1">
-            {quickActions.map((action, idx) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => onSendMessage(action.prompt, 'chat')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/90 text-[11px] font-medium text-slate-700 hover:text-slate-900 shadow-2xs transition-all cursor-pointer hover:border-slate-300 hover:scale-102"
-                >
-                  <Icon className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>{action.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Bottom Workspace Access Pill */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={onOpenWorkspace}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-slate-400 hover:text-slate-700 text-xs transition-colors cursor-pointer"
-            >
-              <Columns className="w-3.5 h-3.5" />
-              <span>Abrir editor de código y preview del proyecto actual</span>
-            </button>
-          </div>
-
         </div>
-
       </div>
     );
   }
 
   // State 2: Active Conversational Chat View
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-50/50 relative overflow-hidden font-sans select-none">
+    <div className="flex-1 flex flex-col h-full bg-canvas relative overflow-hidden font-sans select-none">
       
-      {/* Top Conversational Header */}
-      <div className="h-12 px-4 sm:px-6 bg-white/90 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-blue-50/80 border border-blue-200/60 text-blue-800 text-xs font-bold shadow-2xs">
-            <NonaLogo size={18} />
-            <span>NONA Multi-Agent Architecture</span>
-          </div>
-
-          {/* Multi-Agent Collaboration Badge */}
-          <div className="hidden sm:flex items-center gap-2 text-[10px] font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-xl border border-slate-200/60">
-            <span className="flex items-center gap-1 text-slate-700">
-              <Brain className="w-3 h-3 text-indigo-500" /> Meta-Agente
-            </span>
-            <span>→</span>
-            <span className="flex items-center gap-1 text-slate-700">
-              <Globe className="w-3 h-3 text-cyan-600" /> Web Grounding
-            </span>
-            <span>→</span>
-            <span className="flex items-center gap-1 text-slate-700">
-              <Cpu className="w-3 h-3 text-amber-500" /> Especialista
-            </span>
-            <span>→</span>
-            <span className="flex items-center gap-1 text-slate-700">
-              <ShieldCheck className="w-3 h-3 text-emerald-500" /> QA Guard
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {messages.length > 0 && (
-            <button
-              onClick={handleCopyAllChat}
-              title="Copiar toda la conversación al portapapeles"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs ${
-                isCopiedAll
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                  : 'text-slate-600 hover:text-indigo-600 bg-white hover:bg-indigo-50 border-slate-200/80'
-              }`}
-            >
-              {isCopiedAll ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>¡Chat Copiado!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Copiar Chat</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {onNewCleanProject && (
-            <button
-              onClick={onNewCleanProject}
-              title="Iniciar nuevo tema de conversación o proyecto"
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Nuevo Chat</span>
-            </button>
-          )}
-
+      {/* Barra superior de la conversación */}
+      <div className="h-11 px-3 border-b border-line flex items-center justify-end gap-1 shrink-0 z-10">
+        {messages.length > 0 && (
           <button
-            onClick={onOpenWorkspace}
-            title="Ver la vista previa interactiva y el código en el Workspace"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer hover:scale-102"
+            onClick={handleCopyAllChat}
+            title="Copiar toda la conversación"
+            className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[13px] transition-colors cursor-pointer ${isCopiedAll ? 'text-emerald-300' : 'text-muted hover:text-fg hover:bg-raised'}`}
           >
-            <Columns className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Ver Preview en Workspace →</span>
+            {isCopiedAll ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {isCopiedAll ? 'Copiado' : 'Copiar chat'}
           </button>
-        </div>
+        )}
+        {onNewCleanProject && (
+          <button
+            onClick={onNewCleanProject}
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[13px] text-muted hover:text-fg hover:bg-raised transition-colors cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Nuevo proyecto
+          </button>
+        )}
+        <button
+          onClick={onOpenWorkspace}
+          className="inline-flex items-center gap-1.5 h-8 px-3 ml-1 rounded-lg text-[13px] bg-raised hover:bg-raised-2 text-fg transition-colors cursor-pointer"
+        >
+          <Columns className="w-4 h-4" />
+          Ver la app
+        </button>
       </div>
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6 max-w-4xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto"><div className="px-4 sm:px-6 py-8 space-y-7 max-w-3xl mx-auto w-full">
         {messages.map((msg) => {
           const isUser = msg.role === 'user';
           return (
@@ -329,43 +256,35 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
               key={msg.id}
               className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} group`}
             >
-              {/* Header Label with Domain & Collaborator badges */}
-              <div className="flex items-center gap-2 mb-1.5 px-1 text-[11px] text-slate-400 font-medium flex-wrap">
-                {!isUser && (
-                  <div className="flex items-center gap-1.5 text-blue-600 font-bold">
-                    <NonaLogo size={16} />
-                    <span>NONA AI Architect</span>
-                  </div>
-                )}
-                {msg.activeAgentDomain && !isUser && (
-                  <span className="px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 font-bold text-[10px] border border-violet-100">
-                    👑 {msg.activeAgentDomain}
-                  </span>
-                )}
-                {msg.intent && !isUser && (
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold text-[10px] border border-indigo-100">
-                    {msg.intent === 'INTERACTIVE_PLAN' ? '🗺️ Plan & Estrategia' :
-                     msg.intent === 'CHAT_CONSULT' ? '💬 Consulta Técnica' :
-                     msg.intent === 'FULL_BUILD' ? '🚀 Aplicación Construida' :
-                     '⚡ Edición Quirúrgica'}
-                  </span>
-                )}
-                <span>{msg.timestamp}</span>
-              </div>
+              {!isUser && (
+                <div className="flex items-center gap-2 mb-2 text-[12px]">
+                  <NonaLogo size={16} />
+                  <span className="font-medium text-fg-2">NONA</span>
+                  {msg.intent && (
+                    <span className="text-muted">
+                      {msg.intent === 'INTERACTIVE_PLAN' ? 'Propuesta' :
+                       msg.intent === 'CHAT_CONSULT' ? 'Respuesta' :
+                       msg.intent === 'FULL_BUILD' ? 'App creada' :
+                       'Cambios aplicados'}
+                    </span>
+                  )}
+                  <span className="text-faint">{msg.timestamp}</span>
+                </div>
+              )}
 
               {/* Message Body */}
               <div
-                className={`w-full max-w-2xl rounded-2xl p-4 sm:p-5 text-xs sm:text-sm leading-relaxed transition-all shadow-xs ${
+                className={`text-[15px] leading-relaxed ${
                   isUser
-                    ? 'bg-indigo-600 text-white rounded-br-xs self-end font-medium'
-                    : 'bg-white border border-slate-200/90 text-slate-800 rounded-bl-xs'
+                    ? 'max-w-[85%] rounded-2xl px-4 py-3 bg-raised-2 text-fg self-end'
+                    : 'w-full text-fg'
                 }`}
               >
                 {/* Universal Attachments in User Bubble */}
                 {isUser && msg.attachments && msg.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-3">
                     {msg.attachments.map((att) => (
-                      <div key={att.id} className="rounded-xl overflow-hidden border border-white/20 bg-white/10 p-2 text-xs">
+                      <div key={att.id} className="rounded-xl overflow-hidden border border-line/20 bg-panel/10 p-2 text-xs">
                         {att.type === 'image' && (
                           <img src={att.url} alt={att.name} className="w-32 h-32 object-cover rounded-lg" />
                         )}
@@ -388,7 +307,7 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                           </div>
                         )}
                         {att.type === 'url' && (
-                          <a href={att.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:underline text-[11px] text-indigo-200">
+                          <a href={att.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:underline text-[11px] text-fg">
                             <Globe className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
                             <span className="truncate max-w-[200px] font-bold">{att.title || att.name}</span>
                             <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
@@ -413,7 +332,7 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                         key={idx}
                         src={img}
                         alt="Adjunto"
-                        className="w-32 h-32 object-cover rounded-xl border border-white/20 shadow-xs"
+                        className="w-32 h-32 object-cover rounded-xl border border-line/20 shadow-xs"
                       />
                     ))}
                   </div>
@@ -426,17 +345,9 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                   <MarkdownViewer content={msg.content} />
                 )}
 
-                {/* Multi-Agent Collaboration Footnote */}
-                {!isUser && msg.collaboratingAgents && msg.collaboratingAgents.length > 0 && (
-                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
-                    <span className="text-slate-500 font-semibold">Consejo Multi-IA:</span>
-                    <span>{msg.collaboratingAgents.join(' • ')}</span>
-                  </div>
-                )}
-
                 {/* Interactive Action Chips */}
                 {!isUser && msg.actionChips && msg.actionChips.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                  <div className="mt-4 pt-3 border-t border-line flex flex-wrap gap-2">
                     {msg.actionChips.map((chip, cIdx) => {
                       const isBuildChip = chip.includes('Construir');
                       const isPreviewChip = chip.includes('Preview') || chip.includes('Probar');
@@ -449,16 +360,16 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
                             isBuildChip
                               ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'
                               : isPreviewChip
-                              ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                              ? 'bg-accent hover:bg-accent-strong text-white'
                               : isEditorChip
-                              ? 'bg-slate-800 hover:bg-slate-900 text-white'
-                              : 'bg-slate-100 hover:bg-indigo-50 border border-slate-200 text-slate-700 hover:text-indigo-700'
+                              ? 'bg-raised-2 hover:bg-raised text-white'
+                              : 'bg-raised hover:bg-accent/10 border border-line text-fg-2 hover:text-accent'
                           }`}
                         >
                           {isBuildChip || isPreviewChip ? (
                             <Play className="w-3.5 h-3.5 fill-current" />
                           ) : (
-                            <Code2 className="w-3.5 h-3.5 text-blue-500" />
+                            <Code2 className="w-3.5 h-3.5" />
                           )}
                           <span>{chip}</span>
                         </button>
@@ -469,44 +380,42 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
 
                 {/* Build Success Card */}
                 {!isUser && (msg.intent === 'FULL_BUILD' || msg.intent === 'SURGICAL_EDIT') && (
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
-                      <Check className="w-4 h-4 text-emerald-600" />
-                      <span>Software generado y verificado en sandbox</span>
+                  <div className="mt-4 pt-3 border-t border-line flex items-center justify-between text-xs">
+                    <span className="text-emerald-300 flex items-center gap-1.5 text-[13px]">
+                      <Check className="w-4 h-4" />
+                      <span>Probada y funcionando</span>
                     </span>
                     <button
                       onClick={onOpenWorkspace}
-                      className="px-3 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                      className="h-8 px-3 rounded-lg bg-raised-2 hover:bg-line-strong text-fg text-[13px] flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <Play className="w-3 h-3 fill-current text-emerald-600" />
-                      <span>Abrir Preview en Pantalla Completa</span>
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Ver la app</span>
                     </button>
                   </div>
                 )}
               </div>
 
               {/* Message Action Toolbar */}
-              <div className={`mt-1.5 flex items-center gap-1.5 ${
-                isUser ? 'self-end mr-1' : 'self-start ml-1'
+              <div className={`mt-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ${
+                isUser ? 'self-end' : 'self-start -ml-2'
               }`}>
                 <button
                   onClick={() => handleCopyMessage(msg.id, msg.content)}
                   title={isUser ? "Copiar tu pregunta o prompt" : "Copiar respuesta de NONA"}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all cursor-pointer border shadow-2xs ${
-                    copiedMsgId === msg.id
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                      : 'text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 border-slate-200/80'
+                  className={`inline-flex items-center gap-1 h-7 px-2 rounded-md text-[12px] transition-colors cursor-pointer ${
+                    copiedMsgId === msg.id ? 'text-emerald-300' : 'text-muted hover:text-fg hover:bg-raised'
                   }`}
                 >
                   {copiedMsgId === msg.id ? (
                     <>
-                      <Check className="w-3 h-3 text-emerald-600" />
-                      <span>¡Copiado!</span>
+                      <Check className="w-3 h-3 text-emerald-300" />
+                      <span>Copiado</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3 h-3 text-slate-400" />
-                      <span>{isUser ? 'Copiar pregunta' : 'Copiar respuesta'}</span>
+                      <Copy className="w-3 h-3 text-muted" />
+                      <span>Copiar</span>
                     </>
                   )}
                 </button>
@@ -515,36 +424,18 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
           );
         })}
 
-        {/* Live Multi-Agent Thinking & Collaboration Box */}
         {isGenerating && (
-          <div className="max-w-2xl bg-gradient-to-r from-indigo-50/90 via-violet-50/80 to-slate-50/90 border border-indigo-200/80 rounded-2xl p-4 text-xs sm:text-sm text-indigo-950 flex items-start gap-3 shadow-xs animate-pulse">
-            <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin shrink-0 mt-0.5" />
-            <div className="space-y-1.5 flex-1">
-              <div className="font-bold text-indigo-900 flex items-center gap-2">
-                <Brain className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Ejecutando Consejo Multi-Agente NONA (Pensando & Colaborando)</span>
-              </div>
-              <div className="text-xs text-indigo-800 font-medium leading-relaxed">
-                {thinkingText || 'Analizando dominio técnico, consultando documentación web y coordinando especialistas...'}
-              </div>
-              <div className="flex items-center gap-2 pt-1 text-[10px] text-slate-500 font-semibold">
-                <span className="flex items-center gap-1 text-indigo-700">● Meta-Agente</span>
-                <span>•</span>
-                <span className="flex items-center gap-1 text-cyan-700">● Web Grounding</span>
-                <span>•</span>
-                <span className="flex items-center gap-1 text-amber-700">● Especialista</span>
-                <span>•</span>
-                <span className="flex items-center gap-1 text-emerald-700">● QA Verifier</span>
-              </div>
-            </div>
+          <div className="flex items-start gap-3 text-[14px] text-fg-2">
+            <RefreshCw className="w-4 h-4 mt-1 text-accent animate-spin shrink-0" />
+            <div className="whitespace-pre-line leading-relaxed">{thinkingText || 'NONA está trabajando…'}</div>
           </div>
         )}
 
         <div ref={messagesEndRef} />
-      </div>
+      </div></div>
 
       {/* Sticky Bottom Floating Omnibar in Chat Mode */}
-      <div className="p-4 sm:p-6 bg-gradient-to-t from-white via-white/95 to-transparent shrink-0">
+      <div className="px-4 sm:px-6 pb-5 pt-2 shrink-0">
         <div className="max-w-3xl mx-auto w-full space-y-2">
           <FloatingOmnibar
             initialText={omnibarInitialText}
@@ -561,12 +452,9 @@ export const HeroChatView: React.FC<HeroChatViewProps> = ({
             attachments={attachments}
             onAddAttachment={onAddAttachment}
             onRemoveAttachment={onRemoveAttachment}
-            placeholder="Responde, pide mejoras o adjunta audio, video o páginas web de referencia..."
+            placeholder="Responde o pide un cambio…"
           />
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium px-2">
-            <span>Inferencia Ultrarrápida Groq LPU + Google Gemini Flash</span>
-            <span>Consejo Multi-IA & Conectividad Web Activos</span>
-          </div>
+
         </div>
       </div>
 

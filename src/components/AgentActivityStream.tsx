@@ -35,21 +35,21 @@ export const AgentActivityStream: React.FC = () => {
   const latestEvent = events[0] || null;
 
   return (
-    <div className="bg-slate-950 text-slate-200 border-t border-slate-800 flex flex-col font-mono text-[11px] select-none shrink-0 transition-all">
+    <div className="bg-canvas text-fg border-t border-line flex flex-col font-mono text-[11px] select-none shrink-0 transition-all">
       
       {/* Sleek Minimalist Status Strip (Only 26px height when collapsed) */}
       <div 
         onClick={() => setIsExpanded(!isExpanded)}
-        className="h-6.5 px-3 bg-slate-950 hover:bg-slate-900/90 flex items-center justify-between cursor-pointer transition-colors"
+        className="h-6.5 px-3 bg-canvas hover:bg-panel/90 flex items-center justify-between cursor-pointer transition-colors"
       >
         <div className="flex items-center gap-2 truncate">
           <Terminal className="w-3 h-3 text-indigo-400 shrink-0" />
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+          <span className="text-[10px] font-bold text-muted uppercase tracking-wider shrink-0">
             Activity
           </span>
-          <span className="text-slate-600 shrink-0">|</span>
+          <span className="text-faint shrink-0">|</span>
           {latestEvent && (
-            <span className="text-[10px] text-slate-300 truncate max-w-[400px] sm:max-w-[650px]">
+            <span className="text-[10px] text-fg-2 truncate max-w-[400px] sm:max-w-[650px]">
               {latestEvent.message}
             </span>
           )}
@@ -61,19 +61,19 @@ export const AgentActivityStream: React.FC = () => {
             Live
           </span>
           {isExpanded ? (
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            <ChevronDown className="w-3.5 h-3.5 text-muted" />
           ) : (
-            <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+            <ChevronUp className="w-3.5 h-3.5 text-muted" />
           )}
         </div>
       </div>
 
       {/* Expanded Log Drawer */}
       {isExpanded && (
-        <div className="h-40 overflow-y-auto p-3 space-y-1 divide-y divide-slate-800/40 bg-slate-900/95">
+        <div className="h-40 overflow-y-auto p-3 space-y-1 divide-y divide-line/40 bg-panel/95">
           {events.map((evt) => (
-            <div key={evt.id} className="pt-1 flex items-start gap-2 text-slate-300">
-              <span className="text-slate-500 shrink-0 text-[10px] font-sans">[{evt.timestamp}]</span>
+            <div key={evt.id} className="pt-1 flex items-start gap-2 text-fg-2">
+              <span className="text-muted shrink-0 text-[10px] font-sans">[{evt.timestamp}]</span>
               
               <div className="flex items-center gap-1.5">
                 {evt.type.includes('file') ? <FileCode className="w-3 h-3 text-indigo-400" /> :
@@ -87,7 +87,7 @@ export const AgentActivityStream: React.FC = () => {
                   evt.type.includes('error') ? 'text-red-400' :
                   evt.type.includes('completed') ? 'text-emerald-300' :
                   evt.type.includes('thinking') ? 'text-indigo-300' :
-                  'text-slate-300'
+                  'text-fg-2'
                 }>
                   {evt.message}
                 </span>

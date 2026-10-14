@@ -313,12 +313,12 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
         {/* Left: Terminal status & shell type */}
         <div className="flex items-center gap-2">
           <TerminalIcon className="w-3.5 h-3.5 text-[#58a6ff]" />
-          <span className="font-semibold text-[11px] text-slate-300">Terminal</span>
+          <span className="font-semibold text-[11px] text-fg-2">Terminal</span>
           <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#238636]/20 text-[#3fb950] border border-[#238636]/40">
             <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950] animate-pulse" />
             {activeShellType === 'webcontainer' ? 'jsh (WebContainer)' : 'nona-sh (Virtual)'}
           </span>
-          <span className="text-[10px] text-slate-500 hidden sm:inline">~/workspace/project</span>
+          <span className="text-[10px] text-muted hidden sm:inline">~/workspace/project</span>
         </div>
 
         {/* Center: Quick Action Buttons */}
@@ -330,7 +330,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
               executeVirtualCommand('npm run dev');
             }}
             title="Ejecutar npm run dev"
-            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-slate-300 hover:text-white transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-fg-2 hover:text-white transition-colors cursor-pointer"
           >
             <Play className="w-3 h-3 text-[#3fb950]" />
             <span>dev</span>
@@ -343,7 +343,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
               executeVirtualCommand('npm install');
             }}
             title="Ejecutar npm install"
-            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-slate-300 hover:text-white transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-fg-2 hover:text-white transition-colors cursor-pointer"
           >
             <Package className="w-3 h-3 text-[#d29922]" />
             <span>install</span>
@@ -356,7 +356,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
               executeVirtualCommand('git status');
             }}
             title="Consultar git status"
-            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-slate-300 hover:text-white transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-fg-2 hover:text-white transition-colors cursor-pointer"
           >
             <GitBranch className="w-3 h-3 text-[#bc8cff]" />
             <span>git</span>
@@ -369,7 +369,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
               executeVirtualCommand('ls');
             }}
             title="Listar archivos"
-            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-slate-300 hover:text-white transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-fg-2 hover:text-white transition-colors cursor-pointer"
           >
             <List className="w-3 h-3 text-[#58a6ff]" />
             <span>ls</span>
@@ -382,7 +382,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
               executeVirtualCommand('help');
             }}
             title="Ver ayuda de comandos"
-            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-[#21262d] text-muted hover:text-white transition-colors cursor-pointer"
           >
             <HelpCircle className="w-3 h-3" />
             <span>ayuda</span>
@@ -398,7 +398,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
               setOutputHistory([]);
             }}
             title="Limpiar pantalla (clear)"
-            className="p-1 rounded hover:bg-[#21262d] text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="p-1 rounded hover:bg-[#21262d] text-muted hover:text-white transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -410,7 +410,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
               setIsFullscreen(!isFullscreen);
             }}
             title={isFullscreen ? 'Restaurar tamaño' : 'Pantalla completa'}
-            className="p-1 rounded hover:bg-[#21262d] text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="p-1 rounded hover:bg-[#21262d] text-muted hover:text-white transition-colors cursor-pointer"
           >
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
@@ -422,10 +422,10 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
         {outputHistory.map((item) => {
           if (item.type === 'input') {
             return (
-              <div key={item.id} className="flex items-start gap-1.5 text-slate-200">
+              <div key={item.id} className="flex items-start gap-1.5 text-fg">
                 <span className="text-[#3fb950] select-none">➜</span>
                 <span className="text-[#58a6ff] select-none">~/project</span>
-                <span className="text-slate-400 select-none">$</span>
+                <span className="text-muted select-none">$</span>
                 <span className="font-semibold text-white">{item.content}</span>
               </div>
             );
@@ -469,7 +469,7 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
         <div className="flex items-center gap-1.5 pt-1">
           <span className="text-[#3fb950] select-none font-bold">➜</span>
           <span className="text-[#58a6ff] select-none font-semibold">~/project</span>
-          <span className="text-slate-400 select-none">$</span>
+          <span className="text-muted select-none">$</span>
           <input
             ref={inputRef}
             type="text"

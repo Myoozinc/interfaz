@@ -78,25 +78,25 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 select-none">
-      <div className="bg-white border border-slate-200 rounded-3xl max-w-3xl w-full shadow-2xl overflow-hidden animate-fade-in text-xs flex flex-col max-h-[88vh]">
+    <div className="fixed inset-0 z-50 bg-raised/40 backdrop-blur-xs flex items-center justify-center p-4 select-none">
+      <div className="bg-panel border border-line rounded-3xl max-w-3xl w-full shadow-2xl overflow-hidden animate-fade-in text-xs flex flex-col max-h-[88vh]">
         
         {/* Header */}
-        <div className="p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-6 bg-canvas border-b border-line flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center text-violet-600 shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/30 flex items-center justify-center text-accent shadow-xs">
               <Wand2 className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-extrabold text-slate-900">
+                <h2 className="text-base font-extrabold text-fg">
                   NONA Media Studio
                 </h2>
-                <span className="text-[10px] bg-violet-100 text-violet-800 font-bold px-2 py-0.5 rounded-full">
+                <span className="text-[10px] bg-accent/15 text-accent font-bold px-2 py-0.5 rounded-full">
                   Motor Gráfico IA
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted">
                 Genera imágenes, texturas 3D y elementos visuales para tus aplicaciones
               </p>
             </div>
@@ -104,7 +104,7 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+            className="p-2 rounded-xl hover:bg-raised-2 text-muted hover:text-fg transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -113,9 +113,9 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
           {/* Generator Form */}
-          <form onSubmit={handleGenerate} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 shadow-xs">
+          <form onSubmit={handleGenerate} className="p-4 bg-canvas border border-line rounded-2xl space-y-3 shadow-xs">
             <div>
-              <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+              <label className="text-[11px] font-semibold text-fg-2 block mb-1">
                 Describe la imagen, textura o elemento visual:
               </label>
               <textarea
@@ -123,18 +123,18 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Ejemplo: nave espacial retro 3D, fondo de estrellas, textura de neón..."
                 rows={2}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-violet-500 text-slate-900 resize-none font-medium"
+                className="w-full p-2.5 bg-panel border border-line rounded-xl text-xs outline-none focus:border-accent text-fg resize-none font-medium"
               />
             </div>
 
             {/* Progress Bar when Generating */}
             {generating && (
-              <div className="p-3 bg-white border border-violet-100 rounded-xl space-y-2 animate-fade-in">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-violet-900">
+              <div className="p-3 bg-panel border border-accent/30 rounded-xl space-y-2 animate-fade-in">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-accent">
                   <span>Generando asset visual ({progress}%)...</span>
-                  <span className="text-violet-600">~{eta}s restantes</span>
+                  <span className="text-accent">~{eta}s restantes</span>
                 </div>
-                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                <div className="w-full bg-raised h-2.5 rounded-full overflow-hidden">
                   <div 
                     className="bg-gradient-to-r from-violet-600 to-indigo-600 h-full rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
@@ -144,12 +144,12 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
             )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 text-xs">
+              <div className="flex items-center gap-1.5 bg-panel p-1 rounded-xl border border-line text-xs">
                 <button
                   type="button"
                   onClick={() => setAssetType('image')}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                    assetType === 'image' ? 'bg-violet-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    assetType === 'image' ? 'bg-accent text-white shadow-xs' : 'text-fg-2 hover:text-fg'
                   }`}
                 >
                   <ImageIcon className="w-3.5 h-3.5" />
@@ -159,7 +159,7 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
                   type="button"
                   onClick={() => setAssetType('texture')}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                    assetType === 'texture' ? 'bg-violet-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    assetType === 'texture' ? 'bg-accent text-white shadow-xs' : 'text-fg-2 hover:text-fg'
                   }`}
                 >
                   <Layers className="w-3.5 h-3.5" />
@@ -169,7 +169,7 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
                   type="button"
                   onClick={() => setAssetType('video')}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                    assetType === 'video' ? 'bg-violet-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    assetType === 'video' ? 'bg-accent text-white shadow-xs' : 'text-fg-2 hover:text-fg'
                   }`}
                 >
                   <Video className="w-3.5 h-3.5" />
@@ -190,15 +190,15 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
 
           {/* Asset Gallery */}
           <div className="space-y-3">
-            <h3 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-              <ImageIcon className="w-4 h-4 text-violet-600" />
+            <h3 className="font-bold text-xs text-fg flex items-center gap-1.5">
+              <ImageIcon className="w-4 h-4 text-accent" />
               <span>Galería de Medios ({assets.length})</span>
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {assets.map((asset) => (
-                <div key={asset.id} className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-2xs group flex flex-col justify-between">
-                  <div className="h-32 w-full bg-slate-900 relative overflow-hidden flex items-center justify-center">
+                <div key={asset.id} className="bg-canvas border border-line rounded-2xl overflow-hidden shadow-2xs group flex flex-col justify-between">
+                  <div className="h-32 w-full bg-raised relative overflow-hidden flex items-center justify-center">
                     <img
                       src={asset.url}
                       alt={asset.prompt}
@@ -210,7 +210,7 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
                   </div>
 
                   <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
-                    <p className="text-[11px] text-slate-700 font-medium line-clamp-2">
+                    <p className="text-[11px] text-fg-2 font-medium line-clamp-2">
                       {asset.prompt}
                     </p>
 
@@ -219,7 +219,7 @@ export const ComfyStudioModal: React.FC<ComfyStudioModalProps> = ({
                         onInsertAssetToCode(asset.url, asset.prompt);
                         onClose();
                       }}
-                      className="w-full py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 font-bold rounded-lg border border-violet-200 transition-colors flex items-center justify-center gap-1 text-[10px] cursor-pointer"
+                      className="w-full py-1.5 bg-accent/10 hover:bg-accent/15 text-accent font-bold rounded-lg border border-accent/30 transition-colors flex items-center justify-center gap-1 text-[10px] cursor-pointer"
                     >
                       <ArrowDownToLine className="w-3 h-3" />
                       <span>Insertar en Código</span>

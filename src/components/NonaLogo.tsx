@@ -31,7 +31,8 @@ export const NonaLogo: React.FC<NonaLogoProps> = ({
   const dim = typeof size === 'number' ? size : (sizeMap[size]?.img || 32);
 
   // Logo source selection
-  const src = variant === 'dark' ? '/nona-logo-dark.png' : '/nona-logo.png';
+  // La interfaz es oscura: se usa siempre la versión con la N clara
+  const src = '/nona-logo-dark.png';
 
   const isBadge = variant === 'badge';
   const isGlow = variant === 'glow';
@@ -45,7 +46,7 @@ export const NonaLogo: React.FC<NonaLogoProps> = ({
         {/* Glow halo */}
         {isGlow && (
           <div
-            className="absolute inset-0 bg-blue-500/25 rounded-full blur-xl animate-pulse pointer-events-none"
+            className="absolute inset-0 bg-accent/25 rounded-full blur-xl animate-pulse pointer-events-none"
             style={{ transform: 'scale(1.4)' }}
           />
         )}
@@ -53,7 +54,7 @@ export const NonaLogo: React.FC<NonaLogoProps> = ({
         {/* Badge container if requested */}
         {isBadge ? (
           <div
-            className="flex items-center justify-center rounded-2xl bg-white border border-slate-200/90 shadow-sm p-1.5 transition-all hover:shadow-md hover:border-slate-300"
+            className="flex items-center justify-center rounded-2xl bg-panel border border-line/90 shadow-sm p-1.5 transition-all hover:shadow-md hover:border-line-strong"
             style={{ width: dim + 14, height: dim + 14 }}
           >
             <img
@@ -81,16 +82,13 @@ export const NonaLogo: React.FC<NonaLogoProps> = ({
         <div className="flex flex-col leading-none">
           <div className="flex items-center gap-1.5">
             <span
-              className={`font-extrabold tracking-tight text-slate-900 font-sans ${textClassName || (dim >= 40 ? 'text-xl' : dim >= 28 ? 'text-sm' : 'text-xs')}`}
+              className={`font-bold tracking-tight text-fg font-sans ${textClassName || (dim >= 40 ? 'text-xl' : dim >= 28 ? 'text-sm' : 'text-xs')}`}
             >
               NONA
             </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-200/60 uppercase tracking-wider">
-              AI Factory
-            </span>
           </div>
           {subtitle && (
-            <span className="text-[10px] text-slate-400 font-medium mt-0.5">
+            <span className="text-[10px] text-muted font-medium mt-0.5">
               {subtitle}
             </span>
           )}

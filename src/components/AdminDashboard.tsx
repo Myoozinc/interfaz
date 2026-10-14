@@ -230,23 +230,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   // ---------------------------------------------------------------------------
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 font-sans select-none relative overflow-hidden">
+      <div className="min-h-screen bg-canvas text-fg flex flex-col items-center justify-center p-4 font-sans select-none relative overflow-hidden">
         {/* Background ambient glow */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-10 right-10 w-80 h-80 bg-rose-600/5 rounded-full blur-[100px] pointer-events-none" />
 
-        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative z-10 animate-fade-in">
+        <div className="w-full max-w-md bg-panel/90 border border-line rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative z-10 animate-fade-in">
           {/* Logo / Badge */}
           <div className="flex flex-col items-center text-center mb-6">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 p-0.5 shadow-lg shadow-indigo-500/20 mb-4 flex items-center justify-center">
-              <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+              <div className="w-full h-full bg-canvas rounded-[14px] flex items-center justify-center">
                 <ShieldCheck className="w-7 h-7 text-indigo-400" />
               </div>
             </div>
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
               NONA Master Admin
             </h1>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-muted mt-1">
               Espacio Confidencial de Telemetría Real y Control UX
             </p>
           </div>
@@ -260,7 +260,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-fg-2 mb-1.5">
                 Código de Administrador
               </label>
               <div className="relative">
@@ -270,13 +270,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   value={adminCode}
                   onChange={(e) => setAdminCode(e.target.value)}
                   placeholder="Introduce el código de acceso"
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
+                  className="w-full bg-canvas border border-line focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-faint focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-fg-2 mb-1.5">
                 Contraseña Maestra
               </label>
               <div className="relative">
@@ -286,12 +286,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
                   placeholder="Introduce la contraseña"
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
+                  className="w-full bg-canvas border border-line focus:border-indigo-500 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-white placeholder-faint focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg-2 transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -317,15 +317,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
+          <div className="mt-6 pt-5 border-t border-line/80 flex items-center justify-between text-xs text-muted">
             <button
               onClick={onBackToApp}
-              className="hover:text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="hover:text-fg-2 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Volver a la Aplicación</span>
             </button>
-            <span className="font-mono text-[11px] text-slate-600">NONA v5.0 Master</span>
+            <span className="font-mono text-[11px] text-faint">NONA v5.0 Master</span>
           </div>
         </div>
       </div>
@@ -336,10 +336,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
   // 2. PANEL ADMINISTRATIVO PRINCIPAL (AUTHENTICATED)
   // ---------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-none overflow-x-hidden">
+    <div className="min-h-screen bg-canvas text-fg flex flex-col font-sans select-none overflow-x-hidden">
       
       {/* Top Admin Header Bar */}
-      <header className="h-16 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
+      <header className="h-16 bg-panel/90 border-b border-line backdrop-blur-md px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-500/20">
             <ShieldCheck className="w-5 h-5 text-white" />
@@ -352,7 +352,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 Registros Reales en Vivo
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-muted">
               Telemetría de usuarios reales, geolocalización de IPs y resguardo de software generado
             </p>
           </div>
@@ -365,7 +365,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
               autoRefresh
                 ? 'bg-indigo-600/15 text-indigo-300 border-indigo-500/30'
-                : 'bg-slate-800 text-slate-400 border-slate-700'
+                : 'bg-raised text-muted border-line-strong'
             }`}
             title="Actualización automática en tiempo real cada 12 segundos"
           >
@@ -377,7 +377,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
           <button
             onClick={() => loadData()}
             disabled={isLoading}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all border border-slate-700 cursor-pointer disabled:opacity-50"
+            className="p-2 rounded-xl bg-raised hover:bg-raised-2 text-fg-2 hover:text-white transition-all border border-line-strong cursor-pointer disabled:opacity-50"
             title="Recargar datos ahora"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-indigo-400' : ''}`} />
@@ -386,7 +386,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
           {/* Export Telemetry */}
           <button
             onClick={handleExportTelemetryJson}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all border border-slate-700 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-raised hover:bg-raised-2 text-fg text-xs font-semibold flex items-center gap-1.5 transition-all border border-line-strong cursor-pointer"
             title="Exportar base de datos de telemetría en JSON"
           >
             <Download className="w-3.5 h-3.5" />
@@ -396,18 +396,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
           {/* Clear Logs */}
           <button
             onClick={handleClearLogs}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 transition-all border border-slate-700 cursor-pointer"
+            className="p-2 rounded-xl bg-raised hover:bg-rose-900/40 text-muted hover:text-rose-300 transition-all border border-line-strong cursor-pointer"
             title="Purgar registros históricos"
           >
             <Trash2 className="w-4 h-4" />
           </button>
 
-          <div className="h-6 w-px bg-slate-800 mx-1" />
+          <div className="h-6 w-px bg-raised mx-1" />
 
           {/* Volver a la App */}
           <button
             onClick={onBackToApp}
-            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all border border-slate-700 flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-1.5 rounded-xl bg-raised hover:bg-raised-2 text-fg text-xs font-bold transition-all border border-line-strong flex items-center gap-1.5 cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Volver a la App</span>
@@ -416,7 +416,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
           {/* Logout */}
           <button
             onClick={handleLogout}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all border border-slate-700 cursor-pointer"
+            className="p-2 rounded-xl bg-raised hover:bg-raised-2 text-muted hover:text-white transition-all border border-line-strong cursor-pointer"
             title="Cerrar sesión de administrador"
           >
             <Lock className="w-4 h-4" />
@@ -445,87 +445,87 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         {/* KPI Cards: Métricas Reales Clave */}
         <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {/* 1. Total Visitas */}
-          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-sm relative overflow-hidden">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="bg-panel/80 border border-line p-4 rounded-2xl shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between text-muted mb-2">
               <span className="text-xs font-semibold">Total Visitas</span>
               <Users className="w-4 h-4 text-indigo-400" />
             </div>
             <div className="text-2xl font-bold text-white tracking-tight">
               {data?.stats?.totalVisits || 0}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Registros reales</p>
+            <p className="text-[11px] text-muted mt-1">Registros reales</p>
           </div>
 
           {/* 2. IPs Únicas */}
-          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-sm relative overflow-hidden">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="bg-panel/80 border border-line p-4 rounded-2xl shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between text-muted mb-2">
               <span className="text-xs font-semibold">IPs Únicas</span>
               <Globe className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-2xl font-bold text-white tracking-tight">
               {data?.stats?.uniqueIps || 0}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Visitantes distintos</p>
+            <p className="text-[11px] text-muted mt-1">Visitantes distintos</p>
           </div>
 
           {/* 3. Apps Generadas (Bóveda) */}
-          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-sm relative overflow-hidden">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="bg-panel/80 border border-line p-4 rounded-2xl shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between text-muted mb-2">
               <span className="text-xs font-semibold">Apps en Bóveda</span>
               <FolderArchive className="w-4 h-4 text-violet-400" />
             </div>
             <div className="text-2xl font-bold text-white tracking-tight">
               {data?.stats?.totalGenerations || 0}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Resguardo completo</p>
+            <p className="text-[11px] text-muted mt-1">Resguardo completo</p>
           </div>
 
           {/* 4. Total Eventos */}
-          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-sm relative overflow-hidden">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="bg-panel/80 border border-line p-4 rounded-2xl shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between text-muted mb-2">
               <span className="text-xs font-semibold">Acciones en App</span>
               <Activity className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-2xl font-bold text-white tracking-tight">
               {data?.stats?.totalEvents || 0}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Clicks & Prompts</p>
+            <p className="text-[11px] text-muted mt-1">Clicks & Prompts</p>
           </div>
 
           {/* 5. Países Detectados */}
-          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-sm relative overflow-hidden">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="bg-panel/80 border border-line p-4 rounded-2xl shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between text-muted mb-2">
               <span className="text-xs font-semibold">Países Detectados</span>
               <MapPin className="w-4 h-4 text-sky-400" />
             </div>
             <div className="text-2xl font-bold text-white tracking-tight">
               {data?.stats?.countryBreakdown?.length || 0}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Geolocalización real</p>
+            <p className="text-[11px] text-muted mt-1">Geolocalización real</p>
           </div>
 
           {/* 6. Dispositivos Móviles */}
-          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-sm relative overflow-hidden">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="bg-panel/80 border border-line p-4 rounded-2xl shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between text-muted mb-2">
               <span className="text-xs font-semibold">Tráfico Móvil</span>
               <Smartphone className="w-4 h-4 text-pink-400" />
             </div>
             <div className="text-2xl font-bold text-white tracking-tight">
               {data?.stats?.totalVisits ? Math.round(((data.stats.deviceBreakdown['Mobile'] || 0) / data.stats.totalVisits) * 100) : 0}%
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">Smartphones / Tablets</p>
+            <p className="text-[11px] text-muted mt-1">Smartphones / Tablets</p>
           </div>
         </section>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="flex items-center justify-between border-b border-line pb-3">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('analytics')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'analytics'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  : 'bg-panel text-muted hover:text-white border border-line'
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
@@ -537,7 +537,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'visitors'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  : 'bg-panel text-muted hover:text-white border border-line'
               }`}
             >
               <Globe className="w-3.5 h-3.5" />
@@ -549,7 +549,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'vault'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  : 'bg-panel text-muted hover:text-white border border-line'
               }`}
             >
               <FolderArchive className="w-3.5 h-3.5" />
@@ -561,7 +561,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'ux_timeline'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  : 'bg-panel text-muted hover:text-white border border-line'
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
@@ -572,13 +572,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
           {/* Search Input for tables */}
           {(activeTab === 'visitors' || activeTab === 'vault') && (
             <div className="relative w-64">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder={activeTab === 'visitors' ? "Buscar por IP, país, ciudad..." : "Buscar por prompt o proyecto..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-panel border border-line rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-faint focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
           )}
@@ -594,19 +594,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
               {/* Gráfico 1: Países y Distribución Geográfica */}
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div className="bg-panel/80 border border-line rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Globe className="w-4 h-4 text-indigo-400" />
                     <h2 className="text-sm font-bold text-white">Distribución Geográfica Real (Países)</h2>
                   </div>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-muted">
                     {data?.stats?.countryBreakdown?.length || 0} países
                   </span>
                 </div>
 
                 {(!data?.stats?.countryBreakdown || data.stats.countryBreakdown.length === 0) ? (
-                  <div className="h-48 flex items-center justify-center text-xs text-slate-500">
+                  <div className="h-48 flex items-center justify-center text-xs text-muted">
                     Aún no hay visitas registradas para proyectar el mapa geográfico.
                   </div>
                 ) : (
@@ -617,15 +617,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                       return (
                         <div key={idx} className="space-y-1">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="flex items-center gap-2 text-slate-300 font-medium">
+                            <span className="flex items-center gap-2 text-fg-2 font-medium">
                               <span className="text-base leading-none">{item.flag}</span>
                               <span>{item.country}</span>
                             </span>
-                            <span className="text-slate-400 font-mono">
+                            <span className="text-muted font-mono">
                               {item.count} visitas ({percentage}%)
                             </span>
                           </div>
-                          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                          <div className="w-full h-2 bg-raised rounded-full overflow-hidden">
                             <div
                               className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-500"
                               style={{ width: `${Math.max(percentage, 5)}%` }}
@@ -639,13 +639,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               </div>
 
               {/* Gráfico 2: Plataformas y Dispositivos */}
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div className="bg-panel/80 border border-line rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Monitor className="w-4 h-4 text-emerald-400" />
                     <h2 className="text-sm font-bold text-white">Dispositivos y Plataformas Reales</h2>
                   </div>
-                  <span className="text-[11px] text-slate-400">Desktop / Mobile / Tablet</span>
+                  <span className="text-[11px] text-muted">Desktop / Mobile / Tablet</span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 mb-4">
@@ -654,29 +654,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     const total = data?.stats?.totalVisits || 1;
                     const pct = Math.round((count / total) * 100);
                     return (
-                      <div key={dev} className="bg-slate-950 border border-slate-800 p-3 rounded-xl text-center">
-                        <div className="flex justify-center mb-1.5 text-slate-400">
+                      <div key={dev} className="bg-canvas border border-line p-3 rounded-xl text-center">
+                        <div className="flex justify-center mb-1.5 text-muted">
                           {dev === 'Desktop' ? <Monitor className="w-4 h-4 text-indigo-400" /> :
                            dev === 'Mobile' ? <Smartphone className="w-4 h-4 text-pink-400" /> :
                            <Tablet className="w-4 h-4 text-amber-400" />}
                         </div>
                         <div className="text-base font-bold text-white">{count}</div>
-                        <div className="text-[11px] text-slate-400">{dev} ({pct}%)</div>
+                        <div className="text-[11px] text-muted">{dev} ({pct}%)</div>
                       </div>
                     );
                   })}
                 </div>
 
                 {/* Navegadores */}
-                <h3 className="text-xs font-semibold text-slate-300 mb-2 mt-4">Navegadores Utilizados:</h3>
+                <h3 className="text-xs font-semibold text-fg-2 mb-2 mt-4">Navegadores Utilizados:</h3>
                 <div className="space-y-2">
                   {Object.entries(data?.stats?.browserBreakdown || {}).slice(0, 5).map(([b, count]) => {
                     const total = data?.stats?.totalVisits || 1;
                     const pct = Math.round((count / total) * 100);
                     return (
-                      <div key={b} className="flex items-center justify-between text-xs bg-slate-950/60 p-2 rounded-lg border border-slate-800/80">
-                        <span className="text-slate-300 font-medium">{b}</span>
-                        <span className="text-slate-400 font-mono">{count} ({pct}%)</span>
+                      <div key={b} className="flex items-center justify-between text-xs bg-canvas/60 p-2 rounded-lg border border-line/80">
+                        <span className="text-fg-2 font-medium">{b}</span>
+                        <span className="text-muted font-mono">{count} ({pct}%)</span>
                       </div>
                     );
                   })}
@@ -684,13 +684,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               </div>
 
               {/* Gráfico 3: Embudo de Conversión & Adopción de Funciones */}
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div className="bg-panel/80 border border-line rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-violet-400" />
                     <h2 className="text-sm font-bold text-white">Embudo de Uso y Experiencia (UX Funnel)</h2>
                   </div>
-                  <span className="text-[11px] text-slate-400">Métricas reales de interacción</span>
+                  <span className="text-[11px] text-muted">Métricas reales de interacción</span>
                 </div>
 
                 {(() => {
@@ -713,10 +713,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                         return (
                           <div key={i} className="space-y-1">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-300 font-semibold">{st.name}</span>
-                              <span className="text-slate-400 font-mono">{st.count} {st.count === 1 ? 'vez' : 'veces'}</span>
+                              <span className="text-fg-2 font-semibold">{st.name}</span>
+                              <span className="text-muted font-mono">{st.count} {st.count === 1 ? 'vez' : 'veces'}</span>
                             </div>
-                            <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="w-full h-2.5 bg-raised rounded-full overflow-hidden">
                               <div
                                 className={`h-full bg-gradient-to-r ${st.color} rounded-full transition-all duration-500`}
                                 style={{ width: `${Math.min(100, Math.max(pct, st.count > 0 ? 8 : 0))}%` }}
@@ -731,30 +731,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               </div>
 
               {/* Gráfico 4: Resumen de Retención y Salud de la Plataforma */}
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+              <div className="bg-panel/80 border border-line rounded-2xl p-5 shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                       <h2 className="text-sm font-bold text-white">Salud del Software Factory & UX</h2>
                     </div>
-                    <span className="text-[11px] text-slate-400">Auditoría continua</span>
+                    <span className="text-[11px] text-muted">Auditoría continua</span>
                   </div>
 
                   <div className="space-y-3 text-xs">
-                    <div className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                      <span className="text-slate-400">Total de proyectos resguardados</span>
+                    <div className="flex items-center justify-between p-3 bg-canvas rounded-xl border border-line">
+                      <span className="text-muted">Total de proyectos resguardados</span>
                       <span className="font-bold text-white font-mono">{data?.stats?.totalGenerations || 0}</span>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                      <span className="text-slate-400">Total de eventos de usuario registrados</span>
+                    <div className="flex items-center justify-between p-3 bg-canvas rounded-xl border border-line">
+                      <span className="text-muted">Total de eventos de usuario registrados</span>
                       <span className="font-bold text-indigo-400 font-mono">{data?.stats?.totalEvents || 0}</span>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                      <span className="text-slate-400">Última actualización de la base de datos</span>
-                      <span className="font-medium text-slate-300 font-mono text-[11px]">
+                    <div className="flex items-center justify-between p-3 bg-canvas rounded-xl border border-line">
+                      <span className="text-muted">Última actualización de la base de datos</span>
+                      <span className="font-medium text-fg-2 font-mono text-[11px]">
                         {data?.stats?.lastUpdated ? new Date(data.stats.lastUpdated).toLocaleTimeString() : 'Ahora'}
                       </span>
                     </div>
@@ -778,14 +778,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
           <div className="space-y-4">
             
             {/* Filter Bar */}
-            <div className="flex flex-wrap items-center gap-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800 text-xs">
-              <span className="font-bold text-slate-400">Filtrar por:</span>
+            <div className="flex flex-wrap items-center gap-3 bg-panel/60 p-3 rounded-2xl border border-line text-xs">
+              <span className="font-bold text-muted">Filtrar por:</span>
               
               {/* Country Filter */}
               <select
                 value={countryFilter}
                 onChange={(e) => setCountryFilter(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-300 focus:outline-none focus:border-indigo-500"
+                className="bg-canvas border border-line rounded-lg px-2.5 py-1 text-fg-2 focus:outline-none focus:border-indigo-500"
               >
                 <option value="all">Todos los países ({uniqueCountries.length})</option>
                 {uniqueCountries.map(c => (
@@ -797,7 +797,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               <select
                 value={deviceFilter}
                 onChange={(e) => setDeviceFilter(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-300 focus:outline-none focus:border-indigo-500"
+                className="bg-canvas border border-line rounded-lg px-2.5 py-1 text-fg-2 focus:outline-none focus:border-indigo-500"
               >
                 <option value="all">Todos los dispositivos</option>
                 <option value="desktop">Desktop</option>
@@ -805,16 +805,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 <option value="tablet">Tablet</option>
               </select>
 
-              <div className="ml-auto text-slate-500 font-mono">
+              <div className="ml-auto text-muted font-mono">
                 Mostrando {filteredVisits.length} de {data?.visits?.length || 0} visitas
               </div>
             </div>
 
             {/* Table */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+            <div className="bg-panel/80 border border-line rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+                  <thead className="bg-canvas border-b border-line text-muted uppercase tracking-wider text-[10px]">
                     <tr>
                       <th className="py-3 px-4">Dirección IP</th>
                       <th className="py-3 px-4">País & Ubicación</th>
@@ -826,18 +826,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                       <th className="py-3 px-4 text-right">Detalle</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60 font-sans">
+                  <tbody className="divide-y divide-line/60 font-sans">
                     {filteredVisits.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-12 text-center text-slate-500">
+                        <td colSpan={8} className="py-12 text-center text-muted">
                           No se encontraron registros de visitantes con los filtros aplicados.
                         </td>
                       </tr>
                     ) : (
                       filteredVisits.map((v) => (
-                        <tr key={v.id} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3 px-4 font-mono font-medium text-slate-200">
-                            <span className="bg-slate-800 px-2 py-0.5 rounded text-[11px]">
+                        <tr key={v.id} className="hover:bg-raised/40 transition-colors">
+                          <td className="py-3 px-4 font-mono font-medium text-fg">
+                            <span className="bg-raised px-2 py-0.5 rounded text-[11px]">
                               {v.ip}
                             </span>
                           </td>
@@ -846,7 +846,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                               <span className="text-base">{v.flag}</span>
                               <span className="font-semibold text-white">{v.country}</span>
                               {v.city && v.city !== 'Desconocido' && (
-                                <span className="text-slate-400">({v.city})</span>
+                                <span className="text-muted">({v.city})</span>
                               )}
                             </div>
                             {v.latitude && v.longitude && (
@@ -862,28 +862,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-1.5 text-slate-300">
+                            <div className="flex items-center gap-1.5 text-fg-2">
                               {v.device === 'Mobile' ? <Smartphone className="w-3.5 h-3.5 text-pink-400" /> :
                                v.device === 'Tablet' ? <Tablet className="w-3.5 h-3.5 text-amber-400" /> :
                                <Monitor className="w-3.5 h-3.5 text-indigo-400" />}
                               <span>{v.device}</span>
-                              <span className="text-slate-500">({v.os})</span>
+                              <span className="text-muted">({v.os})</span>
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-slate-300">
+                          <td className="py-3 px-4 text-fg-2">
                             {v.browser}
                           </td>
-                          <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
+                          <td className="py-3 px-4 text-muted font-mono text-[11px]">
                             {new Date(v.firstSeen).toLocaleString()}
                           </td>
-                          <td className="py-3 px-4 font-mono text-slate-300">
+                          <td className="py-3 px-4 font-mono text-fg-2">
                             {v.durationSeconds > 60
                               ? `${Math.floor(v.durationSeconds / 60)}m ${v.durationSeconds % 60}s`
                               : `${v.durationSeconds || 0}s`}
                           </td>
                           <td className="py-3 px-4">
                             <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                              v.promptsCount > 0 ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'text-slate-500'
+                              v.promptsCount > 0 ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'text-muted'
                             }`}>
                               {v.promptsCount || 0}
                             </span>
@@ -891,7 +891,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                           <td className="py-3 px-4 text-right">
                             <button
                               onClick={() => setInspectingVisit(v)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer text-xs"
+                              className="px-2.5 py-1 rounded-lg bg-raised hover:bg-raised-2 text-fg-2 hover:text-white transition-colors cursor-pointer text-xs"
                             >
                               Ver Historial
                             </button>
@@ -913,20 +913,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         {activeTab === 'vault' && (
           <div className="space-y-4">
             
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center justify-between text-xs text-muted">
               <p>
                 Resguardo inmutable de cada aplicación generada por los usuarios en la plataforma.
               </p>
-              <span className="font-mono text-slate-500">
+              <span className="font-mono text-muted">
                 {filteredGenerations.length} proyectos archivados
               </span>
             </div>
 
             {filteredGenerations.length === 0 ? (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center text-slate-500">
-                <FolderArchive className="w-10 h-10 mx-auto mb-3 text-slate-600 opacity-50" />
-                <h3 className="font-bold text-slate-300 mb-1">Aún no hay software generado en la bóveda</h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <div className="bg-panel/60 border border-line rounded-2xl p-12 text-center text-muted">
+                <FolderArchive className="w-10 h-10 mx-auto mb-3 text-faint opacity-50" />
+                <h3 className="font-bold text-fg-2 mb-1">Aún no hay software generado en la bóveda</h3>
+                <p className="text-xs text-muted max-w-sm mx-auto">
                   Cada vez que un usuario solicite a NONA crear una página o aplicación, se almacenará aquí un resguardo completo de todos los archivos y el prompt exacto.
                 </p>
               </div>
@@ -935,18 +935,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 {filteredGenerations.map((gen) => (
                   <div
                     key={gen.id}
-                    className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 shadow-sm flex flex-col justify-between transition-all"
+                    className="bg-panel/90 border border-line hover:border-line-strong rounded-2xl p-4 shadow-sm flex flex-col justify-between transition-all"
                   >
                     <div>
                       {/* Header Card */}
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex items-center gap-1.5 overflow-hidden">
                           <span className="text-base">{gen.flag}</span>
-                          <span className="text-xs font-semibold text-slate-400 truncate">
+                          <span className="text-xs font-semibold text-muted truncate">
                             {gen.country} {gen.city && `(${gen.city})`}
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                        <span className="text-[10px] font-mono text-muted shrink-0">
                           {new Date(gen.timestamp).toLocaleDateString()}
                         </span>
                       </div>
@@ -958,31 +958,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                       </h3>
 
                       {/* Prompt */}
-                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80 mb-3">
-                        <p className="text-xs text-slate-300 italic line-clamp-3 font-mono">
+                      <div className="p-2.5 bg-canvas rounded-xl border border-line/80 mb-3">
+                        <p className="text-xs text-fg-2 italic line-clamp-3 font-mono">
                           "{gen.prompt}"
                         </p>
                       </div>
 
                       {/* File count badge */}
-                      <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-3">
+                      <div className="flex items-center gap-2 text-[11px] text-muted mb-3">
                         <span className="px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 font-semibold">
                           {gen.fileCount} archivos
                         </span>
-                        <span className="font-mono text-slate-500">
+                        <span className="font-mono text-muted">
                           IP: {gen.ip}
                         </span>
                       </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2">
+                    <div className="pt-3 border-t border-line/80 flex items-center gap-2">
                       <button
                         onClick={() => {
                           setInspectingGeneration(gen);
                           setSelectedFileInInspect(gen.files[0]?.path || '');
                         }}
-                        className="flex-1 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
+                        className="flex-1 py-1.5 px-2 bg-raised hover:bg-raised-2 text-fg text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
                       >
                         <Code2 className="w-3.5 h-3.5 text-indigo-400" />
                         <span>Ver Código</span>
@@ -998,7 +998,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
 
                       <button
                         onClick={() => handleDownloadZip(gen)}
-                        className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-all border border-slate-700 cursor-pointer shrink-0"
+                        className="p-1.5 bg-raised hover:bg-raised-2 text-fg-2 hover:text-white rounded-xl transition-all border border-line-strong cursor-pointer shrink-0"
                         title="Descargar ZIP"
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -1018,50 +1018,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
         {activeTab === 'ux_timeline' && (
           <div className="space-y-4">
             
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center justify-between text-xs text-muted">
               <p>
                 Flujo cronológico de acciones ejecutadas por usuarios reales para auditar la experiencia de usuario (UX).
               </p>
-              <span className="font-mono text-slate-500">
+              <span className="font-mono text-muted">
                 Últimos {data?.events?.length || 0} eventos
               </span>
             </div>
 
             {(!data?.events || data.events.length === 0) ? (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center text-slate-500">
-                <Clock className="w-10 h-10 mx-auto mb-3 text-slate-600 opacity-50" />
-                <h3 className="font-bold text-slate-300 mb-1">Aún no hay eventos registrados</h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <div className="bg-panel/60 border border-line rounded-2xl p-12 text-center text-muted">
+                <Clock className="w-10 h-10 mx-auto mb-3 text-faint opacity-50" />
+                <h3 className="font-bold text-fg-2 mb-1">Aún no hay eventos registrados</h3>
+                <p className="text-xs text-muted max-w-sm mx-auto">
                   A medida que los usuarios utilicen la interfaz (escriban mensajes, exploren plantillas o descarguen código), cada paso quedará registrado aquí.
                 </p>
               </div>
             ) : (
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 divide-y divide-slate-800/80">
+              <div className="bg-panel/80 border border-line rounded-2xl p-4 divide-y divide-line/80">
                 {data.events.map((evt) => (
                   <div key={evt.id} className="py-3 flex items-start justify-between gap-4 text-xs">
                     <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-7 h-7 rounded-lg bg-canvas border border-line flex items-center justify-center shrink-0 mt-0.5">
                         {evt.type === 'prompt_submit' ? <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> :
                          evt.type === 'export_zip' ? <Download className="w-3.5 h-3.5 text-emerald-400" /> :
                          evt.type === 'auto_fix_error' ? <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> :
-                         <Activity className="w-3.5 h-3.5 text-slate-400" />}
+                         <Activity className="w-3.5 h-3.5 text-muted" />}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-white">{evt.title}</span>
-                          <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-slate-800 text-slate-400">
+                          <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-raised text-muted">
                             {evt.type}
                           </span>
                         </div>
                         {evt.details && (
-                          <div className="text-slate-400 mt-1 font-mono text-[11px]">
+                          <div className="text-muted mt-1 font-mono text-[11px]">
                             {typeof evt.details === 'object' ? JSON.stringify(evt.details) : String(evt.details)}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0 text-slate-500 font-mono text-[11px]">
+                    <div className="text-right shrink-0 text-muted font-mono text-[11px]">
                       <div>{new Date(evt.timestamp).toLocaleTimeString()}</div>
                       <div>{evt.country} ({evt.ip})</div>
                     </div>
@@ -1080,16 +1080,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
       {/* -------------------------------------------------------------------- */}
       {inspectingGeneration && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+          <div className="bg-panel border border-line rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
             {/* Modal Header */}
-            <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+            <div className="p-4 bg-canvas border-b border-line flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <Code2 className="w-5 h-5 text-indigo-400" />
                 <div>
                   <h3 className="font-bold text-white text-sm">
                     {inspectingGeneration.projectName}
                   </h3>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-muted">
                     Prompt original: "{inspectingGeneration.prompt}"
                   </p>
                 </div>
@@ -1104,7 +1104,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                 </button>
                 <button
                   onClick={() => setInspectingGeneration(null)}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1.5 text-muted hover:text-white rounded-xl hover:bg-raised transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1114,8 +1114,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
             {/* Modal Content: Split files list and code viewer */}
             <div className="flex-1 flex overflow-hidden">
               {/* File list */}
-              <div className="w-64 bg-slate-950/60 border-r border-slate-800 p-3 overflow-y-auto space-y-1 shrink-0">
-                <div className="text-[11px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">
+              <div className="w-64 bg-canvas/60 border-r border-line p-3 overflow-y-auto space-y-1 shrink-0">
+                <div className="text-[11px] font-bold text-muted px-2 py-1 uppercase tracking-wider">
                   Archivos ({inspectingGeneration.files.length})
                 </div>
                 {inspectingGeneration.files.map(f => (
@@ -1125,7 +1125,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors flex items-center gap-1.5 truncate cursor-pointer ${
                       selectedFileInInspect === f.path
                         ? 'bg-indigo-600/20 text-indigo-300 font-semibold border border-indigo-500/30'
-                        : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                        : 'text-muted hover:bg-raised/60 hover:text-fg'
                     }`}
                   >
                     <FileText className="w-3.5 h-3.5 shrink-0" />
@@ -1135,8 +1135,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
               </div>
 
               {/* Code viewer */}
-              <div className="flex-1 bg-slate-950 p-4 overflow-auto">
-                <pre className="text-xs font-mono text-slate-300 leading-relaxed whitespace-pre-wrap select-text">
+              <div className="flex-1 bg-canvas p-4 overflow-auto">
+                <pre className="text-xs font-mono text-fg-2 leading-relaxed whitespace-pre-wrap select-text">
                   {inspectingGeneration.files.find(f => f.path === selectedFileInInspect)?.content || 'Selecciona un archivo para ver su código.'}
                 </pre>
               </div>
@@ -1150,22 +1150,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
       {/* -------------------------------------------------------------------- */}
       {previewingGeneration && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
-            <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div className="bg-panel border border-line rounded-3xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+            <div className="p-4 bg-canvas border-b border-line flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Play className="w-5 h-5 text-indigo-400" />
                 <div>
                   <h3 className="font-bold text-white text-sm">
                     Vista Previa: {previewingGeneration.projectName}
                   </h3>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-muted">
                     Renderizado mediante Virtual Multi-File Bundler en entorno aislado
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setPreviewingGeneration(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+                className="p-1.5 text-muted hover:text-white rounded-xl hover:bg-raised transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1188,57 +1188,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
       {/* -------------------------------------------------------------------- */}
       {inspectingVisit && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl animate-fade-in space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="bg-panel border border-line rounded-3xl w-full max-w-md p-6 shadow-2xl animate-fade-in space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-line">
               <div className="flex items-center gap-2">
                 <span className="text-2xl">{inspectingVisit.flag}</span>
                 <div>
                   <h3 className="font-bold text-white text-sm">{inspectingVisit.country}</h3>
-                  <p className="text-xs text-slate-400">{inspectingVisit.city || 'Ciudad no determinada'}</p>
+                  <p className="text-xs text-muted">{inspectingVisit.city || 'Ciudad no determinada'}</p>
                 </div>
               </div>
               <button
                 onClick={() => setInspectingVisit(null)}
-                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="text-muted hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-2 text-xs font-mono">
-              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                <span className="text-slate-500">Dirección IP:</span>
+              <div className="p-2.5 bg-canvas rounded-xl border border-line flex justify-between">
+                <span className="text-muted">Dirección IP:</span>
                 <span className="text-white font-bold">{inspectingVisit.ip}</span>
               </div>
-              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                <span className="text-slate-500">Dispositivo:</span>
-                <span className="text-slate-200">{inspectingVisit.device} ({inspectingVisit.os})</span>
+              <div className="p-2.5 bg-canvas rounded-xl border border-line flex justify-between">
+                <span className="text-muted">Dispositivo:</span>
+                <span className="text-fg">{inspectingVisit.device} ({inspectingVisit.os})</span>
               </div>
-              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                <span className="text-slate-500">Navegador:</span>
-                <span className="text-slate-200">{inspectingVisit.browser}</span>
+              <div className="p-2.5 bg-canvas rounded-xl border border-line flex justify-between">
+                <span className="text-muted">Navegador:</span>
+                <span className="text-fg">{inspectingVisit.browser}</span>
               </div>
-              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                <span className="text-slate-500">Idioma:</span>
-                <span className="text-slate-200">{inspectingVisit.language}</span>
+              <div className="p-2.5 bg-canvas rounded-xl border border-line flex justify-between">
+                <span className="text-muted">Idioma:</span>
+                <span className="text-fg">{inspectingVisit.language}</span>
               </div>
-              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                <span className="text-slate-500">Referrer:</span>
-                <span className="text-slate-200 truncate max-w-[200px]">{inspectingVisit.referrer}</span>
+              <div className="p-2.5 bg-canvas rounded-xl border border-line flex justify-between">
+                <span className="text-muted">Referrer:</span>
+                <span className="text-fg truncate max-w-[200px]">{inspectingVisit.referrer}</span>
               </div>
-              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                <span className="text-slate-500">Primera visita:</span>
-                <span className="text-slate-200">{new Date(inspectingVisit.firstSeen).toLocaleString()}</span>
+              <div className="p-2.5 bg-canvas rounded-xl border border-line flex justify-between">
+                <span className="text-muted">Primera visita:</span>
+                <span className="text-fg">{new Date(inspectingVisit.firstSeen).toLocaleString()}</span>
               </div>
-              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between">
-                <span className="text-slate-500">Duración en app:</span>
+              <div className="p-2.5 bg-canvas rounded-xl border border-line flex justify-between">
+                <span className="text-muted">Duración en app:</span>
                 <span className="text-emerald-400 font-bold">{inspectingVisit.durationSeconds} segundos</span>
               </div>
             </div>
 
             <button
               onClick={() => setInspectingVisit(null)}
-              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              className="w-full py-2 bg-raised hover:bg-raised-2 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
             >
               Cerrar
             </button>

@@ -173,24 +173,24 @@ export const DiagnosticsPage: React.FC<DiagnosticsPageProps> = ({ onBack }) => {
   const notConfigCount = checks.filter(c => c.status === 'NOT_CONFIGURED').length;
 
   return (
-    <div className="flex-1 bg-slate-50 flex flex-col h-full overflow-y-auto p-6 select-none font-sans text-xs">
+    <div className="flex-1 bg-canvas flex flex-col h-full overflow-y-auto p-6 select-none font-sans text-xs">
       
       {/* Top Navigation */}
-      <div className="flex items-center justify-between pb-6 border-b border-slate-200">
+      <div className="flex items-center justify-between pb-6 border-b border-line">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5 font-bold"
+            className="p-2 rounded-xl bg-panel border border-line hover:bg-raised text-fg-2 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5 font-bold"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Volver al Workspace</span>
           </button>
           <div>
-            <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-              <Cpu className="w-5 h-5 text-indigo-600" />
+            <h1 className="text-xl font-black text-fg flex items-center gap-2">
+              <Cpu className="w-5 h-5 text-accent" />
               Diagnóstico del Sistema NONA v3.0 (Zero-Mocks)
             </h1>
-            <p className="text-slate-500 text-xs">
+            <p className="text-muted text-xs">
               Verificación en tiempo real de todos los subsistemas, APIs y motores autónomos
             </p>
           </div>
@@ -208,43 +208,43 @@ export const DiagnosticsPage: React.FC<DiagnosticsPageProps> = ({ onBack }) => {
 
       {/* Summary Scorecards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 my-6">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-          <span className="text-[10px] uppercase font-bold text-slate-400">Total Subsistemas</span>
-          <p className="text-2xl font-black text-slate-900 mt-1">{checks.length}</p>
+        <div className="bg-panel p-4 rounded-2xl border border-line shadow-2xs">
+          <span className="text-[10px] uppercase font-bold text-muted">Total Subsistemas</span>
+          <p className="text-2xl font-black text-fg mt-1">{checks.length}</p>
         </div>
-        <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200 shadow-2xs">
-          <span className="text-[10px] uppercase font-bold text-emerald-600">Verificados (PASS)</span>
-          <p className="text-2xl font-black text-emerald-700 mt-1">{passCount}</p>
+        <div className="bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/30 shadow-2xs">
+          <span className="text-[10px] uppercase font-bold text-emerald-300">Verificados (PASS)</span>
+          <p className="text-2xl font-black text-emerald-300 mt-1">{passCount}</p>
         </div>
-        <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200 shadow-2xs">
-          <span className="text-[10px] uppercase font-bold text-amber-600">Opcionales / No Configurados</span>
-          <p className="text-2xl font-black text-amber-700 mt-1">{notConfigCount}</p>
+        <div className="bg-amber-500/10 p-4 rounded-2xl border border-amber-500/30 shadow-2xs">
+          <span className="text-[10px] uppercase font-bold text-amber-300">Opcionales / No Configurados</span>
+          <p className="text-2xl font-black text-amber-300 mt-1">{notConfigCount}</p>
         </div>
-        <div className="bg-rose-50/60 p-4 rounded-2xl border border-rose-200 shadow-2xs">
-          <span className="text-[10px] uppercase font-bold text-rose-600">Fallos Críticos</span>
-          <p className="text-2xl font-black text-rose-700 mt-1">{failCount}</p>
+        <div className="bg-rose-500/10 p-4 rounded-2xl border border-rose-500/30 shadow-2xs">
+          <span className="text-[10px] uppercase font-bold text-rose-300">Fallos Críticos</span>
+          <p className="text-2xl font-black text-rose-300 mt-1">{failCount}</p>
         </div>
       </div>
 
       {/* Subsystem Audit Table */}
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-2xs flex-1">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between font-bold text-slate-700">
+      <div className="bg-panel rounded-3xl border border-line overflow-hidden shadow-2xs flex-1">
+        <div className="p-4 bg-canvas border-b border-line flex items-center justify-between font-bold text-fg-2">
           <span>Subsistema / Integración</span>
           <span>Estado & Auditoría</span>
         </div>
 
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-line">
           {checks.map((check) => {
             const isPass = check.status === 'PASS';
             const isNotConfig = check.status === 'NOT_CONFIGURED';
 
             return (
-              <div key={check.id} className="p-4 flex items-center justify-between hover:bg-slate-50/80 transition-colors">
+              <div key={check.id} className="p-4 flex items-center justify-between hover:bg-canvas/80 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                    isPass ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                    isNotConfig ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                    'bg-rose-50 text-rose-600 border border-rose-100'
+                    isPass ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' :
+                    isNotConfig ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30' :
+                    'bg-rose-500/10 text-rose-300 border border-rose-500/30'
                   }`}>
                     {check.category === 'ai' ? <Cpu className="w-4 h-4" /> :
                      check.category === 'media' ? <Wand2 className="w-4 h-4" /> :
@@ -253,16 +253,16 @@ export const DiagnosticsPage: React.FC<DiagnosticsPageProps> = ({ onBack }) => {
                      <Layers className="w-4 h-4" />}
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900 text-xs">{check.name}</h3>
-                    <p className="text-slate-500 text-[11px] mt-0.5">{check.message}</p>
+                    <h3 className="font-bold text-fg text-xs">{check.name}</h3>
+                    <p className="text-muted text-[11px] mt-0.5">{check.message}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                    isPass ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                    isNotConfig ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                    'bg-rose-50 text-rose-700 border border-rose-200'
+                    isPass ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' :
+                    isNotConfig ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30' :
+                    'bg-rose-500/10 text-rose-300 border border-rose-500/30'
                   }`}>
                     {check.status}
                   </span>

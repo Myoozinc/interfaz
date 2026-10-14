@@ -71,10 +71,10 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-6xl max-h-[94vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-canvas/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-6xl max-h-[94vh] bg-panel border border-line rounded-3xl shadow-2xl flex flex-col overflow-hidden">
 
-        <div className="p-4 sm:p-6 border-b border-slate-800/80 flex items-center justify-between shrink-0 bg-slate-900/50">
+        <div className="p-4 sm:p-6 border-b border-line/80 flex items-center justify-between shrink-0 bg-panel/50">
           <div className="flex items-center gap-3.5 min-w-0">
             <NonaLogo size={36} variant="badge" />
             <div className="min-w-0">
@@ -84,25 +84,25 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
                   {ALL_TEMPLATES.length} funcionales
                 </span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 Juegos y apps completos, 100% editables con NONA y descargables como proyecto Vite.
               </p>
             </div>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors cursor-pointer">
+          <button onClick={onClose} aria-label="Cerrar" className="p-2 text-muted hover:text-white rounded-xl hover:bg-raised/80 transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-4 sm:px-6 py-3 border-b border-slate-800/60 bg-slate-950/40 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+        <div className="px-4 sm:px-6 py-3 border-b border-line/60 bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div className="relative w-full sm:w-72 shrink-0">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Buscar: carreras, 3D, aviones, RPG..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-900/90 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-panel/90 border border-line rounded-xl pl-9 pr-4 py-1.5 text-xs text-white placeholder-faint outline-none focus:border-indigo-500 transition-colors"
             />
           </div>
           <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 sm:pb-0 scrollbar-none">
@@ -115,7 +115,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                     selectedCategory === cat
                       ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
-                      : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                      : 'bg-panel text-muted hover:text-white hover:bg-raised border border-line'
                   }`}
                 >
                   {CatIcon && <CatIcon className="w-3.5 h-3.5" />}
@@ -136,12 +136,12 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
             return (
               <div
                 key={t.id}
-                className="group relative bg-slate-900/60 hover:bg-slate-800/50 border border-slate-800 hover:border-indigo-500/50 rounded-2xl overflow-hidden transition-all duration-200 flex flex-col shadow-lg hover:shadow-indigo-500/10"
+                className="group relative bg-panel/60 hover:bg-raised/50 border border-line hover:border-indigo-500/50 rounded-2xl overflow-hidden transition-all duration-200 flex flex-col shadow-lg hover:shadow-indigo-500/10"
               >
                 {t.thumbnail ? (
                   <button
                     onClick={() => handleLoad(t)}
-                    className="relative block w-full shrink-0 aspect-[16/10] bg-slate-950 overflow-hidden cursor-pointer"
+                    className="relative block w-full shrink-0 aspect-[16/10] bg-canvas overflow-hidden cursor-pointer"
                     aria-label={`Cargar ${t.name}`}
                   >
                     <img
@@ -151,7 +151,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
                       className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
-                    <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-slate-950/70 border border-white/10 text-[10px] text-slate-200 font-medium backdrop-blur-sm">
+                    <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-canvas/70 border border-white/10 text-[10px] text-fg font-medium backdrop-blur-sm">
                       Hecho con NONA
                     </span>
                     {t.badge && (
@@ -173,14 +173,14 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
                     </div>
                     <div className="min-w-0">
                       <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors truncate">{t.name}</h3>
-                      <span className="text-[11px] text-slate-400 font-medium">{t.category || 'Aplicación'}</span>
+                      <span className="text-[11px] text-muted font-medium">{t.category || 'Aplicación'}</span>
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-300 mt-3 leading-relaxed line-clamp-3">{t.description}</p>
+                  <p className="text-xs text-fg-2 mt-3 leading-relaxed line-clamp-3">{t.description}</p>
 
                   {t.controls && (
-                    <p className="mt-2 text-[11px] text-slate-400 flex items-start gap-1.5">
+                    <p className="mt-2 text-[11px] text-muted flex items-start gap-1.5">
                       <Keyboard className="w-3.5 h-3.5 mt-px shrink-0" /> <span className="line-clamp-2">{t.controls}</span>
                     </p>
                   )}
@@ -188,7 +188,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
                   {t.tags && t.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {t.tags.slice(0, 5).map(tag => (
-                        <span key={tag} className="px-2 py-0.5 rounded-lg bg-slate-950/80 border border-slate-800 text-[10px] font-mono text-slate-400">{tag}</span>
+                        <span key={tag} className="px-2 py-0.5 rounded-lg bg-canvas/80 border border-line text-[10px] font-mono text-muted">{tag}</span>
                       ))}
                     </div>
                   )}
@@ -212,8 +212,8 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
               </div>
             );
           }) : (
-            <div className="col-span-full py-16 text-center text-slate-400 space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center mx-auto">
+            <div className="col-span-full py-16 text-center text-muted space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-raised text-muted flex items-center justify-center mx-auto">
                 <Search className="w-6 h-6" />
               </div>
               <p className="text-sm">No se encontraron plantillas para los filtros seleccionados.</p>
@@ -224,7 +224,7 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
           )}
         </div>
 
-        <div className="px-4 sm:px-6 py-3 bg-slate-950/60 border-t border-slate-800/60 flex items-center justify-between gap-3 text-[11px] text-slate-400">
+        <div className="px-4 sm:px-6 py-3 bg-canvas/60 border-t border-line/60 flex items-center justify-between gap-3 text-[11px] text-muted">
           <span>💡 Carga una plantilla y pídele a NONA en el chat que la cambie: nombre, colores, niveles, mecánicas…</span>
           <span className="font-mono text-indigo-400 hidden sm:inline">NONA Platform</span>
         </div>

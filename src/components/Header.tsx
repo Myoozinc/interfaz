@@ -1,16 +1,18 @@
-import React from 'react';
-import { 
-  Download, 
-  Settings, 
-  Zap, 
-  FolderOpen,
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Download,
+  Settings,
+  Zap,
+  ChevronDown,
   Wand2,
   Activity,
   PanelLeft,
-  Terminal,
+  Code2,
   MessageSquare,
   LayoutGrid,
-  Database
+  Database,
+  MoreHorizontal,
+  Share2,
 } from 'lucide-react';
 import { NonaLogo } from './NonaLogo';
 import { GitHubIcon } from './icons/GitHubIcon';
@@ -36,16 +38,53 @@ interface HeaderProps {
   onToggleSidebar: () => void;
 }
 
+/** Menú desplegable sencillo: se cierra al hacer clic fuera o con Esc. */
+const Menu: React.FC<{ trigger: (open: boolean) => React.ReactNode; children: (close: () => void) => React.ReactNode }> = ({ trigger, children }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey); };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <div onClick={() => setOpen(o => !o)}>{trigger(open)}</div>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-line bg-panel p-1.5 shadow-2xl shadow-black/40 z-50">
+          {children(() => setOpen(false))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MenuItem: React.FC<{ icon: React.ReactNode; label: string; hint?: string; onClick: () => void }> = ({ icon, label, hint, onClick }) => (
+  <button
+    onClick={onClick}
+    className="w-full flex items-start gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-raised transition-colors cursor-pointer"
+  >
+    <span className="mt-0.5 text-muted">{icon}</span>
+    <span className="flex flex-col">
+      <span className="text-[13px] text-fg">{label}</span>
+      {hint && <span className="text-[11.5px] text-muted leading-snug">{hint}</span>}
+    </span>
+  </button>
+);
+
+const iconBtn = 'h-8 w-8 inline-flex items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-raised transition-colors cursor-pointer';
+
 export const Header: React.FC<HeaderProps> = ({
   projectName,
   credits,
-  currentUser: _currentUser,
   onOpenCreditsModal,
   onOpenSettingsModal,
   onOpenProjectsModal,
   onOpenMediaModal,
   onOpenDiagnostics,
-  onOpenAuthModal: _onOpenAuthModal,
   onOpenTemplatesModal,
   onOpenGitHubModal,
   onOpenSupabaseModal,
@@ -55,163 +94,98 @@ export const Header: React.FC<HeaderProps> = ({
   isSidebarOpen,
   onToggleSidebar,
 }) => {
+  const inWorkspace = viewMode !== 'chat';
   return (
-    <header className="h-13 bg-white/85 backdrop-blur-md border-b border-slate-200/80 px-3.5 flex items-center justify-between select-none z-20 font-sans shrink-0 shadow-2xs">
-      
-      {/* Left: macOS Traffic Lights + Sidebar Toggle + NONA Logo & Project Breadcrumb */}
-      <div className="flex items-center gap-2.5 sm:gap-3">
-        
-        {/* If sidebar is closed, show macOS traffic lights and expand button with NONA Logo */}
+    <header className="h-12 bg-canvas border-b border-line px-3 flex items-center justify-between gap-3 select-none z-20 shrink-0">
+      {/* Izquierda: barra lateral, marca y proyecto */}
+      <div className="flex items-center gap-1.5 min-w-0">
         {!isSidebarOpen && (
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 pl-0.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-400/80 hover:bg-red-500 transition-colors shadow-2xs"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 hover:bg-amber-500 transition-colors shadow-2xs"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80 hover:bg-emerald-500 transition-colors shadow-2xs"></span>
-            </div>
-            <button
-              onClick={onToggleSidebar}
-              title="Abrir barra lateral (Cmd+B)"
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-all cursor-pointer"
-            >
+          <>
+            <button onClick={onToggleSidebar} title="Mostrar barra lateral (Cmd+B)" aria-label="Mostrar barra lateral" className={iconBtn}>
               <PanelLeft className="w-4 h-4" />
             </button>
-            <div className="h-4 w-px bg-slate-200" />
-            <NonaLogo size={22} showText className="mr-1" />
-            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
-          </div>
+            <NonaLogo size={22} showText className="mx-1" />
+            <span className="text-faint mx-0.5">/</span>
+          </>
         )}
-
-        {/* If sidebar is open, show compact NonaLogo icon next to breadcrumb */}
-        {isSidebarOpen && (
-          <NonaLogo size={20} showText={false} className="shrink-0" />
-        )}
-
-        {/* Project Breadcrumb */}
         <button
           onClick={onOpenProjectsModal}
-          title="Gestor de Proyectos"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-slate-100/90 text-xs font-semibold text-slate-800 transition-all cursor-pointer truncate max-w-[220px] border border-transparent hover:border-slate-200/60"
+          title="Tus proyectos"
+          className="min-w-0 flex items-center gap-1.5 h-8 px-2 rounded-lg hover:bg-raised text-[13px] font-medium text-fg transition-colors cursor-pointer"
         >
-          <FolderOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-          <span className="text-slate-400 font-normal">proyecto /</span>
-          <span className="truncate text-slate-900 font-semibold">{projectName}</span>
+          <span className="truncate max-w-[240px]">{projectName}</span>
+          <ChevronDown className="w-3.5 h-3.5 text-muted shrink-0" />
         </button>
       </div>
 
-
-      {/* Right: Model Indicator + "Open IDE" Button (Antigravity standard) + Tools */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        
-        {/* Model Indicator Pill */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/70 text-[11px] font-medium text-slate-700 shadow-2xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>⚡ NONA Cloud Engine (Multi-IA)</span>
-        </div>
-
-        {/* 🌟 Signature "Open IDE / Modo Chat" Button (Antigravity & Ollama Desktop style) */}
-        {viewMode === 'chat' ? (
-          <button
-            onClick={() => setViewMode('split')}
-            title="Abrir entorno de desarrollo y vista previa"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer hover:scale-102"
-          >
-            <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Open IDE</span>
-          </button>
-        ) : (
-          <button
-            onClick={() => setViewMode('chat')}
-            title="Volver a la vista de conversación limpia"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200 text-indigo-700 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>Modo Chat</span>
-          </button>
-        )}
-
-        {/* Gallery Templates Button */}
+      {/* Derecha: acciones */}
+      <div className="flex items-center gap-1">
         {onOpenTemplatesModal && (
           <button
             onClick={onOpenTemplatesModal}
-            title="Explorar Galería de Plantillas y Videojuegos 3D Funcionales"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900 text-xs font-semibold shadow-2xs transition-all cursor-pointer hover:scale-102"
+            className="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[13px] text-fg-2 hover:text-fg hover:bg-raised transition-colors cursor-pointer"
           >
-            <LayoutGrid className="w-3.5 h-3.5 text-blue-600" />
-            <span>Plantillas</span>
+            <LayoutGrid className="w-4 h-4" />
+            Plantillas
           </button>
         )}
 
-        {/* Media Studio */}
         <button
-          onClick={onOpenMediaModal}
-          title="Media Studio & Generador de Assets"
-          className="p-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/80 text-violet-600 transition-colors shadow-2xs cursor-pointer"
+          onClick={() => setViewMode(inWorkspace ? 'chat' : 'split')}
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[13px] text-fg-2 hover:text-fg hover:bg-raised transition-colors cursor-pointer"
+          title={inWorkspace ? 'Volver a la conversación a pantalla completa' : 'Abrir vista previa y código'}
         >
-          <Wand2 className="w-3.5 h-3.5" />
+          {inWorkspace ? <MessageSquare className="w-4 h-4" /> : <Code2 className="w-4 h-4" />}
+          <span className="hidden md:inline">{inWorkspace ? 'Conversación' : 'Vista previa y código'}</span>
         </button>
 
-        {/* Diagnostics */}
-        <button
-          onClick={onOpenDiagnostics}
-          title="Diagnósticos del Sistema (Zero Mocks)"
-          className="p-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/80 text-emerald-600 transition-colors shadow-2xs cursor-pointer"
-        >
-          <Activity className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Credits Badge */}
         <button
           onClick={onOpenCreditsModal}
-          title="Saldo de Créditos"
-          className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 text-[11px] font-bold text-amber-800 transition-all cursor-pointer"
+          title="Créditos disponibles"
+          className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-[13px] tabular-nums text-fg-2 hover:text-fg hover:bg-raised transition-colors cursor-pointer"
         >
-          <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
-          <span>{credits.balance}</span>
+          <Zap className="w-3.5 h-3.5 text-amber-300" />
+          {credits.balance}
         </button>
 
-        {/* Supabase BaaS Modal */}
-        {onOpenSupabaseModal && (
-          <button
-            onClick={onOpenSupabaseModal}
-            title="Supabase BaaS: Auto-Provisionamiento y Base de Datos"
-            className="p-1.5 rounded-xl bg-white hover:bg-emerald-50 border border-slate-200/80 text-emerald-600 hover:text-emerald-700 transition-colors shadow-2xs cursor-pointer"
-          >
-            <Database className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {/* GitHub Sync Modal */}
-        {onOpenGitHubModal && (
-          <button
-            onClick={onOpenGitHubModal}
-            title="Sincronizar con GitHub y Desplegar en Vercel (1 Clic)"
-            className="p-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/80 text-slate-700 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
-          >
-            <GitHubIcon className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {/* Export ZIP */}
-        <button
-          onClick={onExportZip}
-          title="Exportar Proyecto en ZIP"
-          className="p-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/80 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
+        <Menu
+          trigger={(open) => (
+            <button className={`inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 ml-1 rounded-lg text-[13px] font-medium transition-colors cursor-pointer ${open ? 'bg-accent-strong text-white' : 'bg-accent text-accent-ink hover:bg-accent-strong hover:text-white'}`}>
+              <Share2 className="w-3.5 h-3.5" />
+              Exportar
+              <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+            </button>
+          )}
         >
-          <Download className="w-3.5 h-3.5" />
-        </button>
+          {(close) => (
+            <>
+              <MenuItem icon={<Download className="w-4 h-4" />} label="Descargar ZIP" hint="Proyecto Vite completo, listo para npm install" onClick={() => { close(); onExportZip(); }} />
+              {onOpenGitHubModal && (
+                <MenuItem icon={<GitHubIcon className="w-4 h-4" />} label="GitHub y Vercel" hint="Sube el código a un repositorio y publícalo" onClick={() => { close(); onOpenGitHubModal(); }} />
+              )}
+              {onOpenSupabaseModal && (
+                <MenuItem icon={<Database className="w-4 h-4" />} label="Base de datos (Supabase)" hint="Conecta usuarios y datos reales" onClick={() => { close(); onOpenSupabaseModal(); }} />
+              )}
+            </>
+          )}
+        </Menu>
 
-        {/* Settings */}
-        <button
-          onClick={onOpenSettingsModal}
-          title="Ajustes del Motor IA"
-          className="p-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/80 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
+        <Menu
+          trigger={() => (
+            <button className={iconBtn} title="Más opciones" aria-label="Más opciones">
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+          )}
         >
-          <Settings className="w-3.5 h-3.5" />
-        </button>
-
+          {(close) => (
+            <>
+              <MenuItem icon={<Wand2 className="w-4 h-4" />} label="Media Studio" hint="Genera imágenes y recursos para tu app" onClick={() => { close(); onOpenMediaModal(); }} />
+              <MenuItem icon={<Activity className="w-4 h-4" />} label="Estado del sistema" hint="Comprueba los proveedores de IA" onClick={() => { close(); onOpenDiagnostics(); }} />
+              <MenuItem icon={<Settings className="w-4 h-4" />} label="Ajustes" onClick={() => { close(); onOpenSettingsModal(); }} />
+            </>
+          )}
+        </Menu>
       </div>
-
     </header>
   );
 };

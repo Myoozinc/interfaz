@@ -7,7 +7,6 @@ import {
   ExternalLink,
   MousePointerClick,
   Terminal,
-  Eye,
   Wrench,
   AlertTriangle,
   Server,
@@ -193,7 +192,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
     }
 
     if (!htmlFile || htmlFile.trim().length === 0) {
-      return `<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-slate-900 text-white min-h-screen flex items-center justify-center font-sans"><div class="text-center p-6"><h2 class="text-lg font-bold">Esperando generación...</h2></div></body></html>`;
+      return `<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-raised text-white min-h-screen flex items-center justify-center font-sans"><div class="text-center p-6"><h2 class="text-lg font-bold">Esperando generación...</h2></div></body></html>`;
     }
 
     // 1. Virtual Multi-File Bundler & Import Map
@@ -552,7 +551,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   ${allInjectedScripts}
 </head>
-<body class="bg-slate-950 text-white min-h-screen font-sans">
+<body class="bg-canvas text-white min-h-screen font-sans">
   <div id="root">${compiled.includes('<div') ? compiled : ''}</div>
 </body>
 </html>`;
@@ -622,38 +621,28 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
   const activeIframeSrcDoc = !isUsingWebContainer ? srcDoc : undefined;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-100 overflow-hidden select-none font-sans">
+    <div className="flex-1 flex flex-col h-full bg-canvas overflow-hidden select-none font-sans">
       
       {/* Top Preview Controls */}
-      <div className="h-11 bg-white border-b border-slate-200 flex items-center justify-between px-3 shrink-0">
+      <div className="h-11 bg-canvas border-b border-line flex items-center justify-between px-2 shrink-0">
         
         {/* Tabs: Preview vs Console & QA Score */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setActiveTab('preview')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'preview'
-                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-2xs'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <Eye className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Vista Previa</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('console')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            onClick={() => setActiveTab(t => t === 'console' ? 'preview' : 'console')}
+            aria-pressed={activeTab === 'console'}
+            title={activeTab === 'console' ? 'Volver a la vista previa' : 'Ver mensajes y errores de la app'}
+            className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
               activeTab === 'console'
-                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-2xs'
-                : 'text-slate-600 hover:bg-slate-100'
+                ? 'bg-raised-2 text-fg'
+                : 'text-fg-2 hover:text-fg hover:bg-raised'
             }`}
           >
-            <Terminal className="w-3.5 h-3.5 text-slate-600" />
+            <Terminal className="w-3.5 h-3.5" />
             <span>Consola</span>
             {consoleLogs.length > 0 && (
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                errorLogs.length > 0 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-indigo-100 text-indigo-800'
+                errorLogs.length > 0 ? 'bg-red-500/15 text-red-300 animate-pulse' : 'bg-accent/15 text-accent'
               }`}>
                 {consoleLogs.length}
               </span>
@@ -664,28 +653,28 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
             <button
               onClick={() => setSandboxMode('virtual')}
               title="Haz clic para alternar inmediatamente a Virtual Multi-File Sandbox"
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-[11px] font-bold transition-all cursor-pointer animate-pulse"
+              className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-amber-300 hover:bg-raised text-[12px] transition-colors cursor-pointer"
             >
-              <Server className="w-3.5 h-3.5 text-amber-600 animate-spin" />
-              <span>Iniciando WebContainer... (Clic para Instantáneo)</span>
+              <Server className="w-3.5 h-3.5 text-amber-300 animate-spin" />
+              <span>Iniciando servidor…</span>
             </button>
           ) : isUsingWebContainer ? (
             <button
               onClick={() => setSandboxMode('virtual')}
               title="Servidor Vite en vivo activo. Haz clic para cambiar a compilador Virtual Instantáneo"
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+              className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-emerald-300 hover:bg-raised text-[12px] transition-colors cursor-pointer"
             >
-              <Server className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-              <span>WebContainer (Vite Live) ⇄ Virtual</span>
+              <Server className="w-3.5 h-3.5 text-emerald-300 animate-pulse" />
+              <span>Servidor Vite</span>
             </button>
           ) : (
             <button
               onClick={() => setSandboxMode('auto')}
               title={webContainerUrl ? "Compilador Virtual activo. Haz clic para cambiar a Vite Live" : "Compilador Virtual Multi-File Sandbox activo"}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+              className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-muted hover:text-fg hover:bg-raised text-[12px] transition-colors cursor-pointer"
             >
-              <Zap className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Virtual Sandbox {webContainerUrl ? '⇄ Vite' : ''}</span>
+              <Zap className="w-3.5 h-3.5" />
+              <span>{webContainerUrl ? 'Vista rápida ⇄ Vite' : 'Vista rápida'}</span>
             </button>
           )}
         </div>
@@ -696,44 +685,44 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
           <button
             onClick={toggleInspect}
             title={isInspectMode ? 'Desactivar Inspector de Elementos' : 'Inspeccionar Elemento (Clic para editar)'}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer border ${
+            className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
               isInspectMode
-                ? 'bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-300'
-                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                ? 'bg-accent text-accent-ink'
+                : 'text-fg-2 hover:text-fg hover:bg-raised'
             }`}
           >
             <MousePointerClick className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">{isInspectMode ? 'Inspeccionando...' : 'Inspeccionar'}</span>
+            <span className="hidden md:inline">{isInspectMode ? 'Elige un elemento…' : 'Señalar elemento'}</span>
           </button>
 
-          <div className="h-4 w-px bg-slate-200 mx-1"></div>
+          <div className="h-4 w-px bg-line mx-1"></div>
 
           {/* Viewport Switcher */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+          <div className="flex items-center p-0.5 rounded-lg border border-line">
             <button
               onClick={() => setViewport('desktop')}
               className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                viewport === 'desktop' ? 'bg-white shadow-2xs text-indigo-600' : 'text-slate-500 hover:text-slate-800'
+                viewport === 'desktop' ? 'bg-raised-2 text-fg' : 'text-muted hover:text-fg'
               }`}
-              title="Vista de Escritorio"
+              title="Vista de escritorio"
             >
               <Monitor className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setViewport('tablet')}
               className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                viewport === 'tablet' ? 'bg-white shadow-2xs text-indigo-600' : 'text-slate-500 hover:text-slate-800'
+                viewport === 'tablet' ? 'bg-raised-2 text-fg' : 'text-muted hover:text-fg'
               }`}
-              title="Vista Tablet"
+              title="Vista tablet"
             >
               <Tablet className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setViewport('mobile')}
               className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                viewport === 'mobile' ? 'bg-white shadow-2xs text-indigo-600' : 'text-slate-500 hover:text-slate-800'
+                viewport === 'mobile' ? 'bg-raised-2 text-fg' : 'text-muted hover:text-fg'
               }`}
-              title="Simulador iPhone 15 Pro"
+              title="Vista móvil"
             >
               <Smartphone className="w-3.5 h-3.5" />
             </button>
@@ -742,15 +731,15 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
           <button
             onClick={() => setIframeKey(k => k + 1)}
             title="Recargar vista previa"
-            className="p-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all shadow-2xs cursor-pointer ml-1"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-raised transition-colors cursor-pointer ml-1"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
 
           <button
             onClick={handleOpenInNewTab}
-            title="Abrir en pestaña completa"
-            className="p-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 transition-all shadow-2xs cursor-pointer"
+            title="Abrir en una pestaña nueva"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-raised transition-colors cursor-pointer"
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
@@ -759,28 +748,28 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       </div>
 
       {/* Main Preview Container */}
-      <div className="flex-1 p-3 flex items-center justify-center overflow-auto bg-slate-100 relative">
+      <div className="flex-1 p-3 flex items-center justify-center overflow-auto bg-canvas relative">
         {activeTab === 'preview' && errorLogs.length > 0 && !isErrorDismissed && (
-          <div className="absolute top-5 left-5 right-5 bg-rose-950/95 border border-rose-500/70 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between z-40 animate-fade-in text-xs">
+          <div className="absolute top-5 left-5 right-5 bg-panel border border-rose-500/40 text-fg px-4 py-3 rounded-xl shadow-2xl shadow-black/40 flex items-center justify-between z-40 animate-fade-in text-xs">
             <div className="flex items-center gap-2.5 overflow-hidden">
               <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
               <div className="overflow-hidden">
-                <p className="font-bold text-rose-200">Error de ejecución en la vista previa:</p>
-                <p className="text-rose-300 font-mono truncate max-w-md">{errorLogs[errorLogs.length - 1].message}</p>
+                <p className="font-medium text-rose-300">La app tiene un error al ejecutarse</p>
+                <p className="text-muted font-mono truncate max-w-md mt-0.5">{errorLogs[errorLogs.length - 1].message}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0 ml-3">
               <button
                 onClick={handleTriggerAutoFix}
-                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 font-bold text-white rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                className="h-8 px-3 bg-accent hover:bg-accent-strong text-accent-ink hover:text-white font-medium rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Wrench className="w-3.5 h-3.5" />
-                Auto-Corregir con NONA
+                Corregir con NONA
               </button>
               <button
                 onClick={() => setIsErrorDismissed(true)}
                 title="Descartar aviso"
-                className="p-1.5 text-rose-300 hover:text-white hover:bg-rose-900/50 rounded-lg transition-colors cursor-pointer"
+                className="p-1.5 text-muted hover:text-fg hover:bg-raised rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -791,10 +780,10 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
         {activeTab === 'preview' ? (
           viewport === 'mobile' ? (
             /* iPhone 15 Pro Shell Frame */
-            <div className="w-[375px] h-[740px] bg-slate-900 border-[6px] border-slate-800 rounded-[50px] shadow-2xl overflow-hidden relative flex flex-col shrink-0 animate-fade-in">
+            <div className="w-[375px] h-[740px] bg-raised border-[6px] border-line rounded-[50px] shadow-2xl overflow-hidden relative flex flex-col shrink-0 animate-fade-in">
               {/* Dynamic Island Notch */}
               <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-50 flex items-center justify-between px-2.5 pointer-events-none shadow-md">
-                <div className="w-2.5 h-2.5 rounded-full bg-slate-950 border border-slate-800"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-canvas border border-line"></div>
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
               </div>
               
@@ -803,7 +792,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
                 title="Live Sandbox Mobile"
                 src={activeIframeSrc}
                 srcDoc={activeIframeSrcDoc}
-                className="w-full h-full border-none bg-white flex-1"
+                className="w-full h-full border-none bg-panel flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox allow-pointer-lock"
                 allow="camera; microphone; display-capture; fullscreen; clipboard-read; clipboard-write; autoplay; geolocation; gamepad; screen-wake-lock"
                 // @ts-ignore
@@ -813,14 +802,14 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
           ) : (
             <div
               style={{ width: viewport === 'tablet' ? '768px' : '100%' }}
-              className="h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 flex flex-col"
+              className="h-full bg-panel rounded-3xl border border-line shadow-sm overflow-hidden transition-all duration-300 flex flex-col"
             >
               <iframe
                 key={`${iframeKey}_${filesHash}_${isUsingWebContainer ? 'wc_' + webContainerUrl : 'doc'}`}
                 title="Live Sandbox"
                 src={activeIframeSrc}
                 srcDoc={activeIframeSrcDoc}
-                className="w-full h-full border-none bg-white flex-1"
+                className="w-full h-full border-none bg-panel flex-1"
                 sandbox="allow-scripts allow-modals allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox allow-pointer-lock"
                 allow="camera; microphone; display-capture; fullscreen; clipboard-read; clipboard-write; autoplay; geolocation; gamepad; screen-wake-lock"
                 // @ts-ignore
@@ -829,10 +818,10 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
             </div>
           )
         ) : (
-          <div className="w-full h-full bg-slate-900 text-slate-100 rounded-3xl p-5 font-mono text-xs overflow-y-auto space-y-3 shadow-inner flex flex-col">
-            <div className="text-[11px] text-slate-400 border-b border-slate-800 pb-2.5 flex justify-between items-center shrink-0">
+          <div className="w-full h-full bg-raised text-fg-2 rounded-3xl p-5 font-mono text-xs overflow-y-auto space-y-3 shadow-inner flex flex-col">
+            <div className="text-[11px] text-muted border-b border-line pb-2.5 flex justify-between items-center shrink-0">
               <span className="flex items-center gap-2">
-                <Terminal className="w-3.5 h-3.5 text-indigo-400" />
+                <Terminal className="w-3.5 h-3.5 text-accent" />
                 Terminal de Logs del Sandbox
               </span>
               <div className="flex items-center gap-3">
@@ -847,7 +836,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
                 )}
                 <button
                   onClick={() => setConsoleLogs([])}
-                  className="text-indigo-400 hover:underline cursor-pointer font-bold"
+                  className="text-accent hover:underline cursor-pointer font-bold"
                 >
                   Limpiar Logs
                 </button>
@@ -856,11 +845,11 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
 
             <div className="flex-1 overflow-y-auto space-y-2">
               {consoleLogs.length === 0 ? (
-                <p className="text-slate-500 pt-2">No hay logs registrados en la consola.</p>
+                <p className="text-muted pt-2">No hay logs registrados en la consola.</p>
               ) : (
                 consoleLogs.map((log, idx) => (
                   <div key={idx} className="flex items-start gap-2">
-                    <span className="text-slate-500">[{log.time}]</span>
+                    <span className="text-muted">[{log.time}]</span>
                     <span className={log.type === 'error' ? 'text-red-400 font-bold' : log.type === 'warn' ? 'text-amber-300 font-bold' : 'text-emerald-300 font-bold'}>
                       {log.type.toUpperCase()}:
                     </span>

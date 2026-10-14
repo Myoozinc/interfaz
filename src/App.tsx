@@ -4,7 +4,6 @@ import { saveAs } from 'file-saver';
 import confetti from 'canvas-confetti';
 import { 
   FolderClosed, 
-  ChevronDown, 
   Eye, 
   Code2, 
   Columns, 
@@ -35,6 +34,11 @@ import type { FileItem, ProjectRecord, ProjectTemplate, UserCredits, UserAccount
 import type { FullStackProject } from './core/types';
 import { projectStore } from './services/projectStore';
 import { STARTER_TEMPLATES } from './services/templates';
+import { GAME_TEMPLATES, resolveTemplateFiles } from './services/gameTemplates';
+
+const FEATURED_TEMPLATES = ['neon-highway', 'voxel-craft', 'torre-defensa', 'sky-ace']
+  .map(id => GAME_TEMPLATES.find(t => t.id === id)!)
+  .filter(Boolean);
 import { aiEngine } from './services/aiGenerator';
 import { agentOrchestrator } from './core/agent/AgentOrchestrator';
 import { creditLedger } from './core/credits/CreditLedger';
@@ -139,7 +143,7 @@ export function App() {
   // User & Credits State
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     const saved = localStorage.getItem('nona_user');
-    return saved ? JSON.parse(saved) : { id: 'user_1', name: 'Admin SaaS', email: 'admin@nona.app', provider: 'local' };
+    return saved ? JSON.parse(saved) : { id: 'user_1', name: 'Invitado', email: '', provider: 'local' };
   });
 
   const [credits, setCredits] = useState<UserCredits>(() => {
@@ -168,13 +172,13 @@ export function App() {
     projectStore.getAllProjects().then((list) => {
       setProjects(list);
       // Cada vez que un usuario ingresa a la plataforma, presentar la vista limpia Hero "¿Qué deseas construir hoy?"
-      const freshName = 'App ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const freshName = 'Proyecto ' + new Date().toLocaleDateString('es', { day: 'numeric', month: 'short' }) + ', ' + new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
       const cleanFiles: FileItem[] = [
         {
           id: '1',
           name: 'index.html',
           language: 'html',
-          content: `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n  <script src="https://unpkg.com/lucide@latest"></script>\n</head>\n<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center font-sans p-4">\n  <div class="text-center p-8 bg-slate-900/90 rounded-3xl border border-slate-800 max-w-md w-full shadow-2xl backdrop-blur-md">\n    <div class="w-16 h-16 rounded-2xl bg-white p-2.5 mx-auto mb-4 border border-slate-700/60 shadow-lg flex items-center justify-center">\n      <img src="/nona-logo.png" alt="NONA Logo" class="w-full h-full object-contain" />\n    </div>\n    <h1 class="text-2xl font-bold mb-2 tracking-tight text-white">Lienzo Listo</h1>\n    <p class="text-xs text-slate-400 leading-relaxed mb-4">Escribe en el chat o dicta por voz qué aplicación, videojuego o herramienta deseas construir.</p>\n    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-[11px] font-semibold text-blue-400">\n      <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>\n      <span>NONA AI Factory v5.2</span>\n    </div>\n  </div>\n  <script>lucide.createIcons();</script>\n</body>\n</html>`,
+          content: `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Proyecto nuevo</title>\n  <style>\n    html,body{height:100%;margin:0}\n    body{display:grid;place-items:center;background:#0F1219;color:#B9BFCD;font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}\n    .box{text-align:center;max-width:34ch;padding:24px}\n    img{width:56px;height:56px;opacity:.9}\n    h1{margin:16px 0 6px;font-size:20px;font-weight:600;color:#E7EAF2}\n  </style>\n</head>\n<body>\n  <!-- Lienzo Listo: proyecto vacío -->\n  <div class="box">\n    <img src="/nona-logo-dark.png" alt="" />\n    <h1>Proyecto vacío</h1>\n    <p>Describe en el chat la app o el juego que quieres y aparecerá aquí.</p>\n  </div>\n</body>\n</html>`,
           isModified: false,
         }
       ];
@@ -184,7 +188,7 @@ export function App() {
         {
           id: 'welcome_' + Date.now(),
           role: 'assistant',
-          content: '¡Lienzo limpio preparado! Pídeme cualquier aplicación, herramienta o componente interactivo.',
+          content: 'Proyecto nuevo listo. Cuéntame qué quieres crear: una app, una web o un juego.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         }
       ];
@@ -309,13 +313,13 @@ export function App() {
   };
 
   const handleNewCleanProject = () => {
-    const newName = 'App ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newName = 'Proyecto ' + new Date().toLocaleDateString('es', { day: 'numeric', month: 'short' }) + ', ' + new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
     const cleanFiles: FileItem[] = [
       {
         id: '1',
         name: 'index.html',
         language: 'html',
-        content: `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>NONA App</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n  <script src="https://unpkg.com/lucide@latest"></script>\n</head>\n<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center font-sans p-4">\n  <div class="text-center p-8 bg-slate-900/90 rounded-3xl border border-slate-800 max-w-md w-full shadow-2xl backdrop-blur-md">\n    <div class="w-16 h-16 rounded-2xl bg-white p-2.5 mx-auto mb-4 border border-slate-700/60 shadow-lg flex items-center justify-center">\n      <img src="/nona-logo.png" alt="NONA Logo" class="w-full h-full object-contain" />\n    </div>\n    <h1 class="text-2xl font-bold mb-2 tracking-tight text-white">Lienzo Listo</h1>\n    <p class="text-xs text-slate-400 leading-relaxed mb-4">Escribe en el chat o dicta por voz qué aplicación, videojuego o herramienta deseas construir.</p>\n    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-[11px] font-semibold text-blue-400">\n      <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>\n      <span>NONA AI Factory v5.2</span>\n    </div>\n  </div>\n  <script>lucide.createIcons();</script>\n</body>\n</html>`,
+        content: `<!DOCTYPE html>\n<html lang="es">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Proyecto nuevo</title>\n  <style>\n    html,body{height:100%;margin:0}\n    body{display:grid;place-items:center;background:#0F1219;color:#B9BFCD;font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}\n    .box{text-align:center;max-width:34ch;padding:24px}\n    img{width:56px;height:56px;opacity:.9}\n    h1{margin:16px 0 6px;font-size:20px;font-weight:600;color:#E7EAF2}\n  </style>\n</head>\n<body>\n  <!-- Lienzo Listo: proyecto vacío -->\n  <div class="box">\n    <img src="/nona-logo-dark.png" alt="" />\n    <h1>Proyecto vacío</h1>\n    <p>Describe en el chat la app o el juego que quieres y aparecerá aquí.</p>\n  </div>\n</body>\n</html>`,
         isModified: false,
       }
     ];
@@ -325,7 +329,7 @@ export function App() {
       {
         id: 'welcome_' + Date.now(),
         role: 'assistant',
-        content: '¡Lienzo limpio preparado! Pídeme cualquier aplicación, herramienta o componente interactivo.',
+        content: 'Proyecto nuevo listo. Cuéntame qué quieres crear: una app, una web o un juego.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }
     ];
@@ -638,7 +642,7 @@ export function App() {
       if (currentHtml.includes('</body>')) {
         updated = currentHtml.replace(
           '</body>',
-          `  <!-- Media Asset: ${prompt} -->\n  <div class="p-6 flex justify-center"><img src="${assetUrl}" alt="${prompt}" class="rounded-3xl max-w-md shadow-2xl border border-violet-500/20" /></div>\n</body>`
+          `  <!-- Media Asset: ${prompt} -->\n  <div class="p-6 flex justify-center"><img src="${assetUrl}" alt="${prompt}" class="rounded-3xl max-w-md shadow-2xl border border-accent/20" /></div>\n</body>`
         );
       } else {
         updated += `\n<img src="${assetUrl}" alt="${prompt}" class="rounded-3xl max-w-md" />`;
@@ -652,7 +656,7 @@ export function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-50 text-slate-900 overflow-hidden font-sans select-none">
+    <div className="flex flex-col h-screen w-screen bg-canvas text-fg overflow-hidden font-sans select-none">
       
       {/* Top Navigation */}
       <Header
@@ -725,6 +729,8 @@ export function App() {
                 onAddAttachment={(att) => setAttachments(prev => [...prev, att])}
                 onRemoveAttachment={(id) => setAttachments(prev => prev.filter(a => a.id !== id))}
                 onOpenTemplatesModal={() => setIsTemplatesModalOpen(true)}
+                featuredTemplates={FEATURED_TEMPLATES}
+                onSelectTemplate={(t) => { resolveTemplateFiles(t).then(handleLoadTemplate).catch(err => console.error(err)); }}
                 inspectedElement={inspectedElement}
                 onClearInspectedElement={() => setInspectedElement(null)}
                 isGenerating={isGenerating}
@@ -734,83 +740,43 @@ export function App() {
               /* Mode 2: Multi-panel Workspace with Preview-First Default Layout */
               <div className="flex-1 flex flex-col overflow-hidden">
                 
-                {/* Workspace Sub-Toolbar for Collapsible Elements */}
-                <div className="h-10 px-3 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0 select-none text-xs">
-                  
-                  {/* Left: Collapsible Files Drawer Toggle */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setIsFilesDrawerOpen(prev => !prev)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                        isFilesDrawerOpen
-                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs'
-                          : 'bg-slate-100/90 text-slate-600 hover:text-slate-900 border border-slate-200/70 hover:bg-slate-200/70'
-                      }`}
-                      title={isFilesDrawerOpen ? 'Ocultar panel de archivos' : 'Mostrar explorador de archivos desplegable'}
-                    >
-                      <FolderClosed className="w-3.5 h-3.5 text-indigo-500" />
-                      <span>Archivos ({files.length})</span>
-                      <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isFilesDrawerOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                  </div>
+                {/* Barra del espacio de trabajo: archivos + vista */}
+                <div className="h-11 px-2 bg-canvas border-b border-line flex items-center gap-2 shrink-0 select-none">
+                  <button
+                    onClick={() => setIsFilesDrawerOpen(prev => !prev)}
+                    aria-pressed={isFilesDrawerOpen}
+                    className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
+                      isFilesDrawerOpen ? 'bg-raised-2 text-fg' : 'text-fg-2 hover:text-fg hover:bg-raised'
+                    }`}
+                    title={isFilesDrawerOpen ? 'Ocultar archivos' : 'Mostrar archivos'}
+                  >
+                    <FolderClosed className="w-4 h-4" />
+                    <span>Archivos</span>
+                    <span className="text-muted tabular-nums">{files.length}</span>
+                  </button>
 
-                  {/* Center: Segmented Controls for Center View (Preview by default, Code, or Split) */}
-                  <div className="flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/70 text-[11px] font-medium">
-                    <button
-                      onClick={() => setWorkspaceCenterTab('preview')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                        workspaceCenterTab === 'preview'
-                          ? 'bg-white text-indigo-600 font-bold shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Vista Previa (Activa)</span>
-                    </button>
+                  <div className="h-4 w-px bg-line" />
 
-                    <button
-                      onClick={() => setWorkspaceCenterTab('code')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                        workspaceCenterTab === 'code'
-                          ? 'bg-white text-indigo-600 font-bold shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <Code2 className="w-3.5 h-3.5" />
-                      <span>Editor de Código</span>
-                    </button>
-
-                    <button
-                      onClick={() => setWorkspaceCenterTab('split')}
-                      className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                        workspaceCenterTab === 'split'
-                          ? 'bg-white text-indigo-600 font-bold shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <Columns className="w-3.5 h-3.5" />
-                      <span>Dividir Ambos</span>
-                    </button>
-
-                    <button
-                      onClick={() => setWorkspaceCenterTab('terminal')}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                        workspaceCenterTab === 'terminal'
-                          ? 'bg-white text-indigo-600 font-bold shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <Terminal className="w-3.5 h-3.5" />
-                      <span>Terminal</span>
-                    </button>
-                  </div>
-
-                  {/* Right: Active Live Workspace Indicator */}
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1.5 px-2.5 py-1 text-emerald-700 bg-emerald-50 border border-emerald-200/60 font-semibold rounded-xl text-[11px] shadow-2xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <span>En Vivo</span>
-                    </span>
+                  <div role="tablist" className="flex items-center gap-0.5">
+                    {([
+                      ['preview', 'Vista previa', Eye],
+                      ['code', 'Código', Code2],
+                      ['split', 'Dividido', Columns],
+                      ['terminal', 'Terminal', Terminal],
+                    ] as const).map(([id, label, Icon]) => (
+                      <button
+                        key={id}
+                        role="tab"
+                        aria-selected={workspaceCenterTab === id}
+                        onClick={() => setWorkspaceCenterTab(id)}
+                        className={`${id === 'split' ? 'hidden lg:inline-flex' : 'inline-flex'} items-center gap-1.5 h-8 px-2.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
+                          workspaceCenterTab === id ? 'bg-raised-2 text-fg' : 'text-muted hover:text-fg hover:bg-raised'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -819,12 +785,12 @@ export function App() {
                   {/* Collapsible Left: File Explorer Drawer */}
                   {isFilesDrawerOpen && (
                     <>
-                      <div style={{ width: `${sidebarWidth}px` }} className="shrink-0 flex flex-col h-full overflow-hidden bg-slate-50 border-r border-slate-200 z-10">
-                        <div className="flex items-center justify-between p-2 border-b border-slate-200 bg-white">
-                          <span className="text-[11px] font-bold text-slate-700">Explorador de Archivos</span>
+                      <div style={{ width: `${sidebarWidth}px` }} className="shrink-0 flex flex-col h-full overflow-hidden bg-canvas border-r border-line z-10">
+                        <div className="flex items-center justify-between h-10 px-3 border-b border-line">
+                          <span className="text-[12px] font-medium text-muted">Archivos del proyecto</span>
                           <button
                             onClick={() => setIsFilesDrawerOpen(false)}
-                            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                            className="p-1 text-muted hover:text-fg-2 rounded-lg hover:bg-raised cursor-pointer"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -848,7 +814,7 @@ export function App() {
                           document.body.style.cursor = 'col-resize';
                         }}
                         title="Arrastra para redimensionar explorador"
-                        className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
+                        className="w-px bg-line hover:bg-accent hover:w-1 cursor-col-resize transition-all shrink-0 z-20"
                       />
                     </>
                   )}
@@ -897,7 +863,7 @@ export function App() {
                             document.body.style.cursor = 'col-resize';
                           }}
                           title="Arrastra para redimensionar editor y preview"
-                          className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
+                          className="w-px bg-line hover:bg-accent hover:w-1 cursor-col-resize transition-all shrink-0 z-20"
                         />
 
                         <div style={{ flex: 1 - splitRatio }} className="h-full overflow-hidden">
@@ -929,7 +895,7 @@ export function App() {
                       document.body.style.cursor = 'col-resize';
                     }}
                     title="Arrastra para redimensionar panel de chat"
-                    className="w-1.5 hover:w-2 bg-slate-200 hover:bg-indigo-500 cursor-col-resize transition-all shrink-0 z-20"
+                    className="w-px bg-line hover:bg-accent hover:w-1 cursor-col-resize transition-all shrink-0 z-20"
                   />
 
                   {/* Right: AI Agent Core Chat Panel with Resizable Width */}

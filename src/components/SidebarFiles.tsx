@@ -64,14 +64,14 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
   };
 
   const getFileIcon = (fileName: string) => {
-    if (fileName.endsWith('.tsx')) return <span className="text-cyan-700 font-bold text-[9px] bg-cyan-100/70 px-1 py-0.2 rounded border border-cyan-300">TSX</span>;
-    if (fileName.endsWith('.ts')) return <span className="text-blue-700 font-bold text-[9px] bg-blue-100/70 px-1 py-0.2 rounded border border-blue-300">TS</span>;
-    if (fileName.endsWith('.jsx')) return <span className="text-cyan-600 font-bold text-[9px] bg-cyan-50 px-1 py-0.2 rounded border border-cyan-200">JSX</span>;
-    if (fileName.endsWith('.js')) return <span className="text-amber-700 font-bold text-[9px] bg-amber-100/70 px-1 py-0.2 rounded border border-amber-300">JS</span>;
-    if (fileName.endsWith('.css')) return <span className="text-sky-700 font-bold text-[9px] bg-sky-100/70 px-1 py-0.2 rounded border border-sky-300">CSS</span>;
-    if (fileName.endsWith('.json')) return <span className="text-slate-600 font-bold text-[9px] bg-slate-200/70 px-1 py-0.2 rounded border border-slate-300">{}</span>;
-    if (fileName.endsWith('.html')) return <span className="text-orange-600 font-bold text-[9px] bg-orange-100/70 px-1 py-0.2 rounded border border-orange-300">HTML</span>;
-    return <FileText className="w-3.5 h-3.5 text-slate-400" />;
+    if (fileName.endsWith('.tsx')) return <span className="text-cyan-300 font-bold text-[9px] bg-cyan-500/15 px-1 py-0.2 rounded border border-cyan-500/30">TSX</span>;
+    if (fileName.endsWith('.ts')) return <span className="text-accent font-bold text-[9px] bg-accent/15 px-1 py-0.2 rounded border border-accent/30">TS</span>;
+    if (fileName.endsWith('.jsx')) return <span className="text-cyan-300 font-bold text-[9px] bg-cyan-500/10 px-1 py-0.2 rounded border border-cyan-500/30">JSX</span>;
+    if (fileName.endsWith('.js')) return <span className="text-amber-300 font-bold text-[9px] bg-amber-500/15 px-1 py-0.2 rounded border border-amber-500/30">JS</span>;
+    if (fileName.endsWith('.css')) return <span className="text-sky-300 font-bold text-[9px] bg-sky-500/15 px-1 py-0.2 rounded border border-sky-500/30">CSS</span>;
+    if (fileName.endsWith('.json')) return <span className="text-fg-2 font-bold text-[9px] bg-raised-2/70 px-1 py-0.2 rounded border border-line-strong">{}</span>;
+    if (fileName.endsWith('.html')) return <span className="text-orange-300 font-bold text-[9px] bg-orange-500/15 px-1 py-0.2 rounded border border-orange-500/30">HTML</span>;
+    return <FileText className="w-3.5 h-3.5 text-muted" />;
   };
 
   // Group files into hierarchical folders and root files
@@ -95,18 +95,18 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
   }, [files]);
 
   return (
-    <aside className="w-60 bg-slate-50 border-r border-slate-200 flex flex-col h-full select-none text-xs">
+    <aside className="w-60 bg-canvas border-r border-line flex flex-col h-full select-none text-xs">
       
       {/* Explorer Section Header */}
-      <div className="p-3 border-b border-slate-200 flex items-center justify-between bg-white">
-        <div className="flex items-center gap-2 font-bold text-slate-800">
-          <FolderTree className="w-4 h-4 text-indigo-600" />
+      <div className="p-3 border-b border-line flex items-center justify-between bg-panel">
+        <div className="flex items-center gap-2 font-bold text-fg">
+          <FolderTree className="w-4 h-4 text-accent" />
           <span>EXPLORADOR</span>
         </div>
         <button
           onClick={() => setIsAdding(!isAdding)}
           title="Nuevo Archivo (ej. src/components/Card.tsx)"
-          className="p-1 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+          className="p-1 rounded-lg hover:bg-raised text-fg-2 hover:text-fg transition-colors cursor-pointer"
         >
           <FilePlus className="w-4 h-4" />
         </button>
@@ -114,20 +114,20 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
 
       {/* New File Inline Form */}
       {isAdding && (
-        <form onSubmit={handleCreate} className="p-2 border-b border-slate-200 bg-white space-y-2">
+        <form onSubmit={handleCreate} className="p-2 border-b border-line bg-panel space-y-2">
           <input
             type="text"
             placeholder="src/components/Boton.tsx"
             value={newFileName}
             onChange={(e) => setNewFileName(e.target.value)}
             autoFocus
-            className="w-full px-2.5 py-1.5 border border-indigo-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-900"
+            className="w-full px-2.5 py-1.5 border border-accent/30 rounded-lg text-xs outline-none focus:ring-2 focus:ring-accent/20 text-fg"
           />
           <div className="flex justify-end gap-1.5">
             <button
               type="button"
               onClick={() => setIsAdding(false)}
-              className="px-2 py-0.5 text-slate-500 hover:text-slate-900 cursor-pointer"
+              className="px-2 py-0.5 text-muted hover:text-fg cursor-pointer"
             >
               Cancelar
             </button>
@@ -143,7 +143,7 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
 
       {/* File List Tree */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        <div className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1 tracking-wider flex items-center justify-between">
+        <div className="text-[10px] uppercase font-bold text-muted px-2 py-1 tracking-wider flex items-center justify-between">
           <span>Proyecto ({files.length} archivos)</span>
         </div>
 
@@ -154,16 +154,16 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
             <div key={folderName} className="space-y-0.5">
               <button
                 onClick={() => toggleFolder(folderName)}
-                className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-slate-700 hover:bg-slate-100 font-semibold text-[11px] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-fg-2 hover:bg-raised font-semibold text-[11px] transition-colors cursor-pointer"
               >
-                <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-                {isOpen ? <FolderOpen className="w-3.5 h-3.5 text-amber-500" /> : <Folder className="w-3.5 h-3.5 text-amber-500" />}
+                <ChevronRight className={`w-3 h-3 text-muted transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                {isOpen ? <FolderOpen className="w-3.5 h-3.5 text-amber-400" /> : <Folder className="w-3.5 h-3.5 text-amber-400" />}
                 <span className="truncate">{folderName}</span>
-                <span className="text-[10px] text-slate-400 font-normal ml-auto">({folderFiles.length})</span>
+                <span className="text-[10px] text-muted font-normal ml-auto">({folderFiles.length})</span>
               </button>
 
               {isOpen && (
-                <div className="pl-4 space-y-0.5 border-l border-slate-200 ml-3">
+                <div className="pl-4 space-y-0.5 border-l border-line ml-3">
                   {folderFiles.map((file) => {
                     const isActive = file.id === activeFileId;
                     const baseName = file.name.split('/').pop() || file.name;
@@ -173,14 +173,14 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
                         onClick={() => onSelectFile(file.id)}
                         className={`group flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer transition-all ${
                           isActive
-                            ? 'bg-white text-slate-900 font-semibold border border-slate-200 shadow-2xs'
-                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                            ? 'bg-panel text-fg font-semibold border border-line shadow-2xs'
+                            : 'text-fg-2 hover:bg-raised hover:text-fg'
                         }`}
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           {getFileIcon(file.name)}
                           <span className="truncate">{baseName}</span>
-                          {file.isModified && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />}
+                          {file.isModified && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
                         </div>
 
                         {files.length > 1 && (
@@ -189,7 +189,7 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
                               e.stopPropagation();
                               if (confirm(`¿Eliminar ${file.name}?`)) onDeleteFile(file.id);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-600 transition-opacity cursor-pointer"
+                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-300 transition-opacity cursor-pointer"
                             title="Eliminar archivo"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -215,14 +215,14 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
                   onClick={() => onSelectFile(file.id)}
                   className={`group flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer transition-all ${
                     isActive
-                      ? 'bg-white text-slate-900 font-semibold border border-slate-200 shadow-2xs'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-panel text-fg font-semibold border border-line shadow-2xs'
+                      : 'text-fg-2 hover:bg-raised hover:text-fg'
                   }`}
                 >
                   <div className="flex items-center gap-1.5 truncate">
                     {getFileIcon(file.name)}
                     <span className="truncate">{file.name}</span>
-                    {file.isModified && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />}
+                    {file.isModified && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
                   </div>
 
                   {files.length > 1 && (
@@ -231,7 +231,7 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
                         e.stopPropagation();
                         if (confirm(`¿Eliminar ${file.name}?`)) onDeleteFile(file.id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-600 transition-opacity cursor-pointer"
+                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-300 transition-opacity cursor-pointer"
                       title="Eliminar archivo"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -245,16 +245,16 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
       </div>
 
       {/* Templates Drawer Toggle */}
-      <div className="border-t border-slate-200 p-2 bg-white">
+      <div className="border-t border-line p-2 bg-panel">
         <button
           onClick={() => setShowTemplates(!showTemplates)}
-          className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 hover:border-indigo-200 transition-all shadow-2xs cursor-pointer"
+          className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl bg-canvas border border-line text-xs font-semibold text-fg hover:border-accent/30 transition-all shadow-2xs cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <LayoutTemplate className="w-4 h-4 text-indigo-600" />
+            <LayoutTemplate className="w-4 h-4 text-accent" />
             <span>Plantillas de Inicio</span>
           </div>
-          <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showTemplates ? 'rotate-90' : ''}`} />
+          <ChevronRight className={`w-3.5 h-3.5 text-muted transition-transform ${showTemplates ? 'rotate-90' : ''}`} />
         </button>
 
         {showTemplates && (
@@ -268,13 +268,13 @@ export const SidebarFiles: React.FC<SidebarFilesProps> = ({
                     setShowTemplates(false);
                   }
                 }}
-                className="w-full text-left p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
+                className="w-full text-left p-2.5 rounded-xl bg-canvas hover:bg-accent/10 border border-line hover:border-accent/30 text-fg-2 hover:text-fg transition-all cursor-pointer"
               >
-                <div className="font-semibold text-xs text-slate-900 flex items-center gap-1.5">
-                  <LayoutGrid className="w-3 h-3 text-blue-600" />
+                <div className="font-semibold text-xs text-fg flex items-center gap-1.5">
+                  <LayoutGrid className="w-3 h-3 text-accent" />
                   {tmpl.name}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">
+                <div className="text-[10px] text-muted mt-0.5 line-clamp-1">
                   {tmpl.description}
                 </div>
               </button>

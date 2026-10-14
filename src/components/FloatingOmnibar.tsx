@@ -5,8 +5,6 @@ import {
   MicOff, 
   Code2, 
   MessageSquare, 
-  Cpu, 
-  ChevronDown, 
   Crosshair, 
   X, 
   Image as ImageIcon,
@@ -54,8 +52,8 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
 }) => {
   const [inputText, setInputText] = useState(initialText);
   const [mode, setMode] = useState<'chat' | 'builder'>('builder');
-  const [selectedModel, setSelectedModel] = useState<'qwen3.8' | 'gemini-flash' | 'ollama'>('qwen3.8');
-  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  // El modelo lo elige el servidor automáticamente (el mejor disponible en cada momento)
+  const selectedModel = 'auto';
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
@@ -243,19 +241,19 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
     <div className={`relative w-full max-w-2xl mx-auto ${className}`}>
       
       {/* Floating Card Container */}
-      <div className="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-xl shadow-slate-900/5 transition-all focus-within:border-indigo-500/80 focus-within:ring-4 focus-within:ring-indigo-500/10 p-2 sm:p-3">
+      <div className="bg-panel rounded-2xl border border-line-strong shadow-2xl shadow-black/30 transition-colors focus-within:border-accent/70 p-2 sm:p-3">
         
         {/* Inspected Element Floating Chip */}
         {inspectedElement && (
-          <div className="mb-2 px-3 py-1.5 bg-indigo-50/80 border border-indigo-100 rounded-xl flex items-center justify-between text-indigo-900 text-xs animate-fade-in">
+          <div className="mb-2 px-3 py-1.5 bg-accent/10 border border-accent/30 rounded-xl flex items-center justify-between text-accent text-xs animate-fade-in">
             <div className="flex items-center gap-2 truncate">
-              <Crosshair className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <Crosshair className="w-3.5 h-3.5 text-accent shrink-0" />
               <span className="font-semibold truncate">Elemento: {inspectedElement}</span>
             </div>
             <button
               type="button"
               onClick={onClearInspectedElement}
-              className="p-0.5 text-indigo-500 hover:text-indigo-800 rounded-md cursor-pointer"
+              className="p-0.5 text-accent hover:text-accent rounded-md cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -266,21 +264,21 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
         {(activeAttachments.length > 0 || attachedImages.length > 0) && (
           <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
             {activeAttachments.map((att, idx) => (
-              <div key={att.id} className="relative group shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200/80 text-xs font-medium text-slate-800 shadow-2xs">
+              <div key={att.id} className="relative group shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-raised border border-line/80 text-xs font-medium text-fg shadow-2xs">
                 {att.type === 'image' && (
                   <img src={att.url} alt={att.name} className="w-5 h-5 object-cover rounded-md" />
                 )}
-                {att.type === 'audio' && <Music className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                {att.type === 'video' && <Video className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
-                {att.type === 'document' && <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
-                {att.type === 'url' && <Globe className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
+                {att.type === 'audio' && <Music className="w-3.5 h-3.5 text-emerald-300 shrink-0" />}
+                {att.type === 'video' && <Video className="w-3.5 h-3.5 text-rose-300 shrink-0" />}
+                {att.type === 'document' && <FileText className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
+                {att.type === 'url' && <Globe className="w-3.5 h-3.5 text-accent shrink-0" />}
                 
                 <span className="truncate max-w-[120px] text-[11px]">{att.title || att.name}</span>
 
                 <button
                   type="button"
                   onClick={() => removeAttachment(att.id, idx)}
-                  className="w-4 h-4 rounded-full bg-slate-300 hover:bg-red-500 hover:text-white flex items-center justify-center text-[10px] transition-colors cursor-pointer ml-1"
+                  className="w-4 h-4 rounded-full bg-line-strong hover:bg-red-500 hover:text-white flex items-center justify-center text-[10px] transition-colors cursor-pointer ml-1"
                 >
                   ✕
                 </button>
@@ -290,7 +288,7 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
             {/* Legacy attachedImages fallback */}
             {activeAttachments.length === 0 && attachedImages.map((img, idx) => (
               <div key={idx} className="relative group shrink-0">
-                <img src={img} alt="Captura adjunta" className="w-10 h-10 object-cover rounded-xl border border-slate-200" />
+                <img src={img} alt="Captura adjunta" className="w-10 h-10 object-cover rounded-xl border border-line" />
                 {onRemoveImage && (
                   <button
                     type="button"
@@ -307,29 +305,29 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
 
         {/* Modal Popover for URL / Reference Web App */}
         {isUrlModalOpen && (
-          <div className="mb-2 p-2 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-2 animate-fade-in">
-            <Globe className="w-4 h-4 text-indigo-600 shrink-0 ml-1" />
+          <div className="mb-2 p-2 bg-canvas border border-line rounded-2xl flex items-center gap-2 animate-fade-in">
+            <Globe className="w-4 h-4 text-accent shrink-0 ml-1" />
             <input
               type="url"
               value={inputUrl}
               onChange={(e) => setInputUrl(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddUrlReference()}
               placeholder="Pega la URL de la web, app o documentación..."
-              className="flex-1 text-xs bg-transparent border-none outline-none text-slate-800 placeholder-slate-400 font-sans"
+              className="flex-1 text-xs bg-transparent border-none outline-none text-fg placeholder-faint font-sans"
               disabled={isScrapingUrl}
             />
             <button
               type="button"
               onClick={handleAddUrlReference}
               disabled={!inputUrl.trim() || isScrapingUrl}
-              className="px-2.5 py-1 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1 bg-accent text-white text-xs font-semibold rounded-xl hover:bg-accent-strong disabled:bg-line-strong transition-colors flex items-center gap-1 cursor-pointer"
             >
               {isScrapingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Anexar'}
             </button>
             <button
               type="button"
               onClick={() => setIsUrlModalOpen(false)}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              className="p-1 text-muted hover:text-fg-2 rounded-lg cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -350,11 +348,11 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
               : placeholder
           }
           rows={1}
-          className="w-full px-2 py-1 text-sm bg-transparent border-none resize-none focus:outline-none placeholder-slate-400 text-slate-800 max-h-44 leading-relaxed font-sans"
+          className="w-full px-2 py-1 text-sm bg-transparent border-none resize-none focus:outline-none placeholder-faint text-fg max-h-44 leading-relaxed font-sans"
         />
 
         {/* Bottom Multifunction Toolbar */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-1 gap-1">
+        <div className="flex items-center justify-between pt-2 border-t border-line mt-1 gap-1">
           
           <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 py-0.5 overflow-x-auto no-scrollbar">
             
@@ -363,7 +361,7 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
-                className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-xl flex items-center justify-center text-muted hover:text-fg hover:bg-raised transition-colors cursor-pointer"
                 title="Adjuntar multimedia o enlaces de referencia"
               >
                 <Plus className="w-4 h-4" />
@@ -379,8 +377,8 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
               />
 
               {isPlusMenuOpen && (
-                <div className="absolute left-0 bottom-9 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-50 text-xs animate-fade-in space-y-0.5">
-                  <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div className="absolute left-0 bottom-9 w-64 bg-panel rounded-2xl shadow-xl border border-line p-1.5 z-50 text-xs animate-fade-in space-y-0.5">
+                  <div className="px-3 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">
                     Adjuntos & Referencias
                   </div>
                   
@@ -390,12 +388,12 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
                       setIsPlusMenuOpen(false);
                       universalFileInputRef.current?.click();
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-fg-2 hover:bg-canvas transition-colors cursor-pointer text-left"
                   >
-                    <ImageIcon className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <ImageIcon className="w-3.5 h-3.5 text-accent shrink-0" />
                     <div>
-                      <div className="font-semibold text-slate-800">Archivos Multimedia</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Audio, video, imágenes o código</div>
+                      <div className="font-semibold text-fg">Archivos Multimedia</div>
+                      <div className="text-[10px] text-muted font-normal">Audio, video, imágenes o código</div>
                     </div>
                   </button>
 
@@ -405,12 +403,12 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
                       setIsPlusMenuOpen(false);
                       setIsUrlModalOpen(true);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-fg-2 hover:bg-canvas transition-colors cursor-pointer text-left"
                   >
-                    <Link2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <Link2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
                     <div>
-                      <div className="font-semibold text-slate-800">Enlace Web / App de Referencia</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Analiza sitios web externos o docs</div>
+                      <div className="font-semibold text-fg">Enlace Web / App de Referencia</div>
+                      <div className="text-[10px] text-muted font-normal">Analiza sitios web externos o docs</div>
                     </div>
                   </button>
 
@@ -420,106 +418,44 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
                       setIsPlusMenuOpen(false);
                       setInputText(prev => (prev ? prev + ' [Inspeccionar UI]' : '[Inspeccionar elemento]'));
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-fg-2 hover:bg-canvas transition-colors cursor-pointer text-left"
                   >
-                    <Crosshair className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+                    <Crosshair className="w-3.5 h-3.5 text-accent shrink-0" />
                     <div>
-                      <div className="font-semibold text-slate-800">Elemento de Vista Previa</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Selecciona y edita con precisión</div>
+                      <div className="font-semibold text-fg">Elemento de Vista Previa</div>
+                      <div className="text-[10px] text-muted font-normal">Selecciona y edita con precisión</div>
                     </div>
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Segmented Mode Pill: Chat | App Builder */}
-            <div className="flex items-center bg-slate-100/80 p-0.5 rounded-xl border border-slate-200/60 text-[11px] font-medium shrink-0">
+            {/* Modo: crear/editar la app o solo preguntar */}
+            <div className="flex items-center bg-canvas p-0.5 rounded-lg border border-line text-[12px] font-medium shrink-0">
               <button
                 type="button"
                 onClick={() => setMode('chat')}
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer ${
                   mode === 'chat' 
-                    ? 'bg-white text-slate-900 shadow-2xs font-semibold' 
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-raised-2 text-fg' 
+                    : 'text-muted hover:text-fg'
                 }`}
               >
-                <MessageSquare className="w-3 h-3 text-indigo-600" />
-                <span>Chat</span>
+                <MessageSquare className="w-3 h-3" />
+                <span>Preguntar</span>
               </button>
               <button
                 type="button"
                 onClick={() => setMode('builder')}
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all cursor-pointer ${
                   mode === 'builder' 
-                    ? 'bg-white text-slate-900 shadow-2xs font-semibold' 
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-raised-2 text-fg' 
+                    : 'text-muted hover:text-fg'
                 }`}
               >
-                <Code2 className="w-3 h-3 text-violet-600" />
-                <span>Builder</span>
+                <Code2 className="w-3 h-3" />
+                <span>Crear app</span>
               </button>
-            </div>
-
-            {/* Model Selector Micro-Dropdown */}
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 text-[11px] font-medium text-slate-700 transition-colors cursor-pointer"
-              >
-                <Cpu className="w-3 h-3 text-indigo-600" />
-                <span className="truncate max-w-[85px] sm:max-w-[120px]">
-                  {selectedModel === 'qwen3.8' ? 'Qwen 27B' : selectedModel === 'gemini-flash' ? 'Gemini Flash' : 'Ollama'}
-                </span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
-
-              {isModelMenuOpen && (
-                <div className="absolute left-0 bottom-9 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-50 text-xs animate-fade-in">
-                  <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Motor de Inferencia
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedModel('qwen3.8'); setIsModelMenuOpen(false); }}
-                    className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-xl text-left transition-colors cursor-pointer ${
-                      selectedModel === 'qwen3.8' ? 'bg-indigo-50 text-indigo-900 font-semibold' : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="text-amber-500 mt-0.5">⚡</span>
-                    <div>
-                      <div className="text-xs">Qwen 3.8 27B (Groq LPU)</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Inferencia ultrarrápida a ~400 t/s</div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedModel('gemini-flash'); setIsModelMenuOpen(false); }}
-                    className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-xl text-left transition-colors cursor-pointer ${
-                      selectedModel === 'gemini-flash' ? 'bg-indigo-50 text-indigo-900 font-semibold' : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="text-blue-500 mt-0.5">✨</span>
-                    <div>
-                      <div className="text-xs">Gemini 2.5 Flash</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Visión multimodal y razonamiento</div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedModel('ollama'); setIsModelMenuOpen(false); }}
-                    className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-xl text-left transition-colors cursor-pointer ${
-                      selectedModel === 'ollama' ? 'bg-indigo-50 text-indigo-900 font-semibold' : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="text-slate-600 mt-0.5">🦙</span>
-                    <div>
-                      <div className="text-xs">Ollama Local</div>
-                      <div className="text-[10px] text-slate-400 font-normal">Inferencia privada localhost:11434</div>
-                    </div>
-                  </button>
-                </div>
-              )}
             </div>
 
           </div>
@@ -532,7 +468,7 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
               className={`w-7 h-7 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
                 isRecording 
                   ? 'bg-red-500 text-white animate-pulse' 
-                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                  : 'text-muted hover:text-fg-2 hover:bg-raised'
               }`}
               title={isRecording ? 'Detener dictado' : 'Dictar por voz'}
             >
@@ -543,8 +479,8 @@ export const FloatingOmnibar: React.FC<FloatingOmnibarProps> = ({
               type="button"
               onClick={handleSend}
               disabled={isGenerating || (!inputText.trim() && activeAttachments.length === 0 && attachedImages.length === 0 && !inspectedElement)}
-              className="w-7 h-7 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 text-white disabled:text-slate-400 flex items-center justify-center transition-all cursor-pointer disabled:cursor-not-allowed shadow-2xs"
-              title="Enviar instrucción"
+              className="w-8 h-8 rounded-lg bg-accent hover:bg-accent-strong disabled:bg-raised-2 text-accent-ink hover:text-white disabled:text-faint flex items-center justify-center transition-colors cursor-pointer disabled:cursor-not-allowed"
+              title="Enviar (Enter)"
             >
               <ArrowUp className="w-4 h-4 stroke-[2.5]" />
             </button>
