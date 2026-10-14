@@ -830,6 +830,7 @@ window.addEventListener('load',function(){try{parent.postMessage({type:'NONA_APP
 
     const started = Date.now();
     let renderedAt = 0;
+    let probing = false;
     const poll = setInterval(() => {
       try {
         const doc = iframe.contentDocument;
@@ -851,7 +852,28 @@ window.addEventListener('load',function(){try{parent.postMessage({type:'NONA_APP
       const age = Date.now() - started;
       if (errors.length > 0 && age > 1500) finish();
       // Los módulos tardan en cargar: nunca se da por buena antes de 2,5 s
-      else if (renderedAt && Date.now() - renderedAt > 800 && age > 2500) finish();
+      else if (renderedAt && Date.now() - renderedAt > 800 && age > 2500 && !probing) {
+        // Prueba de interacción: pulsa los botones visibles (salvo los destructivos) para detectar errores que
+        // solo aparecen al usar la app (p. ej. "addScript is not a function" al pulsar «Nuevo script»).
+        probing = true;
+        (async () => {
+          try {
+            const doc = iframe.contentDocument;
+            const skip = /borrar|eliminar|delete|remove|reset|restablecer|vaciar|cerrar sesi|logout|salir|pagar|comprar ahora/i;
+            const buttons = Array.from(doc?.querySelectorAll('button, [role="button"], a[href^="#"]') || []).filter((b: any) => {
+              const r = b.getBoundingClientRect?.();
+              return r && r.width > 0 && r.height > 0 && !b.disabled && !skip.test(b.textContent || b.getAttribute('aria-label') || '');
+            }).slice(0, 10);
+            for (const b of buttons) {
+              if (errors.length > 0) break;
+              try { (b as HTMLElement).click(); } catch {}
+              await new Promise(r => setTimeout(r, 180));
+            }
+            await new Promise(r => setTimeout(r, 400));
+          } catch {}
+          finish();
+        })();
+      }
     }, 200);
     const hard = setTimeout(() => {
       // Si el tiempo de espera expira pero no hubo errores de ejecución JS ni excepciones,
