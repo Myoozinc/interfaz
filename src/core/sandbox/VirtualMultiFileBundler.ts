@@ -555,6 +555,31 @@ export class VirtualMultiFileBundler {
   private static modernThree = false;
   private static readonly THREE_VER = '0.160.0';
 
+  /**
+   * Los modelos usan los colores del plan como clases (bg-acento, text-texto, bg-fondo…) y los definen como
+   * variables CSS (--color-acento). Sin registrarlos en Tailwind esas clases no hacían nada y las apps se veían
+   * sin color. Se registran todas las variables de color (y las tipografías) como tema de Tailwind.
+   */
+  public static tailwindConfigFor(files: Record<string, string>): string {
+    const colors: Record<string, string> = {};
+    const fonts: Record<string, string> = {};
+    const css = Object.entries(files).filter(([p]) => p.endsWith('.css')).map(([, c]) => c).join('\n');
+    const isColor = (v: string) => /^(#[0-9a-f]{3,8}|rgba?\(|hsla?\(|oklch\(|oklab\(|lab\(|lch\(|color-mix\(|white$|black$|transparent$)/i.test(v.trim()) && !/^(inherit|initial|unset|none|auto|normal|bold)$/i.test(v.trim());
+    for (const m of css.matchAll(/--([a-zA-Z][\w-]*)\s*:\s*([^;}{]+)/g)) {
+      const name = m[1], value = m[2].trim();
+      if (/^font(-family)?-/.test(name) || /^(fuente|font)-/.test(name)) { fonts[name.replace(/^(font(-family)?|fuente)-/, '')] = `var(--${name})`; continue; }
+      if (!isColor(value)) continue;
+      const key = name.replace(/^(color|colour|c|clr)-/, '');
+      const v = `color-mix(in srgb, var(--${name}) calc(<alpha-value> * 100%), transparent)`;
+      colors[key] = v;
+      if (key !== name) colors[name] = v;
+    }
+    const cfg: any = { darkMode: 'class', theme: { extend: {} } };
+    if (Object.keys(colors).length) cfg.theme.extend.colors = colors;
+    if (Object.keys(fonts).length) cfg.theme.extend.fontFamily = Object.fromEntries(Object.entries(fonts).map(([k, v]) => [k, [v]]));
+    return JSON.stringify(cfg);
+  }
+
   public static bundle(files: Record<string, string>, options?: { isInspectMode?: boolean }): BundlerResult {
     const errors: string[] = [];
     let transpiledCount = 0;
@@ -1698,7 +1723,7 @@ export class VirtualMultiFileBundler {
   <title>NONA Multi-File Preview</title>
   ${captureScripts}
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>try { tailwind.config = { darkMode: 'class' }; } catch (e) {}</script>
+  <script>try { tailwind.config = ${VirtualMultiFileBundler.tailwindConfigFor(normalizedFiles)}; } catch (e) {}</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   ${threeScripts}${toneScript}${cannonScript}

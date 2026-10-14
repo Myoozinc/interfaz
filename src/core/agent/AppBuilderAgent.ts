@@ -137,6 +137,7 @@ const STAGE_RUNTIME = `ENTORNO: React 18 + TypeScript (.tsx) en el navegador, si
 - Imágenes generadas con IA, gratis: https://interfaz-hazel.vercel.app/api/image?prompt=<descripción en inglés con encodeURIComponent>&w=800&h=600&seed=N (también para que la app genere imágenes al usuario). 3D: @react-three/fiber + @react-three/drei.
 - Fotos (solo si encajan con el tema): https://interfaz-hazel.vercel.app/templates/img/NOMBRE.jpg (NOMBRE: cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1, plato-2, plato-3, prod-reloj, prod-audifonos, prod-camara, moda-1, moda-2, tienda-1, persona-1…4, escritorio-1, barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1).
 - Google Fonts con @import en la primera línea de src/index.css; App.tsx importa './index.css'.
+- Paleta del plan: defínela en src/index.css como variables (:root { --color-fondo: #...; --color-acento: #...; }) y úsala con clases de Tailwind bg-fondo, text-acento, border-acento/40 (NONA registra esas variables en Tailwind). Tipografías: --font-display y --font-body → clases font-display y font-body.
 - Todo import relativo debe apuntar a un archivo del plan. Exporta exactamente lo que dice el plan (exports nombrados salvo App, que es default).`;
 
 const STAGE_SYSTEM = `Eres NONA, ingeniero senior de front-end y diseñador. Estás construyendo UNA PARTE de una app siguiendo un plan ya decidido.

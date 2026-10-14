@@ -1,3 +1,4 @@
+import { VirtualMultiFileBundler } from './VirtualMultiFileBundler';
 /**
  * ProjectStructureDefaults
  * 
@@ -408,7 +409,9 @@ export function ensureCompleteViteProject(
     if (!result['src/tailwind.css']) result['src/tailwind.css'] = DEFAULT_TAILWIND_CSS;
   }
   if (!result['tailwind.config.js'] && !result['tailwind.config.ts'] && !result['tailwind.config.cjs']) {
-    result['tailwind.config.js'] = DEFAULT_TAILWIND_CONFIG;
+    // Mismo tema que la vista previa: colores y tipografías definidos como variables CSS en el proyecto
+    const cfg = JSON.parse(VirtualMultiFileBundler.tailwindConfigFor(result));
+    result['tailwind.config.js'] = DEFAULT_TAILWIND_CONFIG.replace('theme: { extend: {} }', `theme: ${JSON.stringify(cfg.theme, null, 2)}`);
   }
   if (!result['postcss.config.js'] && !result['postcss.config.cjs']) {
     result['postcss.config.js'] = DEFAULT_POSTCSS_CONFIG;
