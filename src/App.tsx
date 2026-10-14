@@ -34,10 +34,10 @@ import type { FileItem, ProjectRecord, ProjectTemplate, UserCredits, UserAccount
 import type { FullStackProject } from './core/types';
 import { projectStore } from './services/projectStore';
 import { STARTER_TEMPLATES } from './services/templates';
-import { GAME_TEMPLATES, resolveTemplateFiles } from './services/gameTemplates';
+import { CATALOG_TEMPLATES, resolveTemplateFiles } from './services/catalogTemplates';
 
-const FEATURED_TEMPLATES = ['neon-highway', 'voxel-craft', 'torre-defensa', 'sky-ace']
-  .map(id => GAME_TEMPLATES.find(t => t.id === id)!)
+const FEATURED_TEMPLATES = ['panel-ventas', 'tienda-online', 'reservas-barberia', 'neon-highway']
+  .map(id => CATALOG_TEMPLATES.find(t => t.id === id)!)
   .filter(Boolean);
 import { aiEngine } from './services/aiGenerator';
 import { agentOrchestrator } from './core/agent/AgentOrchestrator';

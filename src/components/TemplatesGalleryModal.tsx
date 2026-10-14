@@ -1,12 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import {
-  X, LayoutGrid, Gamepad2, Music, Rocket, BarChart3, ShoppingBag, Smartphone, HeartHandshake, Search,
-  ArrowRight, CheckCircle2, Box, Kanban, Code2, Plane, Anchor, Calculator, CarFront, Flag, Sword, Castle,
-  Globe, Loader2, Keyboard, Sparkles, Truck, Siren, PlaneLanding, Flame, TreePalm, Skull, Trophy,
-} from 'lucide-react';
-import { STARTER_TEMPLATES } from '../services/templates';
-import { GAME_TEMPLATES, GAME_CATEGORIES, REPLACED_TEMPLATE_IDS, resolveTemplateFiles } from '../services/gameTemplates';
-import { NonaLogo } from './NonaLogo';
+import React, { useEffect, useMemo, useState } from 'react';
+import { X, Search, Loader2, LayoutGrid, Gamepad2 } from 'lucide-react';
+import { CATALOG_TEMPLATES, CATALOG_GROUPS, resolveTemplateFiles } from '../services/catalogTemplates';
 import type { ProjectTemplate } from '../types';
 
 interface TemplatesGalleryModalProps {
@@ -15,41 +9,35 @@ interface TemplatesGalleryModalProps {
   onSelectTemplate: (template: ProjectTemplate) => void;
 }
 
-const ALL_TEMPLATES: ProjectTemplate[] = [
-  ...GAME_TEMPLATES,
-  ...STARTER_TEMPLATES.filter(t => !REPLACED_TEMPLATE_IDS.has(t.id)),
-];
+type Group = 'Apps' | 'Juegos';
 
-const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  Code2, Box, Gamepad2, Plane, Music, Rocket, BarChart3, ShoppingBag, Kanban, Smartphone, HeartHandshake,
-  Anchor, Calculator, CarFront, Flag, Sword, Castle, Globe, Truck, Siren, PlaneLanding, Flame, TreePalm, Skull, Trophy,
-};
-
-const CATEGORY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
-  Carros: CarFront, Aviones: Plane, Mundos: Globe, Juegos: Gamepad2,
-};
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ isOpen, onClose, onSelectTemplate }) => {
-  const [selectedCategory, setSelectedCategory] = useState('Todos');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [group, setGroup] = useState<Group>('Apps');
+  const [category, setCategory] = useState<string>('Todas');
+  const [query, setQuery] = useState('');
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const categories = useMemo(() => {
-    const others = Array.from(new Set(ALL_TEMPLATES.map(t => t.category || 'Aplicación')))
-      .filter(c => !(GAME_CATEGORIES as readonly string[]).includes(c));
-    return ['Todos', ...GAME_CATEGORIES, ...others];
-  }, []);
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
+  const q = fold(query.trim());
+  const visible = useMemo(() => CATALOG_TEMPLATES.filter(t => {
+    if (q) {
+      return fold(`${t.name} ${t.description} ${t.category} ${(t.tags || []).join(' ')}`).includes(q);
+    }
+    return t.group === group && (category === 'Todas' || t.category === category);
+  }), [q, group, category]);
 
   if (!isOpen) return null;
 
-  const q = searchQuery.toLowerCase();
-  const filtered = ALL_TEMPLATES.filter(t => {
-    const matchesCategory = selectedCategory === 'Todos' || t.category === selectedCategory;
-    const matchesQuery = !q || t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) ||
-      (t.tags || []).some(tag => tag.toLowerCase().includes(q));
-    return matchesCategory && matchesQuery;
-  });
+  const counts = (g: Group) => CATALOG_TEMPLATES.filter(t => t.group === g).length;
 
   const handleLoad = async (t: ProjectTemplate) => {
     setError(null);
@@ -59,174 +47,145 @@ export const TemplatesGalleryModal: React.FC<TemplatesGalleryModalProps> = ({ is
       onSelectTemplate(full);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo cargar la plantilla');
+      setError(e instanceof Error ? e.message : 'No se pudo cargar la plantilla. Comprueba tu conexión e inténtalo de nuevo.');
     } finally {
       setLoadingId(null);
     }
   };
 
-  const renderIcon = (name: string, cls = 'w-5 h-5') => {
-    const Icon = ICONS[name] || LayoutGrid;
-    return <Icon className={cls} />;
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-canvas/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-6xl max-h-[94vh] bg-panel border border-line rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6 bg-black/60 backdrop-blur-sm"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div role="dialog" aria-modal="true" aria-label="Plantillas" className="relative w-full max-w-6xl h-full sm:h-[min(880px,92vh)] bg-panel sm:border border-line sm:rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden">
 
-        <div className="p-4 sm:p-6 border-b border-line/80 flex items-center justify-between shrink-0 bg-panel/50">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <NonaLogo size={36} variant="badge" />
-            <div className="min-w-0">
-              <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight flex items-center gap-2 flex-wrap">
-                Galería de Plantillas
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold border border-blue-500/30">
-                  {ALL_TEMPLATES.length} funcionales
-                </span>
-              </h2>
-              <p className="text-xs text-muted mt-0.5">
-                Juegos y apps completos, 100% editables con NONA y descargables como proyecto Vite.
-              </p>
-            </div>
+        {/* Cabecera */}
+        <div className="px-5 sm:px-7 pt-5 pb-4 flex items-start justify-between gap-4 shrink-0">
+          <div>
+            <h2 className="font-display text-[26px] sm:text-[30px] font-bold tracking-[-0.02em] text-fg leading-tight">Empieza con una plantilla</h2>
+            <p className="mt-1 text-[14px] text-fg-2 max-w-[60ch]">
+              Apps y juegos completos que funcionan desde el primer minuto. Cárgalos y pídele a NONA los cambios que quieras.
+            </p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 text-muted hover:text-white rounded-xl hover:bg-raised/80 transition-colors cursor-pointer">
+          <button onClick={onClose} aria-label="Cerrar" className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-raised transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-4 sm:px-6 py-3 border-b border-line/60 bg-canvas/40 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-          <div className="relative w-full sm:w-72 shrink-0">
-            <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Buscar: carreras, 3D, aviones, RPG..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-panel/90 border border-line rounded-xl pl-9 pr-4 py-1.5 text-xs text-white placeholder-faint outline-none focus:border-indigo-500 transition-colors"
-            />
+        {/* Grupos, categorías y búsqueda */}
+        <div className="px-5 sm:px-7 pb-4 flex flex-col gap-3 shrink-0 border-b border-line">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div role="tablist" className="inline-flex p-1 rounded-xl bg-canvas border border-line">
+              {(['Apps', 'Juegos'] as Group[]).map(g => {
+                const Icon = g === 'Apps' ? LayoutGrid : Gamepad2;
+                const active = !q && group === g;
+                return (
+                  <button
+                    key={g}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => { setGroup(g); setCategory('Todas'); setQuery(''); }}
+                    className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg text-[14px] font-medium transition-colors cursor-pointer ${active ? 'bg-raised-2 text-fg' : 'text-muted hover:text-fg'}`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {g}
+                    <span className="text-[12px] tabular-nums text-faint">{counts(g)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar: tienda, reservas, carreras…"
+                aria-label="Buscar plantillas"
+                className="w-full h-10 bg-canvas border border-line rounded-lg pl-9 pr-3 text-[14px] text-fg placeholder-faint outline-none focus:border-accent/70 transition-colors"
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 sm:pb-0 scrollbar-none">
-            {categories.map(cat => {
-              const CatIcon = CATEGORY_ICON[cat];
-              return (
+
+          {!q && (
+            <div className="flex items-center gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5">
+              {['Todas', ...CATALOG_GROUPS[group]].map(c => (
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                    selectedCategory === cat
-                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
-                      : 'bg-panel text-muted hover:text-white hover:bg-raised border border-line'
+                  key={c}
+                  onClick={() => setCategory(c)}
+                  aria-pressed={category === c}
+                  className={`h-8 px-3 rounded-full text-[13px] whitespace-nowrap transition-colors cursor-pointer border ${
+                    category === c ? 'bg-fg text-canvas border-fg' : 'border-line text-fg-2 hover:text-fg hover:border-line-strong'
                   }`}
                 >
-                  {CatIcon && <CatIcon className="w-3.5 h-3.5" />}
-                  {cat}
+                  {c}
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {error && (
-          <div className="mx-4 sm:mx-6 mt-3 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">{error}</div>
-        )}
-
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 auto-rows-max gap-4 content-start">
-          {filtered.length > 0 ? filtered.map(t => {
-            const loading = loadingId === t.id;
-            return (
-              <div
-                key={t.id}
-                className="group relative bg-panel/60 hover:bg-raised/50 border border-line hover:border-indigo-500/50 rounded-2xl overflow-hidden transition-all duration-200 flex flex-col shadow-lg hover:shadow-indigo-500/10"
-              >
-                {t.thumbnail ? (
-                  <button
-                    onClick={() => handleLoad(t)}
-                    className="relative block w-full shrink-0 aspect-[16/10] bg-canvas overflow-hidden cursor-pointer"
-                    aria-label={`Cargar ${t.name}`}
-                  >
-                    <img
-                      src={t.thumbnail}
-                      alt={`Captura de ${t.name}`}
-                      loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
-                    <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-canvas/70 border border-white/10 text-[10px] text-fg font-medium backdrop-blur-sm">
-                      Hecho con NONA
-                    </span>
-                    {t.badge && (
-                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/90 text-white">
-                        {t.badge}
-                      </span>
-                    )}
-                  </button>
-                ) : (
-                  <div className="shrink-0 aspect-[16/10] bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 flex items-center justify-center text-indigo-300">
-                    {renderIcon(t.icon, 'w-10 h-10')}
-                  </div>
-                )}
-
-                <div className="p-4 flex flex-col flex-1">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                      {renderIcon(t.icon, 'w-4 h-4')}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors truncate">{t.name}</h3>
-                      <span className="text-[11px] text-muted font-medium">{t.category || 'Aplicación'}</span>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-fg-2 mt-3 leading-relaxed line-clamp-3">{t.description}</p>
-
-                  {t.controls && (
-                    <p className="mt-2 text-[11px] text-muted flex items-start gap-1.5">
-                      <Keyboard className="w-3.5 h-3.5 mt-px shrink-0" /> <span className="line-clamp-2">{t.controls}</span>
-                    </p>
-                  )}
-
-                  {t.tags && t.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {t.tags.slice(0, 5).map(tag => (
-                        <span key={tag} className="px-2 py-0.5 rounded-lg bg-canvas/80 border border-line text-[10px] font-mono text-muted">{tag}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="mt-auto pt-4 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold min-w-0">
-                      {t.stats ? <Sparkles className="w-3.5 h-3.5 shrink-0" /> : <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
-                      <span className="truncate">{t.stats || 'Listo para ejecutar'}</span>
-                    </div>
-                    <button
-                      onClick={() => handleLoad(t)}
-                      disabled={!!loadingId}
-                      className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-60 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer shrink-0"
-                    >
-                      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                      <span>{loading ? 'Cargando…' : 'Cargar y probar'}</span>
-                      {!loading && <ArrowRight className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          }) : (
-            <div className="col-span-full py-16 text-center text-muted space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-raised text-muted flex items-center justify-center mx-auto">
-                <Search className="w-6 h-6" />
-              </div>
-              <p className="text-sm">No se encontraron plantillas para los filtros seleccionados.</p>
-              <button onClick={() => { setSelectedCategory('Todos'); setSearchQuery(''); }} className="text-xs text-indigo-400 hover:underline font-semibold cursor-pointer">
-                Restablecer filtros
-              </button>
+              ))}
             </div>
           )}
         </div>
 
-        <div className="px-4 sm:px-6 py-3 bg-canvas/60 border-t border-line/60 flex items-center justify-between gap-3 text-[11px] text-muted">
-          <span>💡 Carga una plantilla y pídele a NONA en el chat que la cambie: nombre, colores, niveles, mecánicas…</span>
-          <span className="font-mono text-indigo-400 hidden sm:inline">NONA Platform</span>
+        {error && (
+          <div role="alert" className="mx-5 sm:mx-7 mt-4 px-3.5 py-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[13px]">{error}</div>
+        )}
+
+        {/* Rejilla */}
+        <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-5">
+          {q && (
+            <p className="mb-4 text-[13px] text-muted">
+              {visible.length === 0 ? 'Sin resultados' : `${visible.length} resultado${visible.length === 1 ? '' : 's'}`} para «{query.trim()}»
+            </p>
+          )}
+
+          {visible.length === 0 ? (
+            <div className="py-16 text-center">
+              <p className="text-[15px] text-fg-2">No hay plantillas para esa búsqueda.</p>
+              <p className="mt-1 text-[13px] text-muted">Prueba con otra palabra, o describe tu idea en el chat y NONA la crea desde cero.</p>
+              <button onClick={() => setQuery('')} className="mt-4 h-9 px-4 rounded-lg bg-raised hover:bg-raised-2 text-[13px] text-fg transition-colors cursor-pointer">
+                Ver todas las plantillas
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 auto-rows-max gap-x-5 gap-y-7">
+              {visible.map(t => {
+                const loading = loadingId === t.id;
+                return (
+                  <article key={t.id} className="group flex flex-col">
+                    <button
+                      onClick={() => handleLoad(t)}
+                      disabled={!!loadingId}
+                      aria-label={`Usar la plantilla ${t.name}`}
+                      className="relative block w-full shrink-0 aspect-[16/10] rounded-xl overflow-hidden bg-raised border border-line group-hover:border-line-strong transition-colors cursor-pointer disabled:cursor-wait"
+                    >
+                      {t.thumbnail && (
+                        <img
+                          src={t.thumbnail}
+                          alt={`Captura de ${t.name}`}
+                          loading="lazy"
+                          className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.02]"
+                        />
+                      )}
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/35 transition-colors">
+                        <span className={`inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-fg text-canvas text-[13px] font-medium shadow-lg transition-opacity ${loading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                          {loading ? 'Cargando…' : 'Usar plantilla'}
+                        </span>
+                      </span>
+                    </button>
+                    <div className="pt-3 px-0.5">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <h3 className="text-[15px] font-medium text-fg truncate">{t.name}</h3>
+                        <span className="text-[12px] text-muted shrink-0">{t.category}</span>
+                      </div>
+                      <p className="mt-1 text-[13px] text-fg-2 leading-relaxed line-clamp-2">{t.description}</p>
+                      {t.controls && <p className="mt-1.5 text-[12px] text-muted line-clamp-1">{t.controls}</p>}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

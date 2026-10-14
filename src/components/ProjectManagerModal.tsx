@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { ProjectRecord, ProjectTemplate } from '../types';
 import { STARTER_TEMPLATES } from '../services/templates';
+import { CATALOG_TEMPLATES, resolveTemplateFiles } from '../services/catalogTemplates';
 
 interface ProjectManagerModalProps {
   isOpen: boolean;
@@ -36,18 +37,23 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
 }) => {
   const [newProjectName, setNewProjectName] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('saas-cream');
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
 
   if (!isOpen) return null;
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
-    const tmpl = STARTER_TEMPLATES.find(t => t.id === selectedTemplateId) || STARTER_TEMPLATES[0];
-    onCreateProject(newProjectName.trim(), tmpl);
-    setNewProjectName('');
-    setShowCreateForm(false);
-    onClose();
+    const name = newProjectName.trim();
+    const finish = (tmpl?: typeof STARTER_TEMPLATES[number]) => {
+      onCreateProject(name, tmpl);
+      setNewProjectName('');
+      setShowCreateForm(false);
+      onClose();
+    };
+    const fromCatalog = CATALOG_TEMPLATES.find(t => t.id === selectedTemplateId);
+    if (fromCatalog) resolveTemplateFiles(fromCatalog).then(finish).catch(() => finish());
+    else finish();
   };
 
   return (
@@ -112,15 +118,23 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-fg-2 block mb-1">Plantilla Inicial</label>
+                <label className="text-[12px] text-fg-2 block mb-1">Empezar desde</label>
                 <select
                   value={selectedTemplateId}
                   onChange={(e) => setSelectedTemplateId(e.target.value)}
                   className="w-full px-3 py-2 bg-panel border border-line rounded-xl text-xs outline-none text-fg cursor-pointer"
                 >
-                  {STARTER_TEMPLATES.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} — {t.description.slice(0, 45)}...</option>
-                  ))}
+                  <option value="">Proyecto vacío</option>
+                  <optgroup label="Apps">
+                    {CATALOG_TEMPLATES.filter(t => t.group === 'Apps').map(t => (
+                      <option key={t.id} value={t.id}>{t.name} · {t.category}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Juegos">
+                    {CATALOG_TEMPLATES.filter(t => t.group === 'Juegos').map(t => (
+                      <option key={t.id} value={t.id}>{t.name} · {t.category}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 
@@ -136,7 +150,7 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                   type="submit"
                   className="px-4 py-1.5 bg-accent hover:bg-accent-strong text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
-                  Crear y Abrir
+                  Crear proyecto
                 </button>
               </div>
             </form>

@@ -564,6 +564,17 @@ export class VirtualMultiFileBundler {
         inlinedCSS += `\n/* File: ${p} */\n${content}\n`;
       }
     }
+    // Los @import de CSS (p. ej. Google Fonts) solo valen al principio de una hoja de estilos; como aquí se
+    // concatenan detrás de otros estilos, el navegador los ignoraba y las apps nunca cargaban sus fuentes.
+    // Se sacan a <link rel="stylesheet"> en el <head>.
+    const cssImportLinks: string[] = [];
+    // Las URLs de Google Fonts llevan ';' dentro, así que se captura la URL completa entre comillas o paréntesis.
+    inlinedCSS = inlinedCSS.replace(/@import\s+(?:url\(\s*(['"]?)([^'")]+)\1\s*\)|(['"])([^'"]+)\3)[^;\n]*;?/g, (m, _q1, u1, _q2, u2) => {
+      const href = (u1 || u2 || '').trim();
+      if (!/^https?:\/\//.test(href)) return m;
+      cssImportLinks.push(`<link rel="stylesheet" href="${href.replace(/"/g, '&quot;')}">`);
+      return '';
+    });
 
     // 2. Construir Shims Locales Resilientes para React, ReactDOM, Three, Tone y Lucide
     const reactShimCode = `
@@ -1728,6 +1739,7 @@ export class VirtualMultiFileBundler {
   ${lucideScript}
   ${audioPolyfillScript}
   ${inspectElementScript}
+  ${cssImportLinks.join('\n  ')}
   <style>
     *, *::before, *::after {
       box-sizing: border-box;

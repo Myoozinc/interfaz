@@ -60,6 +60,8 @@ export interface ProjectTemplate {
   category?: string;
   tags?: string[];
   badge?: string;
+  /** 'Apps' o 'Juegos' en la galería */
+  group?: 'Apps' | 'Juegos';
   /** Portada (captura real de la app) */
   thumbnail?: string;
   /** Si existe, los archivos se descargan de aqui al cargar la plantilla */
