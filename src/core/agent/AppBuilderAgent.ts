@@ -509,6 +509,64 @@ export function autoImportMissing(files: Record<string, string>): string[] {
   return [...unresolved];
 }
 
+/** Nombres exportados por cada archivo del proyecto. */
+function exportIndex(files: Record<string, string>): Map<string, Set<string>> {
+  const idx = new Map<string, Set<string>>();
+  for (const [p, c] of Object.entries(files)) {
+    if (!/\.(tsx|ts|jsx|js)$/.test(p)) continue;
+    const set = new Set<string>();
+    for (const m of c.matchAll(/export\s+(?:declare\s+)?(?:async\s+)?(?:function\*?|const|let|var|class|type|interface|enum)\s+([A-Za-z_$][\w$]*)/g)) set.add(m[1]);
+    for (const m of c.matchAll(/export\s*(?:type\s*)?\{([^}]*)\}/g)) for (const part of m[1].split(',')) {
+      const name = part.trim().split(/\s+as\s+/).pop()?.trim();
+      if (name && /^[A-Za-z_$][\w$]*$/.test(name)) set.add(name);
+    }
+    if (/export\s+\*\s+from/.test(c)) set.add('*');
+    idx.set(p, set);
+  }
+  return idx;
+}
+
+/**
+ * Corrige imports con nombre que no existen en el archivo importado (p. ej. useNavigate desde './lib/store'):
+ * se mueven al paquete o archivo que sí lo exporta. Devuelve los que no se pudieron resolver.
+ */
+export function fixWrongNamedImports(files: Record<string, string>): string[] {
+  const all = new Set(Object.keys(files));
+  const idx = exportIndex(files);
+  const problems: string[] = [];
+  for (const [p, c] of Object.entries(files)) {
+    if (!/\.(tsx|ts|jsx|js)$/.test(p)) continue;
+    const extra: Record<string, Set<string>> = {};
+    const next = c.replace(/import\s+(type\s+)?(?:([A-Za-z_$][\w$]*)\s*,\s*)?\{([^}]*)\}\s*from\s*['"]((?:\.{1,2}\/|@\/)[^'"]+)['"];?/g, (full, isType, def, list, spec) => {
+      if (isType) return full;
+      const target = resolveRelative(p, spec, all);
+      if (!target) return full;
+      const exp = idx.get(target);
+      if (!exp || exp.has('*')) return full;
+      const keep: string[] = [];
+      for (const raw of list.split(',')) {
+        const item = raw.trim();
+        if (!item) continue;
+        const orig = item.replace(/^type\s+/, '').split(/\s+as\s+/)[0].trim();
+        if (/^type\s/.test(item) || exp.has(orig)) { keep.push(item); continue; }
+        let to = '';
+        if (REACT_NAMES.has(orig)) to = 'react';
+        else if (ROUTER_NAMES.has(orig)) to = 'react-router-dom';
+        else {
+          for (const [f, set] of idx) if (f !== target && f !== p && set.has(orig)) { to = relSpec(p, f); break; }
+        }
+        if (to) (extra[to] ||= new Set()).add(item);
+        else { keep.push(item); problems.push(`"${p}" importa "${orig}" desde "${spec}", pero ese archivo no lo exporta.`); }
+      }
+      const parts = [def, keep.length ? `{ ${keep.join(', ')} }` : ''].filter(Boolean);
+      return parts.length ? `import ${parts.join(', ')} from '${spec}';` : '';
+    });
+    const lines = Object.entries(extra).map(([spec, names]) => `import { ${[...names].join(', ')} } from '${spec}';`);
+    if (next !== c || lines.length) files[p] = (lines.length ? lines.join('\n') + '\n' : '') + next;
+  }
+  return problems;
+}
+
 /** Quita imports de CSS/imágenes que no existen (la vista previa no los necesita). */
 function dropMissingAssetImports(files: Record<string, string>) {
   const all = new Set(Object.keys(files));
@@ -672,8 +730,7 @@ window.addEventListener('load',function(){try{parent.postMessage({type:'NONA_APP
       const d = ev.data || {};
       if (d.type === 'NONA_APP_RENDERED') {
         if (!renderedAt) renderedAt = Date.now();
-        setTimeout(finish, 350);
-        return;
+        return; // el sondeo decide cuándo terminar (deja tiempo a errores tardíos)
       }
       const isErr = d.type === 'SANDBOX_RUNTIME_ERROR' || (d.type === 'NONA_LOG' && d.level === 'error');
       if (!isErr) return;
@@ -705,16 +762,24 @@ window.addEventListener('load',function(){try{parent.postMessage({type:'NONA_APP
       try {
         const doc = iframe.contentDocument;
         const root = hasReact ? (doc?.getElementById('root') || doc?.getElementById('app')) : doc?.body;
-        if (!renderedAt && (
+        // La pantalla de error del cargador también llena #root: se cuenta como error, no como app renderizada
+        const rootText = root?.textContent || '';
+        if (/Error al Cargar la Aplicación|Error de Ejecución en Vista Previa/.test(rootText)) {
+          const msg = (root?.querySelector('pre')?.textContent || rootText).trim().slice(0, 300);
+          if (msg && !errors.includes(msg)) errors.push(msg);
+        } else if (!renderedAt && (
           (root && (root.childElementCount > 0 || root.innerHTML.trim().length > 0)) ||
           doc?.querySelector('canvas') ||
-          (doc?.body && doc.body.childElementCount > 1)
+          // Solo para apps HTML: en React el body siempre tiene #root, #app y el distintivo
+          (!hasReact && doc?.body && doc.body.childElementCount > 1)
         )) {
           renderedAt = Date.now();
         }
       } catch {}
-      if (errors.length > 0 && Date.now() - started > 1500) finish();
-      else if (renderedAt && Date.now() - renderedAt > 500) finish();
+      const age = Date.now() - started;
+      if (errors.length > 0 && age > 1500) finish();
+      // Los módulos tardan en cargar: nunca se da por buena antes de 2,5 s
+      else if (renderedAt && Date.now() - renderedAt > 800 && age > 2500) finish();
     }, 200);
     const hard = setTimeout(() => {
       // Si el tiempo de espera expira pero no hubo errores de ejecución JS ni excepciones,
@@ -983,10 +1048,12 @@ export class AppBuilderAgent {
       ensureRuntimeHelpers(files);
       dropMissingAssetImports(files);
       fixInventedPhotos(files);
+      const wrongImports = fixWrongNamedImports(files);
       const undefinedNames = autoImportMissing(files);
       const problems = [
         ...parsed.incomplete.map(p => `El archivo "${p}" quedó incompleto (la respuesta se cortó).`),
         ...patchProblems,
+        ...wrongImports.slice(0, 6),
         ...undefinedNames.slice(0, 6).map(n => `Se usa el componente ${n} pero no está definido ni importado. Créalo o impórtalo.`),
         ...validateProject(files),
       ];
