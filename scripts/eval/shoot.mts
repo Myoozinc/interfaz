@@ -20,9 +20,17 @@ for (const mode of fs.readdirSync(root)) {
     for (const [name, vp] of [['desktop', { width: 1280, height: 800 }], ['mobile', { width: 390, height: 844 }]] as const) {
       const page = await browser.newPage({ viewport: vp });
       page.on('pageerror', e => errors.push(e.message.slice(0, 300)));
+      page.on('response', r => { if (r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url().slice(0, 200)}`); });
+      page.on('requestfailed', r => errors.push(`FALLO ${r.failure()?.errorText} ${r.url().slice(0, 200)}`));
+      // Origen http real (con setContent la página queda en about:blank y localStorage está bloqueado)
+      await page.route('https://interfaz-hazel.vercel.app/__eval__', route => route.fulfill({ contentType: 'text/html', body: html }));
       page.on('console', m => { if (m.type() === 'error' && !/favicon|DevTools/.test(m.text())) errors.push(m.text().slice(0, 300)); });
-      await page.setContent(html, { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
+      await page.goto('https://interfaz-hazel.vercel.app/__eval__', { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
       await page.waitForTimeout(3000);
+      if (name === 'desktop') {
+        const html2 = await page.content();
+        if (/Error al Cargar|Error de Ejecución/.test(html2)) errors.push('PANTALLA DE ERROR: ' + (await page.evaluate(() => document.body.innerText.slice(0, 300))));
+      }
       await page.evaluate(() => document.getElementById('nona-badge')?.remove()).catch(() => {});
       await page.screenshot({ path: path.join(dir, `${name}.jpg`), type: 'jpeg', quality: 70 });
       if (name === 'desktop') {

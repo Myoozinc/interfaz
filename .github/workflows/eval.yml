@@ -5,6 +5,9 @@ on:
       modes:
         description: 'Modos separados por espacio (single staged)'
         default: 'single staged'
+      shoot_only:
+        description: 'Solo rehacer capturas de los resultados anteriores (sin generar)'
+        default: 'no'
 permissions:
   contents: write
 concurrency: eval
@@ -18,7 +21,11 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci --no-audit --no-fund
       - run: npm i --no-save tsx playwright@1 && npx playwright install --with-deps chromium
+      - name: Recuperar resultados anteriores
+        if: ${{ github.event.inputs.shoot_only == 'si' }}
+        run: git fetch origin eval-results && git checkout origin/eval-results -- eval-out
       - name: Generar apps
+        if: ${{ github.event.inputs.shoot_only != 'si' }}
         run: |
           for m in ${{ github.event.inputs.modes || 'single staged' }}; do npx tsx scripts/eval/run.mts $m || true; done
       - name: Capturas
