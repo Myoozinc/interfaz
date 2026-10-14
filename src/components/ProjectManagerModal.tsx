@@ -68,10 +68,10 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-extrabold text-fg">
-                Gestor de Proyectos & Memoria
+                Tus proyectos
               </h2>
               <p className="text-xs text-muted">
-                {projects.length} proyecto(s) guardados con historial independiente
+                {projects.length} {projects.length === 1 ? "proyecto guardado" : "proyectos guardados"} en este navegador
               </p>
             </div>
           </div>
@@ -79,10 +79,10 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowCreateForm(true)}
-              className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              className="px-3 py-1.5 bg-accent hover:bg-accent-strong text-accent-ink hover:text-white rounded-lg font-medium flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Nuevo Proyecto</span>
+              <span>Nuevo proyecto</span>
             </button>
             <button
               onClick={onClose}
@@ -101,7 +101,7 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
             <form onSubmit={handleCreateSubmit} className="p-4 bg-accent/10 border border-accent/30 rounded-2xl space-y-3 animate-fade-in">
               <h3 className="font-bold text-xs text-accent flex items-center gap-1.5">
                 <FolderPlus className="w-3.5 h-3.5 text-accent" />
-                Crear Nuevo Proyecto
+                Crear proyecto nuevo
               </h3>
               
               <div>

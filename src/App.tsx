@@ -194,6 +194,14 @@ export function App() {
         }
       ];
 
+      // No acumular proyectos vacíos: si ya hay alguno sin usar, se reutiliza y se borran los demás vacíos.
+      const isEmpty = (p: any) => (p.files || []).length <= 1
+        && (p.files || []).every((f: any) => String(f.content || '').includes('Lienzo Listo'))
+        && (p.messages || []).filter((m: any) => m.role === 'user').length === 0;
+      const empties = list.filter(isEmpty);
+      for (const e of empties) projectStore.deleteProject(e.id).catch(() => {});
+      setProjects(list.filter(p => !isEmpty(p)));
+
       projectStore.saveProject(cleanProj).then(() => {
         setProjects(prev => [cleanProj, ...prev.filter(p => p.id !== cleanProj.id)]);
         setActiveProjectId(cleanProj.id);

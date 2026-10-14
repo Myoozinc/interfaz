@@ -1,3 +1,4 @@
+import { fixInventedPhotos } from './photoLibrary';
 /**
  * VirtualMultiFileBundler
  * 
@@ -939,6 +940,8 @@ export class VirtualMultiFileBundler {
       "chart.js/auto": "https://esm.sh/chart.js@4.4.7/auto"
     };
 
+    // Fotos de la biblioteca que no existen (inventadas por la IA) → imagen generada con IA
+    fixInventedPhotos(normalizedFiles);
     VirtualMultiFileBundler.modernThree = Object.values(normalizedFiles).some(c => /from\s+['"](@react-three\/|three-stdlib|postprocessing)/.test(c));
 
     // 3. Crear Data URIs para todos los módulos JS/TSX/TS del proyecto
