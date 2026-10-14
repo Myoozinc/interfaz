@@ -509,6 +509,19 @@ export default async function handler(req: any, res?: any) {
       g.pollinations();
     }
 
+    // Diagnóstico: respuesta cruda de un proveedor (para depurar formatos de stream)
+    if (body.rawProbe && typeof body.only === 'string' && body.only.includes(':')) {
+      const i = body.only.indexOf(':');
+      const kind = body.only.slice(0, i) as Kind, m = body.only.slice(i + 1);
+      const key = (keys[kind] || [])[0];
+      if (!key) return reply(200, { error: 'sin llave' });
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (key !== 'anon') headers.Authorization = `Bearer ${key}`;
+      const r = await fetch(chatUrl(kind, key), { method: 'POST', headers, body: JSON.stringify({ model: m, messages: [{ role: 'user', content: 'di hola' }], stream: true, max_tokens: 50 }), signal: AbortSignal.timeout(25000) }).catch((e: any) => ({ status: 0, text: async () => String(e?.message) } as any));
+      const t = await r.text();
+      return reply(200, { status: r.status, head: t.slice(0, 900) });
+    }
+
     if (body.diagOrder) return reply(200, { role, lane, order: attempts.map(a => `${a.kind}:${a.model}`) });
 
     // Prueba de un modelo concreto (diagnóstico/medición): body.only = "proveedor:modelo"
