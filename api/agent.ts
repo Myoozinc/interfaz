@@ -65,7 +65,7 @@ const STATIC_MODELS: Record<Kind, string[]> = {
   sambanova: ['DeepSeek-V3.1', 'Meta-Llama-3.3-70B-Instruct'],
   openrouter: ['openrouter/free'],
   mistral: ['mistral-medium-latest', 'devstral-medium-latest', 'codestral-latest', 'mistral-large-latest'],
-  nvidia: ['qwen/qwen3-coder-480b-a35b-instruct', 'deepseek-ai/deepseek-v3.1', 'moonshotai/kimi-k2-instruct', 'openai/gpt-oss-120b'],
+  nvidia: ['moonshotai/kimi-k3', 'deepseek-ai/deepseek-v4-pro-0813', 'qwen/qwen3-coder-480b-a35b-instruct', 'nvidia/nemotron-3-ultra-550b-a55b', 'openai/gpt-oss-120b'],
   github: ['openai/gpt-4.1', 'deepseek/DeepSeek-V3-0324', 'openai/gpt-4.1-mini'],
   pollinations: ['openai'],
   openai: ['gpt-5', 'gpt-4.1'],
@@ -233,6 +233,20 @@ function rankOpenRouter(list: any[]): string[] {
   return rows.map(r => r.id);
 }
 
+// NVIDIA (build.nvidia.com): muchos modelos con "Free Endpoint"; se descubren y se ordenan por calidad para código.
+const NVIDIA_RULES: Rule[] = [
+  [/kimi-k3/i, 100], [/deepseek-v4-pro/i, 99], [/qwen3?-coder-480b|qwen3\.\d-coder/i, 97], [/deepseek-v4/i, 95],
+  [/nemotron-3-ultra/i, 93], [/kimi-k2/i, 90], [/deepseek-v3\.\d/i, 88], [/gpt-oss-120b/i, 86], [/qwen3-235b|qwen3\.\d/i, 84],
+  [/nemotron-3-super/i, 80], [/llama-4-maverick/i, 72], [/nemotron-3\.5-lightning/i, 70],
+];
+function rankNvidia(list: any[]): string[] {
+  const ids: string[] = list.map(m => m.id).filter(Boolean);
+  return ids
+    .filter(id => !/embed|rerank|guard|safety|vision|vlm|parse|retriever|clip|whisper|tts|asr|reward|nano|mini|\b[1-9]b\b|cosmos|riva|bge|nv-embed/i.test(id))
+    .filter(id => scoreBy(id, NVIDIA_RULES, 0) > 0)
+    .sort((a, b) => scoreBy(b, NVIDIA_RULES, 0) - scoreBy(a, NVIDIA_RULES, 0));
+}
+
 function rankOpenAI(list: any[]): string[] {
   const ids: string[] = list.map(m => m.id).filter(Boolean);
   return ids
@@ -393,13 +407,14 @@ export default async function handler(req: any, res?: any) {
       }
     };
 
-    const [gList, gemList, cList, sList, oList, aiList] = await Promise.all([
+    const [gList, gemList, cList, sList, oList, aiList, nvList] = await Promise.all([
       keys.groq.length ? discover('groq', keys.groq[0]) : [],
       keys.gemini.length ? discover('gemini', keys.gemini[0]) : [],
       keys.cerebras.length ? discover('cerebras', keys.cerebras[0]) : [],
       keys.sambanova.length ? discover('sambanova', keys.sambanova[0]) : [],
       keys.openrouter.length ? discover('openrouter', '') : [],
       keys.openai.length ? discover('openai', keys.openai[0]) : [],
+      keys.nvidia.length ? discover('nvidia', keys.nvidia[0]) : [],
     ]);
     const oaModels = aiList.length ? rankOpenAI(aiList) : STATIC_MODELS.openai;
 
@@ -409,14 +424,15 @@ export default async function handler(req: any, res?: any) {
     const samModels = sList.length ? rankSamba(sList) : STATIC_MODELS.sambanova;
     const orRanked = oList.length ? rankOpenRouter(oList) : [];
     const orModels = [...orRanked.slice(0, 6), 'openrouter/free'];
-    const misModels = STATIC_MODELS.mistral, nvModels = STATIC_MODELS.nvidia, ghModels = STATIC_MODELS.github, poModels = STATIC_MODELS.pollinations;
+    const nvRanked = nvList.length ? rankNvidia(nvList) : [];
+    const misModels = STATIC_MODELS.mistral, nvModels = nvRanked.length ? nvRanked : STATIC_MODELS.nvidia, ghModels = STATIC_MODELS.github, poModels = STATIC_MODELS.pollinations;
     const ghFits = totalChars < 26000; // GitHub Models gratis: entrada pequeña, salida ~4k
 
     // Diagnóstico (sin llaves): qué proveedores están configurados y qué modelos se eligen en cada uno
     if (body.diag) {
       return reply(200, {
         configured: Object.fromEntries(Object.entries(keys).map(([k, v]) => [k, v.length])),
-        discovered: { groq: gList.length, gemini: gemList.length, cerebras: cList.length, sambanova: sList.length, openrouter: oList.length },
+        discovered: { nvidia: nvList.length, groq: gList.length, gemini: gemList.length, cerebras: cList.length, sambanova: sList.length, openrouter: oList.length },
         ranked: { groq: groqModels, gemini: gemModels, cerebras: cerModels, sambanova: samModels, openrouter: orModels, mistral: misModels, nvidia: nvModels, github: ghModels },
         allGroq: gList.map((m: any) => m.id),
         allGemini: gemList.map((m: any) => String(m.id || m.name)),
@@ -457,7 +473,7 @@ export default async function handler(req: any, res?: any) {
       // Gratuitos
       groq: () => push('groq', groqFit, 2, groqOut),
       gemini: () => push('gemini', geminiFlash, 2, () => 16000),
-      nvidia: () => push('nvidia', nvModels, 2, () => 16000),
+      nvidia: () => push('nvidia', nvModels, 3, () => 16000),
       mistral: () => push('mistral', misModels, 2, () => 16000),
       cerebras: () => push('cerebras', cerModels, 1, () => 8000),
       sambanova: () => push('sambanova', samModels, 1, () => 8000),
