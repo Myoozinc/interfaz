@@ -711,6 +711,27 @@ export class AppBuilderAgent {
   setEndpoint(url: string) { this.ai.setBaseUrl(url); }
 
   private async ask(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal, prefer?: 'quality'): Promise<string> {
+    // Los cupos gratuitos se renuevan cada minuto: si todos los proveedores están al límite, se espera y se sigue
+    // (antes la construcción fallaba y se perdía todo lo hecho).
+    const waits = [20, 35, 50, 60];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.askOnce(system, user, maxTokens, onProgress, label, signal, prefer);
+      } catch (e: any) {
+        if (e?.name === 'AbortError') throw e;
+        const capacity = /saturad|429|rate limit|quota|exceeded|high demand|503/i.test(String(e?.message));
+        if (!capacity || attempt >= waits.length) throw e;
+        for (let left = waits[attempt]; left > 0; left -= 5) {
+          if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+          onProgress(`${label}\n⏳ La IA gratuita está ocupada; continúo en ${left} s (tu app no se pierde)…`, true);
+          await new Promise(r => setTimeout(r, 5000));
+        }
+        OllamaProvider.clearSkips();
+      }
+    }
+  }
+
+  private async askOnce(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal, prefer?: 'quality'): Promise<string> {
     const seen = new Set<string>();
     return this.ai.streamChat(
       [{ role: 'system', content: system }, { role: 'user', content: user }],

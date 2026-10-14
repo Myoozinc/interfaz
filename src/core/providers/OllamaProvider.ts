@@ -74,6 +74,8 @@ export class OllamaProvider implements AIProvider {
 
   /** Proveedores que cortaron la salida o fallaron a mitad de stream: el gateway los omite un rato. */
   private static skipUntil = new Map<string, number>();
+  /** Olvida los proveedores marcados como fallidos (tras esperar a que se renueve el cupo por minuto). */
+  static clearSkips() { OllamaProvider.skipUntil.clear(); }
 
   private static activeSkips(): string[] {
     const now = Date.now();
@@ -200,7 +202,8 @@ export class OllamaProvider implements AIProvider {
     // Salida incompleta o proveedor caído a mitad de respuesta: NUNCA se entrega código a medias.
     // Se marca el proveedor para que el siguiente intento use otro modelo.
     if (truncatedReason || streamError) {
-      if (provider) OllamaProvider.skipUntil.set(provider, Date.now() + 5 * 60_000);
+      // Pausa corta: los límites gratuitos son por minuto; bloquear 5 minutos dejaba sin proveedores
+      if (provider) OllamaProvider.skipUntil.set(provider, Date.now() + 60_000);
       const why = truncatedReason
         ? `la respuesta de ${usedModel || provider || 'la IA'} se cortó (${truncatedReason === 'time' ? 'límite de tiempo' : truncatedReason === 'length' ? 'límite de tokens' : 'conexión cortada por el proveedor'})`
         : streamError;

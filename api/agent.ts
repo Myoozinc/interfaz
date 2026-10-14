@@ -359,7 +359,8 @@ export default async function handler(req: any, res?: any) {
     // Groq: la entrada + salida debe caber en el TPM del modelo. Se estima la entrada y se eligen solo modelos
     // donde quepa (p. ej. editar una plantilla de 40 KB solo cabe en Llama 4 Scout), con la salida que quede libre.
     const inTokens = Math.ceil(totalChars / 3.2) + 300;
-    const groqFit = groqModels.filter(m => groqTpm(m) - inTokens >= 1000);
+    // Solo modelos de Groq que puedan escribir al menos ~3/4 de lo pedido: si no, la respuesta sale cortada
+    const groqFit = groqModels.filter(m => groqTpm(m) - inTokens - 200 >= Math.min(want * 0.75, 4000));
     // Salida: la de siempre para peticiones normales (medido: funciona), reducida solo si la entrada es muy grande.
     const groqOut = (m: string) => {
       const usual = /120b|70b|32b|maverick|kimi/i.test(m) ? 6000 : 8000;
