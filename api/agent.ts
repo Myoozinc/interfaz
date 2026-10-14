@@ -296,7 +296,7 @@ export default async function handler(req: any, res?: any) {
       ? (req.headers?.['authorization'] || req.headers?.['Authorization'] || '')
       : (req.headers?.get ? (req.headers.get('Authorization') || '') : '');
 
-    const { model, messages = [], apiKey, openrouterKey, groqKey, maxTokensRequested, temperature, skip } = body;
+    const { model, messages = [], apiKey, openrouterKey, groqKey, maxTokensRequested, temperature, skip, prefer } = body;
     const safeMessages: any[] = Array.isArray(messages) ? messages : [];
     const hasImages = safeMessages.some((m: any) => m.images && m.images.length > 0);
     const clientBearer = authHeader ? String(authHeader).replace('Bearer ', '').trim() : '';
@@ -373,6 +373,15 @@ export default async function handler(req: any, res?: any) {
         for (const key of keys.openrouter) attempts.push({ kind: 'openrouter', key, model: 'google/gemini-2.5-flash', maxOut: Math.min(want, 8000) });
       }
       push('groq', groqModels, 2, () => 2000);
+    } else if (big && prefer === 'quality') {
+      // Partes de una app construida por etapas: Gemini Flash escribe más y mejor en una respuesta;
+      // si está saturado, Groq (los modelos donde quepa) y OpenRouter.
+      push('gemini', gemModels.filter(m => /flash/.test(m) && !/lite/.test(m)), 2, () => 16000);
+      push('groq', groqFit, 2, groqOut);
+      push('openrouter', orModels, 3, () => 16000);
+      push('cerebras', cerModels, 1, () => 8000);
+      push('sambanova', samModels, 1, () => 8000);
+      push('gemini', gemModels.filter(m => /lite/.test(m)), 1, () => 16000);
     } else if (big) {
       // Construcciones grandes. Orden medido en producción (sept 2026):
       //  - Groq gpt-oss-120b: ~5 s por app completa, fiable → primero.

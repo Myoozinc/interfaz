@@ -28,5 +28,10 @@
         }
       ]
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "eval-results": false
+    }
+  }
 }

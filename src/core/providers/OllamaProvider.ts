@@ -118,6 +118,7 @@ export class OllamaProvider implements AIProvider {
         maxTokensRequested: options?.maxTokens,
         temperature: options?.temperature,
         skip: OllamaProvider.activeSkips(),
+        prefer: options?.prefer,
         stream: true,
       }),
       signal: options?.signal,

@@ -1,0 +1,35 @@
+name: Evaluar calidad de generación
+on:
+  workflow_dispatch:
+    inputs:
+      modes:
+        description: 'Modos separados por espacio (single staged)'
+        default: 'single staged'
+permissions:
+  contents: write
+concurrency: eval
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --no-audit --no-fund
+      - run: npm i --no-save tsx playwright@1 && npx playwright install --with-deps chromium
+      - name: Generar apps
+        run: |
+          for m in ${{ github.event.inputs.modes || 'single staged' }}; do npx tsx scripts/eval/run.mts $m || true; done
+      - name: Capturas
+        run: npx tsx scripts/eval/shoot.mts || true
+      - name: Publicar resultados en la rama eval-results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/out && cp -r eval-out /tmp/out/
+          git checkout --orphan eval-results
+          git rm -rfq . && rm -rf node_modules
+          cp -r /tmp/out/eval-out . && git add eval-out
+          git commit -qm "Resultados de evaluación $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -f origin eval-results

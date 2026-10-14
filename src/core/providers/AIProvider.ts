@@ -14,6 +14,8 @@ export interface AICompletionOptions {
   maxTokens?: number;
   tools?: ToolDefinition[];
   signal?: AbortSignal;
+  /** 'quality': para construir apps se prefieren los modelos con más capacidad de salida (Gemini Flash) */
+  prefer?: 'quality' | 'speed';
 }
 
 export interface AIProvider {

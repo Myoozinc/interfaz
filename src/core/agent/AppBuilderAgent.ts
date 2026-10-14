@@ -39,6 +39,11 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
   NO crees src/lib/ai.ts: NONA lo añade solo. Muestra un estado de carga mientras responde y maneja errores con un mensaje amable.
   Esto es para modelos de LENGUAJE. La "IA" de un juego (rival de ajedrez, enemigos) se programa con algoritmos (minimax, reglas), no con askAI.
 - Sin backend: guarda datos con localStorage cuando haga falta persistencia. Datos de ejemplo realistas escritos en el código.
+- FOTOS reales disponibles (sin enlaces a Unsplash ni a otras webs): \`https://interfaz-hazel.vercel.app/templates/img/NOMBRE.jpg\` con NOMBRE en:
+  cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1 (bandeja de platos), plato-2 (ensalada), plato-3 (pizza),
+  prod-reloj (smartwatch), prod-audifonos, prod-camara, moda-1, moda-2, tienda-1, persona-1, persona-2, persona-3, persona-4, escritorio-1 (retrato de hombre joven),
+  barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1. Úsalas con object-cover y un fondo de color mientras cargan.
+- TIPOGRAFÍA: puedes cargar 1–2 familias de Google Fonts con @import url('https://fonts.googleapis.com/css2?family=...&display=swap'); en la PRIMERA línea de src/index.css (e importa './index.css' en App.tsx).
 - Juegos: usa <canvas> con requestAnimationFrame y controles de teclado + botones táctiles.
 - Usa la API ACTUAL de cada librería con imports nombrados cuando corresponda (import { create } from 'zustand'; import { Chess } from 'chess.js'; import { motion } from 'framer-motion').
 - Todos los imports relativos deben apuntar a archivos que TÚ entregas (ej: import { Board } from './components/Board').`;
@@ -56,8 +61,9 @@ DISEÑO VISUAL (obligatorio):
 - Estados vacíos amables (icono + frase + acción) y estados de carga visibles.
 - Todo debe funcionar de verdad: nada de botones decorativos, "TODO", "lorem ipsum" ni funciones vacías. La interacción principal (mover una pieza, enviar un mensaje, añadir un elemento) debe funcionar al primer intento.
 - En juegos de tablero distingue visualmente los dos bandos (colores de pieza distintos) y resalta la selección y los movimientos posibles.
-- Código organizado en varios archivos pequeños (componentes en src/components/, lógica en src/hooks/ o src/lib/), tipado con TypeScript.
-- Sé conciso: entre 3 y 7 archivos, unas 300-450 líneas en total, sin comentarios largos ni repeticiones, para que quepa en una sola respuesta. Escribe src/App.tsx PRIMERO.`;
+- Código organizado en varios archivos pequeños (componentes en src/components/, lógica en src/hooks/ o src/lib/), tipado con TypeScript.`;
+
+const SINGLE_SHOT_RULES = `TAMAÑO: entre 3 y 7 archivos, unas 300-450 líneas en total, sin comentarios largos ni repeticiones, para que quepa en una sola respuesta. Escribe src/App.tsx PRIMERO.`;
 
 const FORMAT_RULES = `FORMATO DE RESPUESTA (obligatorio, nada fuera de esto):
 <summary>Una o dos frases en español explicando lo que hiciste.</summary>
@@ -88,8 +94,93 @@ const BUILD_SYSTEM = `Eres NONA, un ingeniero senior de front-end que construye 
 ${RUNTIME_RULES}
 
 ${QUALITY_RULES}
+${SINGLE_SHOT_RULES}
 
 ${FORMAT_RULES}`;
+
+/** Construcción por etapas (como Lovable): plan → base → pantallas. Cada respuesta es corta, así cabe en los modelos gratuitos. */
+const DESIGN_RULES = `DISEÑO (nivel producto real, no demo):
+- Identidad visual propia del sector: paleta de 4–6 colores con nombre definida como variables CSS en src/index.css, 1–2 tipografías de Google Fonts elegidas a propósito, escala tipográfica clara y espaciado generoso.
+- Evita los tics de diseño genérico: tarjetas idénticas con sombra gris y degradados de relleno, rótulos en MAYÚSCULAS sobre cada título, una sola palabra del titular en otro color, numeraciones 01/02/03 decorativas, "→" pegado a cada botón.
+- El elemento raíz fija SIEMPRE fondo y color de texto (min-h-screen + bg + text). Contraste AA en todo (botones, inputs, placeholders).
+- Contenido realista en español (nombres, precios en una moneda coherente, fechas, cifras creíbles). Nada de "Lorem ipsum", "Producto 1" ni "Usuario X".
+- Funciona de verdad: varias pantallas navegables (estado propio o react-router-dom), crear/editar/borrar donde tenga sentido, búsqueda y filtros que filtran, formularios con validación, persistencia en localStorage con datos de ejemplo y opción de restablecer, estados vacíos y de carga útiles.
+- Responsive de 360 px a 1440 px, foco de teclado visible, transiciones sutiles solo al abrir/cerrar o confirmar.`;
+
+const PLAN_SYSTEM = `Eres NONA, director de producto y diseño. Antes de programar, planifica la app que pide el usuario.
+Responde SOLO con un objeto JSON válido (sin texto alrededor ni bloques de código), con esta forma:
+{"name":"nombre comercial en español","summary":"una frase de lo que hace",
+ "design":{"style":"2-3 frases con la dirección visual concreta","palette":{"fondo":"#hex","superficie":"#hex","texto":"#hex","texto2":"#hex","acento":"#hex","acento2":"#hex"},"fonts":{"display":"Familia de Google Fonts","body":"Familia de Google Fonts"},"radius":"p. ej. 10px","darkMode":false},
+ "screens":[{"name":"...","purpose":"qué se ve y qué se puede hacer"}],
+ "data":"entidades, campos y cuántos datos de ejemplo",
+ "files":[{"path":"src/...","purpose":"qué contiene","exports":"nombres exportados y sus props/firmas"}]}
+Reglas del plan:
+- Si el usuario da un nombre, colores o estilo, respétalos.
+- Apps sencillas (una calculadora, un temporizador): 3–5 archivos. Apps completas (tienda, panel, CRM, reservas, red social, juego elaborado…): 8–14 archivos.
+- Archivos pequeños (≤ 180 líneas cada uno). Incluye siempre: src/index.css, src/lib/types.ts (si hay datos), src/data/... (datos de ejemplo), src/lib/store.ts (estado + localStorage) cuando haya persistencia, los componentes/vistas, y src/App.tsx (último).
+- Nada de main.tsx ni index.html. Las rutas de imports deben coincidir con las rutas de "files".
+${DESIGN_RULES}`;
+
+const STAGE_SYSTEM = `Eres NONA, ingeniero senior de front-end y diseñador. Estás construyendo UNA PARTE de una app siguiendo un plan ya decidido.
+Entrega SOLO los archivos que se te piden, completos, coherentes con el plan y con los archivos ya escritos (usa exactamente sus exports, tipos y rutas).
+
+${RUNTIME_RULES}
+
+${DESIGN_RULES}
+
+${FORMAT_RULES}`;
+
+interface AppPlan {
+  name: string; summary?: string;
+  design?: { style?: string; palette?: Record<string, string>; fonts?: { display?: string; body?: string }; radius?: string; darkMode?: boolean };
+  screens?: { name: string; purpose: string }[];
+  data?: string;
+  files: { path: string; purpose: string; exports?: string }[];
+}
+
+function parsePlan(raw: string): AppPlan | null {
+  const text = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/```(?:json)?/g, '');
+  const start = text.indexOf('{'), end = text.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try {
+    const plan = JSON.parse(text.slice(start, end + 1)) as AppPlan;
+    if (!plan || !Array.isArray(plan.files) || plan.files.length === 0) return null;
+    plan.files = plan.files
+      .filter(f => f && typeof f.path === 'string' && /\.(tsx|ts|css)$/.test(f.path))
+      .map(f => ({ ...f, path: normPath(f.path) }))
+      .filter(f => !/(^|\/)(main\.tsx|index\.html)$/.test(f.path));
+    if (!plan.files.some(f => f.path === 'src/App.tsx')) plan.files.push({ path: 'src/App.tsx', purpose: 'Raíz: navegación entre pantallas', exports: 'default App' });
+    if (!plan.files.some(f => f.path === 'src/index.css')) plan.files.unshift({ path: 'src/index.css', purpose: 'Fuentes de Google (@import en la primera línea), variables de color y estilos base', exports: '' });
+    return plan.files.length > 16 ? { ...plan, files: plan.files.slice(0, 16) } : plan;
+  } catch {
+    return null;
+  }
+}
+
+/** Agrupa los archivos del plan en tandas: base (estilos, tipos, datos, estado) → componentes → App.tsx. */
+function planBatches(plan: AppPlan): string[][] {
+  const paths = plan.files.map(f => f.path);
+  const isBase = (p: string) => /index\.css$|(^|\/)(lib|data|hooks|types|utils|store)\//.test(p) || /types?\.ts$/.test(p);
+  const base = paths.filter(isBase);
+  const rest = paths.filter(p => !isBase(p) && p !== 'src/App.tsx');
+  const batches: string[][] = [];
+  if (base.length) batches.push(base);
+  const size = rest.length <= 4 ? 4 : 3;
+  for (let i = 0; i < rest.length; i += size) batches.push(rest.slice(i, i + size));
+  if (batches.length && batches[batches.length - 1].length < 3 && batches.length > 1) batches[batches.length - 1].push('src/App.tsx');
+  else batches.push(['src/App.tsx']);
+  return batches;
+}
+
+/** Resumen compacto de un archivo ya escrito: completo si es pequeño o es base; si no, solo sus exports e interfaces. */
+function fileDigest(path: string, content: string): string {
+  const lines = content.split('\n');
+  const full = /index\.css$|types?\.ts$|(^|\/)(lib|hooks|store)\//.test(path) && lines.length <= 140;
+  if (full || lines.length <= 40) return `<file path="${path}">\n${content}\n</file>`;
+  const sig = lines.filter(l => /^\s*export\s|^\s*(interface|type)\s/.test(l)).slice(0, 25).join('\n');
+  const head = /data\//.test(path) ? lines.slice(0, 30).join('\n') + '\n// …(más datos de ejemplo)' : sig;
+  return `<file path="${path}" resumen="solo exports">\n${head}\n</file>`;
+}
 
 const EDIT_SYSTEM = `Eres NONA, un ingeniero senior de front-end. Estás MODIFICANDO una aplicación que ya existe. Recibirás todos sus archivos actuales.
 
@@ -600,7 +691,7 @@ export class AppBuilderAgent {
 
   setEndpoint(url: string) { this.ai.setBaseUrl(url); }
 
-  private async ask(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal): Promise<string> {
+  private async ask(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal, prefer?: 'quality'): Promise<string> {
     const seen = new Set<string>();
     return this.ai.streamChat(
       [{ role: 'system', content: system }, { role: 'user', content: user }],
@@ -613,7 +704,7 @@ export class AppBuilderAgent {
           if (!seen.has(key)) { seen.add(key); onProgress(`${label}\n✍️ ${m[1] === 'edit' ? 'Editando' : 'Escribiendo'} ${p}…`, true); }
         }
       },
-      { signal, model: 'auto', maxTokens, temperature: 0.2 }
+      { signal, model: 'auto', maxTokens, temperature: 0.2, prefer }
     );
   }
 
@@ -639,12 +730,56 @@ export class AppBuilderAgent {
     throw new Error(`No se pudo generar el código: ${lastErr}`);
   }
 
+  /** Construcción por etapas: plan (diseño, pantallas, archivos) → base → componentes → App.tsx. */
+  private async stagedBuild(instruction: string, history: string, onProgress: Progress, label: string, signal?: AbortSignal): Promise<Parsed | null> {
+    onProgress(`${label}\n🧭 Planificando pantallas, datos y diseño…`, true);
+    let plan: AppPlan | null = null;
+    const planUser = `${history ? `CONVERSACIÓN RECIENTE (contexto):\n${history}\n\n` : ''}PEDIDO DEL USUARIO:\n"${instruction}"`;
+    for (let i = 0; i < 2 && !plan; i++) {
+      try {
+        plan = parsePlan(await this.ask(PLAN_SYSTEM, planUser, 3000, onProgress, label, signal, 'quality'));
+      } catch (e: any) {
+        if (e?.name === 'AbortError') throw e;
+      }
+    }
+    if (!plan) return null;
+    const planText = JSON.stringify(plan);
+    const files: Record<string, string> = {};
+    const incomplete: string[] = [];
+    const batches = planBatches(plan);
+    const describe = (paths: string[]) => paths.map(p => {
+      const f = plan!.files.find(x => x.path === p);
+      return `- ${p}: ${f?.purpose || ''}${f?.exports ? ` (exports: ${f.exports})` : ''}`;
+    }).join('\n');
+
+    for (let i = 0; i < batches.length; i++) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      let pending = batches[i].filter(p => !(p in files));
+      onProgress(`${label}\n🧱 ${plan.name} · parte ${i + 1} de ${batches.length}: ${pending.map(p => p.split('/').pop()).join(', ')}`, true);
+      for (let attempt = 0; attempt < 3 && pending.length > 0; attempt++) {
+        const written = Object.entries(files).map(([p, c]) => fileDigest(p, c)).join('\n');
+        const user = `PEDIDO DEL USUARIO:\n"${instruction}"\n\nPLAN DE LA APP (síguelo al pie de la letra: nombres, paleta, tipografías, pantallas y rutas):\n${planText}\n\n${written ? `ARCHIVOS YA ESCRITOS:\n${written}\n\n` : ''}ESCRIBE AHORA SOLO ESTOS ARCHIVOS, completos y funcionales:\n${describe(pending)}`;
+        try {
+          const out = parseBuilderOutput(await this.ask(STAGE_SYSTEM, user, 9000, onProgress, label, signal, 'quality'));
+          for (const [p, c] of Object.entries(out.files)) files[p] = c;
+          incomplete.push(...out.incomplete.filter(p => !(p in out.files)));
+        } catch (e: any) {
+          if (e?.name === 'AbortError') throw e;
+          if (attempt === 2) throw e;
+        }
+        pending = pending.filter(p => !(p in files));
+      }
+    }
+    if (!files['src/App.tsx']) return null;
+    return { summary: plan.summary ? `${plan.name}: ${plan.summary}` : '', files, deletes: [], incomplete: [...new Set(incomplete)], edits: [] };
+  }
+
   async run(
     instruction: string,
     project: FullStackProject,
     isEdit: boolean,
     onProgress: Progress,
-    opts?: { history?: ChatMessage[]; signal?: AbortSignal }
+    opts?: { history?: ChatMessage[]; signal?: AbortSignal; mode?: 'staged' | 'single' }
   ): Promise<BuildResult> {
     const current: Record<string, string> = {};
     for (const [p, f] of Object.entries(project.files)) current[normPath(p)] = f.content;
@@ -678,8 +813,22 @@ export class AppBuilderAgent {
         for (const p of Object.keys(files)) if (/\.(tsx|jsx)$/.test(p) && !(p in current)) delete files[p];
       }
     } else {
-      const user = `${history ? `CONVERSACIÓN RECIENTE (contexto):\n${history}\n\n` : ''}PEDIDO DEL USUARIO:\n"${instruction}"\n\nConstruye la aplicación completa.`;
-      parsed = await this.askWithRetry(BUILD_SYSTEM, user, 16000, onProgress, label, opts?.signal);
+      // Primero, construcción por etapas (apps más completas y cuidadas); si falla, construcción en una sola respuesta.
+      let staged: Parsed | null = null;
+      if (opts?.mode !== 'single') {
+        try {
+          staged = await this.stagedBuild(instruction, history, onProgress, label, opts?.signal);
+        } catch (e: any) {
+          if (e?.name === 'AbortError') throw e;
+          staged = null;
+        }
+      }
+      if (staged) {
+        parsed = staged;
+      } else {
+        const user = `${history ? `CONVERSACIÓN RECIENTE (contexto):\n${history}\n\n` : ''}PEDIDO DEL USUARIO:\n"${instruction}"\n\nConstruye la aplicación completa.`;
+        parsed = await this.askWithRetry(BUILD_SYSTEM, user, 16000, onProgress, label, opts?.signal);
+      }
       files = { ...parsed.files };
       // Si el modelo creó main.tsx o index.html además de App.tsx, se descartan: la vista previa monta App.
       if (files['src/App.tsx']) { delete files['index.html']; }
