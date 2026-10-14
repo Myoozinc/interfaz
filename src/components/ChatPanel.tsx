@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { friendlyError } from '../core/agent/friendlyError';
 import { 
   RefreshCw, 
   Copy, 
@@ -267,7 +268,7 @@ export const ChatPanel = ({
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, content: `⚠️ Error: ${err.message}` }
+              ? { ...msg, content: `⚠️ ${friendlyError(err?.message)}` }
               : msg
           )
         );

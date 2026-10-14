@@ -138,6 +138,13 @@ ${DESIGN_RULES}
 
 ${FORMAT_RULES}`;
 
+/** ¿El pedido es una app completa (varias pantallas, datos) o una utilidad/juego sencillo? */
+export function isFullAppRequest(instruction: string): boolean {
+  const t = instruction.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/\b(calculadora|temporizador|cronometro|reloj|contador|conversor|tic.?tac|piedra papel|dado|ruleta)\b/.test(t) && t.length < 140) return false;
+  return /\b(tienda|e-?commerce|panel|dashboard|crm|gestor|gestion|inventario|reservas?|citas|agenda|clinica|restaurante|carta|menu|landing|web|pagina|portafolio|portfolio|blog|revista|red social|plataforma|marketplace|finanzas|gastos|presupuesto|fitness|habitos|recetas|cursos|escuela|inmobiliaria|saas|app para|aplicacion para|sistema)\b/.test(t) || t.length > 220;
+}
+
 interface AppPlan {
   name: string; summary?: string;
   design?: { style?: string; palette?: Record<string, string>; fonts?: { display?: string; body?: string }; radius?: string; darkMode?: boolean };
@@ -827,11 +834,15 @@ export class AppBuilderAgent {
     } else {
       // Primero, construcción por etapas (apps más completas y cuidadas); si falla, construcción en una sola respuesta.
       let staged: Parsed | null = null;
-      if (opts?.mode !== 'single') {
+      // La construcción por etapas gasta ~3 veces más cupo de IA: se usa para apps completas, no para utilidades sencillas.
+      const wantsFullApp = opts?.mode === 'staged' || (opts?.mode !== 'single' && isFullAppRequest(instruction));
+      if (wantsFullApp) {
         try {
           staged = await this.stagedBuild(instruction, history, onProgress, label, opts?.signal);
         } catch (e: any) {
           if (e?.name === 'AbortError') throw e;
+          // Sin cupo de IA no tiene sentido reintentar en una sola respuesta: fallaría igual y gastaría más
+          if (/saturad|429|rate limit|quota/i.test(String(e?.message))) throw e;
           staged = null;
         }
       }

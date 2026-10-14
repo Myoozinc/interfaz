@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { friendlyError } from './core/agent/friendlyError';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import confetti from 'canvas-confetti';
@@ -617,7 +618,7 @@ export function App() {
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantPlaceholderId
-              ? { ...msg, content: `⚠️ Error: ${err.message}` }
+              ? { ...msg, content: `⚠️ ${friendlyError(err?.message)}` }
               : msg
           )
         );
