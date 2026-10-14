@@ -1760,8 +1760,30 @@ export class VirtualMultiFileBundler {
     }
     ${inlinedCSS}
   </style>
-  <script type="importmap">
-    ${JSON.stringify({ imports: importMap }, null, 2)}
+  <script id="nona-importmap-src" type="application/json">${JSON.stringify({ imports: importMap }).replace(/</g, '\\u003c')}</script>
+  <script>
+    // Los módulos del proyecto viajan como data: URLs, pero los errores dentro de un data: URL llegan como
+    // "Script error." (origen opaco) y no se puede saber qué falló. Se convierten a blob: URLs (mismo origen)
+    // para ver el mensaje real; cada URL distinta se convierte una sola vez (los alias comparten el mismo módulo).
+    (function () {
+      var src = document.getElementById('nona-importmap-src').textContent;
+      var map;
+      try {
+        map = JSON.parse(src);
+        var cache = {};
+        for (var k in map.imports) {
+          var u = map.imports[k];
+          if (typeof u === 'string' && u.indexOf('data:text/javascript') === 0) {
+            if (!cache[u]) cache[u] = URL.createObjectURL(new Blob([decodeURIComponent(u.slice(u.indexOf(',') + 1))], { type: 'text/javascript' }));
+            map.imports[k] = cache[u];
+          }
+        }
+      } catch (e) { map = JSON.parse(src); }
+      var s = document.createElement('script');
+      s.type = 'importmap';
+      s.textContent = JSON.stringify(map);
+      document.currentScript.after(s);
+    })();
   </script>
 </head>
 <body class="bg-slate-950 text-white min-h-screen">
