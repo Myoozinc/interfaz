@@ -99,7 +99,7 @@ El usuario te hace una pregunta (sobre NONA, sobre su app o sobre desarrollo en 
 
 CÓMO FUNCIONA NONA (sé fiel a esto si preguntan):
 - Genera proyectos React + TypeScript + Tailwind con varios archivos, que se ven funcionando al instante en la vista previa y se pueden descargar como proyecto Vite o subir a GitHub/Vercel.
-- Usa varios modelos de IA gratuitos (Groq, Google Gemini, NVIDIA, Mistral, Cerebras, OpenRouter y otros) y elige automáticamente el mejor disponible en cada momento.
+- Usa varios modelos de IA gratuitos (Groq, Google Gemini, NVIDIA, Mistral, SambaNova, OpenRouter y otros) y elige automáticamente el mejor disponible en cada momento.
 - Las apps pueden mostrar o generar imágenes con IA gratis y escenas 3D (three.js / React Three Fiber).
 - Construye por etapas: planifica diseño, pantallas y datos; escribe la base y luego cada pantalla; prueba la app y corrige errores sola.
 - Las ediciones se aplican con parches sobre los archivos existentes, sin rehacer la app.

@@ -65,7 +65,7 @@ const STATIC_MODELS: Record<Kind, string[]> = {
   sambanova: ['DeepSeek-V3.1', 'Meta-Llama-3.3-70B-Instruct'],
   openrouter: ['openrouter/free'],
   mistral: ['mistral-medium-latest', 'devstral-medium-latest', 'codestral-latest', 'mistral-large-latest'],
-  nvidia: ['moonshotai/kimi-k3', 'deepseek-ai/deepseek-v4-pro-0813', 'qwen/qwen3-coder-480b-a35b-instruct', 'nvidia/nemotron-3-ultra-550b-a55b', 'openai/gpt-oss-120b'],
+  nvidia: ['nvidia/nemotron-3-super-120b-a12b', 'nvidia/nemotron-3-ultra-550b-a55b', 'nvidia/nemotron-3.5-lightning-30b-a3b', 'moonshotai/kimi-k3'],
   github: ['openai/gpt-4.1', 'deepseek/DeepSeek-V3-0324', 'openai/gpt-4.1-mini'],
   pollinations: ['openai'],
   openai: ['gpt-5', 'gpt-4.1'],
@@ -162,7 +162,7 @@ const CEREBRAS_RULES: Rule[] = [
   [/llama-3\.3-70b|llama3\.3-70b/i, 84], [/qwen-3-32b/i, 78], [/llama3\.1-8b|llama-3\.1-8b/i, 30],
 ];
 const SAMBA_RULES: Rule[] = [
-  [/DeepSeek-V3/i, 100], [/gpt-oss-120b/i, 96], [/Qwen3-235B/i, 93], [/Qwen3-32B/i, 85],
+  [/DeepSeek-V3\.[2-9]/i, 101], [/DeepSeek-V3/i, 100], [/gpt-oss-120b/i, 96], [/Qwen3-235B/i, 93], [/Qwen3-32B/i, 85],
   [/Llama-3\.3-70B/i, 80], [/DeepSeek-R1/i, 70],
 ];
 
@@ -234,10 +234,11 @@ function rankOpenRouter(list: any[]): string[] {
 }
 
 // NVIDIA (build.nvidia.com): muchos modelos con "Free Endpoint"; se descubren y se ordenan por calidad para código.
+// Medido (oct 2026, plan gratuito): nemotron-3-super responde en <1 s; nemotron-3-ultra es el más completo pero tarda
+// (~90 s por componente); kimi-k3 y deepseek-v4 están en cola (>20 s solo para empezar). Retirados (410): qwen3-coder-480b, gpt-oss-120b.
 const NVIDIA_RULES: Rule[] = [
-  [/kimi-k3/i, 100], [/deepseek-v4-pro/i, 99], [/qwen3?-coder-480b|qwen3\.\d-coder/i, 97], [/deepseek-v4/i, 95],
-  [/nemotron-3-ultra/i, 93], [/kimi-k2/i, 90], [/deepseek-v3\.\d/i, 88], [/gpt-oss-120b/i, 86], [/qwen3-235b|qwen3\.\d/i, 84],
-  [/nemotron-3-super/i, 80], [/llama-4-maverick/i, 72], [/nemotron-3\.5-lightning/i, 70],
+  [/nemotron-3-super/i, 100], [/nemotron-3-ultra/i, 95], [/nemotron-3\.5-lightning/i, 90], [/kimi-k3/i, 85],
+  [/deepseek-v4-pro/i, 84], [/deepseek-v4/i, 80], [/kimi-k2/i, 70], [/deepseek-v3\.\d/i, 68], [/llama-4-maverick/i, 60],
 ];
 function rankNvidia(list: any[]): string[] {
   const ids: string[] = list.map(m => m.id).filter(Boolean);
@@ -375,7 +376,7 @@ export default async function handler(req: any, res?: any) {
       openrouter: uniq([pickUser('sk-or-'), (process.env.OPENROUTER_API_KEY || '').trim()]).slice(0, 2),
       mistral: uniq(envKeys('MISTRAL_API_KEY', 'MISTRAL_API_KEYS')).slice(0, 2),
       nvidia: uniq(envKeys('NVIDIA_API_KEY', 'NVIDIA_API_KEYS')).slice(0, 2),
-      github: uniq(envKeys('GITHUB_MODELS_TOKEN', 'GITHUB_MODELS_TOKENS')).slice(0, 2),
+      github: [], // GitHub Models se retiró el 30 de julio de 2026
       // Siempre disponible (sin llave): garantiza que NONA responda aunque todo lo demás esté al límite
       pollinations: uniq([(process.env.POLLINATIONS_API_KEY || '').trim() || 'anon']),
       openai: uniq([userKey('openai')]),
