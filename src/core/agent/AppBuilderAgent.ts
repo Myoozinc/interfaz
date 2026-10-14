@@ -555,8 +555,12 @@ export function fixWrongNamedImports(files: Record<string, string>): string[] {
         else {
           for (const [f, set] of idx) if (f !== target && f !== p && set.has(orig)) { to = relSpec(p, f); break; }
         }
+        // Archivo de datos con un único export de valor (p. ej. importa productosIniciales pero se llama products): se usa con alias
+        const values = [...exp].filter(n => new RegExp(`export\\s+(?:const|let|var|function\\*?|class)\\s+${n}\\b|export\\s*\\{[^}]*\\b${n}\\b`).test(files[target]));
+        const alias = item.split(/\s+as\s+/)[1]?.trim() || orig;
         if (to) (extra[to] ||= new Set()).add(item);
-        else { keep.push(item); problems.push(`"${p}" importa "${orig}" desde "${spec}", pero ese archivo no lo exporta.`); }
+        else if (values.length === 1 && /^[a-z]/.test(orig) && /^[a-z]/.test(values[0])) keep.push(`${values[0]} as ${alias}`);
+        else { keep.push(item); problems.push(`"${p}" importa "${orig}" desde "${spec}" ("${target}"), pero "${target}" no lo exporta (exporta: ${[...exp].slice(0, 12).join(', ') || 'nada'}). Corrige el import o añade ese export.`); }
       }
       const parts = [def, keep.length ? `{ ${keep.join(', ')} }` : ''].filter(Boolean);
       return parts.length ? `import ${parts.join(', ')} from '${spec}';` : '';
@@ -1060,7 +1064,10 @@ export class AppBuilderAgent {
       patchProblems = [];
       if (problems.length === 0) break;
       if (round === 2) {
-        throw new Error(`La app tiene errores que no se pudieron corregir:\n- ${problems.slice(0, 5).join('\n- ')}`);
+        // Mejor entregar la app con un aviso (y el botón «Corregir con NONA») que perder todo el trabajo
+        if (!files['src/App.tsx'] && !files['index.html']) throw new Error(`La app tiene errores que no se pudieron corregir:\n- ${problems.slice(0, 5).join('\n- ')}`);
+        warning = `\n\n⚠️ Quedaron detalles por corregir: ${problems[0].slice(0, 180)}. Pulsa «Corregir con NONA» o escribe «arréglalo».`;
+        break;
       }
       onProgress(`${label}\n🩺 Corrigiendo ${problems.length} problema(s)…`, true);
       const broken = Object.keys(files).filter(p => problems.some(pr => pr.includes(`"${p}"`)));
