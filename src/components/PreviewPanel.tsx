@@ -729,7 +729,7 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
           </div>
 
           <button
-            onClick={() => setIframeKey(k => k + 1)}
+            onClick={() => { setConsoleLogs([]); setIsErrorDismissed(false); setIframeKey(k => k + 1); }}
             title="Recargar vista previa"
             className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-raised transition-colors cursor-pointer ml-1"
           >
@@ -750,15 +750,15 @@ export const PreviewPanel = ({ files, htmlCode, onElementSelect, onAutoFixErrors
       {/* Main Preview Container */}
       <div className="flex-1 p-3 flex items-center justify-center overflow-auto bg-canvas relative">
         {activeTab === 'preview' && errorLogs.length > 0 && !isErrorDismissed && (
-          <div className="absolute top-5 left-5 right-5 bg-panel border border-rose-500/40 text-fg px-4 py-3 rounded-xl shadow-2xl shadow-black/40 flex items-center justify-between z-40 animate-fade-in text-xs">
-            <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="absolute top-5 left-5 right-5 bg-panel border border-rose-500/40 text-fg px-4 py-3 rounded-xl shadow-2xl shadow-black/40 flex flex-wrap items-center justify-between gap-2 z-40 animate-fade-in text-xs">
+            <div className="flex items-center gap-2.5 overflow-hidden flex-1 min-w-[12rem]">
               <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
               <div className="overflow-hidden">
                 <p className="font-medium text-rose-300">La app tiene un error al ejecutarse</p>
                 <p className="text-muted font-mono truncate max-w-md mt-0.5">{errorLogs[errorLogs.length - 1].message}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0 ml-3">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleTriggerAutoFix}
                 className="h-8 px-3 bg-accent hover:bg-accent-strong text-accent-ink hover:text-white font-medium rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
