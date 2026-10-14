@@ -345,7 +345,9 @@ export class VirtualMultiFileBundler {
       'const $1 = (window.__nonaLucideProxy || {});'
     );
 
-    // 1c. Transformar imports de Three.js (three y three/...) para ejecución 100% libre de fallos ESM
+    // 1c. Transformar imports de Three.js (three y three/...) para ejecución 100% libre de fallos ESM.
+    // Con @react-three/* se usa three moderno como módulo real (una sola instancia), sin reescribir.
+    if (!VirtualMultiFileBundler.modernThree) {
     result = result.replace(/import\s+type\s+[\s\S]*?from\s+['"]three(?:\/[^'"]*)?['"];?/g, '');
 
     // A) import THREE, { a, b } from 'three'
@@ -418,6 +420,8 @@ export class VirtualMultiFileBundler {
         return `const ${defaultName} = (window.THREE?.[${JSON.stringify(lastPart)}] || window[${JSON.stringify(lastPart)}] || window.THREE?.[${JSON.stringify(defaultName)}] || class ${defaultName} {});`;
       }
     );
+
+    }
 
     // 1d. Transformar imports de Tone.js (tone)
     result = result.replace(/import\s+type\s+[\s\S]*?from\s+['"]tone(?:\/[^'"]*)?['"];?/g, '');
@@ -546,6 +550,10 @@ export class VirtualMultiFileBundler {
    * Genera el documento HTML completo (srcDoc) con Import Maps para ejecutar
    * la aplicación React multi-archivo en un iframe seguro.
    */
+  /** El proyecto usa @react-three/* (u otras librerías que necesitan three moderno como módulo). */
+  private static modernThree = false;
+  private static readonly THREE_VER = '0.160.0';
+
   public static bundle(files: Record<string, string>, options?: { isInspectMode?: boolean }): BundlerResult {
     const errors: string[] = [];
     let transpiledCount = 0;
@@ -789,97 +797,12 @@ export class VirtualMultiFileBundler {
     `;
     const routerShimUri = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(routerShimCode);
 
+    // Todas las exportaciones de three r128 (la vista previa carga r128 global); antes faltaban muchas
+    // (LinearFilter, Color...) y las librerías que importaban 'three' fallaban.
+    const THREE_R128_EXPORTS = ["ACESFilmicToneMapping", "AddEquation", "AddOperation", "AdditiveAnimationBlendMode", "AdditiveBlending", "AlphaFormat", "AlwaysDepth", "AlwaysStencilFunc", "AmbientLight", "AmbientLightProbe", "AnimationClip", "AnimationLoader", "AnimationMixer", "AnimationObjectGroup", "AnimationUtils", "ArcCurve", "ArrayCamera", "ArrowHelper", "Audio", "AudioAnalyser", "AudioContext", "AudioListener", "AudioLoader", "AxesHelper", "AxisHelper", "BackSide", "BasicDepthPacking", "BasicShadowMap", "BinaryTextureLoader", "Bone", "BooleanKeyframeTrack", "BoundingBoxHelper", "Box2", "Box3", "Box3Helper", "BoxBufferGeometry", "BoxGeometry", "BoxHelper", "BufferAttribute", "BufferGeometry", "BufferGeometryLoader", "ByteType", "Cache", "Camera", "CameraHelper", "CanvasRenderer", "CanvasTexture", "CatmullRomCurve3", "CineonToneMapping", "CircleBufferGeometry", "CircleGeometry", "ClampToEdgeWrapping", "Clock", "Color", "ColorKeyframeTrack", "CompressedTexture", "CompressedTextureLoader", "ConeBufferGeometry", "ConeGeometry", "CubeCamera", "CubeReflectionMapping", "CubeRefractionMapping", "CubeTexture", "CubeTextureLoader", "CubeUVReflectionMapping", "CubeUVRefractionMapping", "CubicBezierCurve", "CubicBezierCurve3", "CubicInterpolant", "CullFaceBack", "CullFaceFront", "CullFaceFrontBack", "CullFaceNone", "Curve", "CurvePath", "CustomBlending", "CustomToneMapping", "CylinderBufferGeometry", "CylinderGeometry", "Cylindrical", "DataTexture", "DataTexture2DArray", "DataTexture3D", "DataTextureLoader", "DataUtils", "DecrementStencilOp", "DecrementWrapStencilOp", "DefaultLoadingManager", "DepthFormat", "DepthStencilFormat", "DepthTexture", "DirectionalLight", "DirectionalLightHelper", "DiscreteInterpolant", "DodecahedronBufferGeometry", "DodecahedronGeometry", "DoubleSide", "DstAlphaFactor", "DstColorFactor", "DynamicBufferAttribute", "DynamicCopyUsage", "DynamicDrawUsage", "DynamicReadUsage", "EdgesGeometry", "EdgesHelper", "EllipseCurve", "EqualDepth", "EqualStencilFunc", "EquirectangularReflectionMapping", "EquirectangularRefractionMapping", "Euler", "EventDispatcher", "ExtrudeBufferGeometry", "ExtrudeGeometry", "FaceColors", "FileLoader", "FlatShading", "Float16BufferAttribute", "Float32Attribute", "Float32BufferAttribute", "Float64Attribute", "Float64BufferAttribute", "FloatType", "Fog", "FogExp2", "Font", "FrontSide", "Frustum", "GLBufferAttribute", "GLSL1", "GLSL3", "GammaEncoding", "GreaterDepth", "GreaterEqualDepth", "GreaterEqualStencilFunc", "GreaterStencilFunc", "GridHelper", "Group", "HalfFloatType", "HemisphereLight", "HemisphereLightHelper", "HemisphereLightProbe", "IcosahedronBufferGeometry", "IcosahedronGeometry", "ImageBitmapLoader", "ImageLoader", "ImageUtils", "ImmediateRenderObject", "IncrementStencilOp", "IncrementWrapStencilOp", "InstancedBufferAttribute", "InstancedBufferGeometry", "InstancedInterleavedBuffer", "InstancedMesh", "Int16Attribute", "Int16BufferAttribute", "Int32Attribute", "Int32BufferAttribute", "Int8Attribute", "Int8BufferAttribute", "IntType", "InterleavedBuffer", "InterleavedBufferAttribute", "Interpolant", "InterpolateDiscrete", "InterpolateLinear", "InterpolateSmooth", "InvertStencilOp", "JSONLoader", "KeepStencilOp", "KeyframeTrack", "LOD", "LatheBufferGeometry", "LatheGeometry", "Layers", "LensFlare", "LessDepth", "LessEqualDepth", "LessEqualStencilFunc", "LessStencilFunc", "Light", "LightProbe", "Line", "Line3", "LineBasicMaterial", "LineCurve", "LineCurve3", "LineDashedMaterial", "LineLoop", "LinePieces", "LineSegments", "LineStrip", "LinearEncoding", "LinearFilter", "LinearInterpolant", "LinearMipMapLinearFilter", "LinearMipMapNearestFilter", "LinearMipmapLinearFilter", "LinearMipmapNearestFilter", "LinearToneMapping", "Loader", "LoaderUtils", "LoadingManager", "LogLuvEncoding", "LoopOnce", "LoopPingPong", "LoopRepeat", "LuminanceAlphaFormat", "LuminanceFormat", "MOUSE", "Material", "MaterialLoader", "Math", "MathUtils", "Matrix3", "Matrix4", "MaxEquation", "Mesh", "MeshBasicMaterial", "MeshDepthMaterial", "MeshDistanceMaterial", "MeshFaceMaterial", "MeshLambertMaterial", "MeshMatcapMaterial", "MeshNormalMaterial", "MeshPhongMaterial", "MeshPhysicalMaterial", "MeshStandardMaterial", "MeshToonMaterial", "MinEquation", "MirroredRepeatWrapping", "MixOperation", "MultiMaterial", "MultiplyBlending", "MultiplyOperation", "NearestFilter", "NearestMipMapLinearFilter", "NearestMipMapNearestFilter", "NearestMipmapLinearFilter", "NearestMipmapNearestFilter", "NeverDepth", "NeverStencilFunc", "NoBlending", "NoColors", "NoToneMapping", "NormalAnimationBlendMode", "NormalBlending", "NotEqualDepth", "NotEqualStencilFunc", "NumberKeyframeTrack", "Object3D", "ObjectLoader", "ObjectSpaceNormalMap", "OctahedronBufferGeometry", "OctahedronGeometry", "OneFactor", "OneMinusDstAlphaFactor", "OneMinusDstColorFactor", "OneMinusSrcAlphaFactor", "OneMinusSrcColorFactor", "OrthographicCamera", "PCFShadowMap", "PCFSoftShadowMap", "PMREMGenerator", "ParametricBufferGeometry", "ParametricGeometry", "Particle", "ParticleBasicMaterial", "ParticleSystem", "ParticleSystemMaterial", "Path", "PerspectiveCamera", "Plane", "PlaneBufferGeometry", "PlaneGeometry", "PlaneHelper", "PointCloud", "PointCloudMaterial", "PointLight", "PointLightHelper", "Points", "PointsMaterial", "PolarGridHelper", "PolyhedronBufferGeometry", "PolyhedronGeometry", "PositionalAudio", "PropertyBinding", "PropertyMixer", "QuadraticBezierCurve", "QuadraticBezierCurve3", "Quaternion", "QuaternionKeyframeTrack", "QuaternionLinearInterpolant", "REVISION", "RGBADepthPacking", "RGBAFormat", "RGBAIntegerFormat", "RGBA_ASTC_10x10_Format", "RGBA_ASTC_10x5_Format", "RGBA_ASTC_10x6_Format", "RGBA_ASTC_10x8_Format", "RGBA_ASTC_12x10_Format", "RGBA_ASTC_12x12_Format", "RGBA_ASTC_4x4_Format", "RGBA_ASTC_5x4_Format", "RGBA_ASTC_5x5_Format", "RGBA_ASTC_6x5_Format", "RGBA_ASTC_6x6_Format", "RGBA_ASTC_8x5_Format", "RGBA_ASTC_8x6_Format", "RGBA_ASTC_8x8_Format", "RGBA_BPTC_Format", "RGBA_ETC2_EAC_Format", "RGBA_PVRTC_2BPPV1_Format", "RGBA_PVRTC_4BPPV1_Format", "RGBA_S3TC_DXT1_Format", "RGBA_S3TC_DXT3_Format", "RGBA_S3TC_DXT5_Format", "RGBDEncoding", "RGBEEncoding", "RGBEFormat", "RGBFormat", "RGBIntegerFormat", "RGBM16Encoding", "RGBM7Encoding", "RGB_ETC1_Format", "RGB_ETC2_Format", "RGB_PVRTC_2BPPV1_Format", "RGB_PVRTC_4BPPV1_Format", "RGB_S3TC_DXT1_Format", "RGFormat", "RGIntegerFormat", "RawShaderMaterial", "Ray", "Raycaster", "RectAreaLight", "RedFormat", "RedIntegerFormat", "ReinhardToneMapping", "RepeatWrapping", "ReplaceStencilOp", "ReverseSubtractEquation", "RingBufferGeometry", "RingGeometry", "SRGB8_ALPHA8_ASTC_10x10_Format", "SRGB8_ALPHA8_ASTC_10x5_Format", "SRGB8_ALPHA8_ASTC_10x6_Format", "SRGB8_ALPHA8_ASTC_10x8_Format", "SRGB8_ALPHA8_ASTC_12x10_Format", "SRGB8_ALPHA8_ASTC_12x12_Format", "SRGB8_ALPHA8_ASTC_4x4_Format", "SRGB8_ALPHA8_ASTC_5x4_Format", "SRGB8_ALPHA8_ASTC_5x5_Format", "SRGB8_ALPHA8_ASTC_6x5_Format", "SRGB8_ALPHA8_ASTC_6x6_Format", "SRGB8_ALPHA8_ASTC_8x5_Format", "SRGB8_ALPHA8_ASTC_8x6_Format", "SRGB8_ALPHA8_ASTC_8x8_Format", "Scene", "SceneUtils", "ShaderChunk", "ShaderLib", "ShaderMaterial", "ShadowMaterial", "Shape", "ShapeBufferGeometry", "ShapeGeometry", "ShapePath", "ShapeUtils", "ShortType", "Skeleton", "SkeletonHelper", "SkinnedMesh", "SmoothShading", "Sphere", "SphereBufferGeometry", "SphereGeometry", "Spherical", "SphericalHarmonics3", "SplineCurve", "SpotLight", "SpotLightHelper", "Sprite", "SpriteMaterial", "SrcAlphaFactor", "SrcAlphaSaturateFactor", "SrcColorFactor", "StaticCopyUsage", "StaticDrawUsage", "StaticReadUsage", "StereoCamera", "StreamCopyUsage", "StreamDrawUsage", "StreamReadUsage", "StringKeyframeTrack", "SubtractEquation", "SubtractiveBlending", "TOUCH", "TangentSpaceNormalMap", "TetrahedronBufferGeometry", "TetrahedronGeometry", "TextBufferGeometry", "Texture", "TextureLoader", "TorusBufferGeometry", "TorusGeometry", "TorusKnotBufferGeometry", "TorusKnotGeometry", "Triangle", "TriangleFanDrawMode", "TriangleStripDrawMode", "TrianglesDrawMode", "TubeBufferGeometry", "TubeGeometry", "UVMapping", "Uint16Attribute", "Uint16BufferAttribute", "Uint32Attribute", "Uint32BufferAttribute", "Uint8Attribute", "Uint8BufferAttribute", "Uint8ClampedAttribute", "Uint8ClampedBufferAttribute", "Uniform", "UniformsLib", "UniformsUtils", "UnsignedByteType", "UnsignedInt248Type", "UnsignedIntType", "UnsignedShort4444Type", "UnsignedShort5551Type", "UnsignedShort565Type", "UnsignedShortType", "VSMShadowMap", "Vector2", "Vector3", "Vector4", "VectorKeyframeTrack", "Vertex", "VertexColors", "VideoTexture", "WebGL1Renderer", "WebGLCubeRenderTarget", "WebGLMultisampleRenderTarget", "WebGLRenderTarget", "WebGLRenderTargetCube", "WebGLRenderer", "WebGLUtils", "WireframeGeometry", "WireframeHelper", "WrapAroundEnding", "XHRLoader", "ZeroCurvatureEnding", "ZeroFactor", "ZeroSlopeEnding", "ZeroStencilOp", "sRGBEncoding"];
     const threeShimCode = `
       const T = (typeof window !== 'undefined' && window.THREE) ? window.THREE : {};
-      export const Object3D = T.Object3D || class Object3D {};
-      export const Scene = T.Scene || class Scene {};
-      export const PerspectiveCamera = T.PerspectiveCamera || class PerspectiveCamera {};
-      export const OrthographicCamera = T.OrthographicCamera || class OrthographicCamera {};
-      export const Camera = T.Camera || class Camera {};
-      export const WebGLRenderer = T.WebGLRenderer || class WebGLRenderer {};
-      export const WebGLRenderTarget = T.WebGLRenderTarget || class WebGLRenderTarget {};
-      export const Mesh = T.Mesh || class Mesh {};
-      export const Group = T.Group || class Group {};
-      export const BoxGeometry = T.BoxGeometry || class BoxGeometry {};
-      export const SphereGeometry = T.SphereGeometry || class SphereGeometry {};
-      export const PlaneGeometry = T.PlaneGeometry || class PlaneGeometry {};
-      export const CylinderGeometry = T.CylinderGeometry || class CylinderGeometry {};
-      export const ConeGeometry = T.ConeGeometry || class ConeGeometry {};
-      export const TorusGeometry = T.TorusGeometry || class TorusGeometry {};
-      export const RingGeometry = T.RingGeometry || class RingGeometry {};
-      export const CircleGeometry = T.CircleGeometry || class CircleGeometry {};
-      export const BufferGeometry = T.BufferGeometry || class BufferGeometry {};
-      export const InstancedBufferGeometry = T.InstancedBufferGeometry || class InstancedBufferGeometry {};
-      export const MeshBasicMaterial = T.MeshBasicMaterial || class MeshBasicMaterial {};
-      export const MeshStandardMaterial = T.MeshStandardMaterial || class MeshStandardMaterial {};
-      export const MeshPhongMaterial = T.MeshPhongMaterial || class MeshPhongMaterial {};
-      export const MeshPhysicalMaterial = T.MeshPhysicalMaterial || class MeshPhysicalMaterial {};
-      export const MeshLambertMaterial = T.MeshLambertMaterial || class MeshLambertMaterial {};
-      export const MeshToonMaterial = T.MeshToonMaterial || class MeshToonMaterial {};
-      export const MeshNormalMaterial = T.MeshNormalMaterial || class MeshNormalMaterial {};
-      export const MeshDepthMaterial = T.MeshDepthMaterial || class MeshDepthMaterial {};
-      export const Material = T.Material || class Material {};
-      export const ShaderMaterial = T.ShaderMaterial || class ShaderMaterial {};
-      export const RawShaderMaterial = T.RawShaderMaterial || class RawShaderMaterial {};
-      export const LineBasicMaterial = T.LineBasicMaterial || class LineBasicMaterial {};
-      export const PointsMaterial = T.PointsMaterial || class PointsMaterial {};
-      export const Vector2 = T.Vector2 || class Vector2 {};
-      export const Vector3 = T.Vector3 || class Vector3 {};
-      export const Vector4 = T.Vector4 || class Vector4 {};
-      export const Matrix3 = T.Matrix3 || class Matrix3 {};
-      export const Matrix4 = T.Matrix4 || class Matrix4 {};
-      export const Quaternion = T.Quaternion || class Quaternion {};
-      export const Euler = T.Euler || class Euler {};
-      export const Color = T.Color || class Color {};
-      export const Raycaster = T.Raycaster || class Raycaster {};
-      export const Clock = T.Clock || class Clock {};
-      export const TextureLoader = T.TextureLoader || class TextureLoader {};
-      export const LoadingManager = T.LoadingManager || class LoadingManager {};
-      export const Texture = T.Texture || class Texture {};
-      export const CanvasTexture = T.CanvasTexture || class CanvasTexture {};
-      export const AmbientLight = T.AmbientLight || class AmbientLight {};
-      export const DirectionalLight = T.DirectionalLight || class DirectionalLight {};
-      export const PointLight = T.PointLight || class PointLight {};
-      export const SpotLight = T.SpotLight || class SpotLight {};
-      export const HemisphereLight = T.HemisphereLight || class HemisphereLight {};
-      export const RectAreaLight = T.RectAreaLight || class RectAreaLight {};
-      export const Light = T.Light || class Light {};
-      export const AudioListener = T.AudioListener || class AudioListener {};
-      export const Audio = T.Audio || class Audio {};
-      export const PositionalAudio = T.PositionalAudio || class PositionalAudio {};
-      export const AudioLoader = T.AudioLoader || class AudioLoader {};
-      export const Fog = T.Fog || class Fog {};
-      export const FogExp2 = T.FogExp2 || class FogExp2 {};
-      export const AnimationMixer = T.AnimationMixer || class AnimationMixer {};
-      export const AnimationClip = T.AnimationClip || class AnimationClip {};
-      export const AnimationAction = T.AnimationAction || class AnimationAction {};
-      export const KeyframeTrack = T.KeyframeTrack || class KeyframeTrack {};
-      export const InstancedMesh = T.InstancedMesh || class InstancedMesh {};
-      export const Line = T.Line || class Line {};
-      export const LineSegments = T.LineSegments || class LineSegments {};
-      export const LineLoop = T.LineLoop || class LineLoop {};
-      export const Points = T.Points || class Points {};
-      export const Sprite = T.Sprite || class Sprite {};
-      export const SpriteMaterial = T.SpriteMaterial || class SpriteMaterial {};
-      export const Curve = T.Curve || class Curve {};
-      export const CatmullRomCurve3 = T.CatmullRomCurve3 || class CatmullRomCurve3 {};
-      export const CurvePath = T.CurvePath || class CurvePath {};
-      export const Path = T.Path || class Path {};
-      export const Shape = T.Shape || class Shape {};
-      export const ShapeGeometry = T.ShapeGeometry || class ShapeGeometry {};
-      export const ExtrudeGeometry = T.ExtrudeGeometry || class ExtrudeGeometry {};
-      export const BufferAttribute = T.BufferAttribute || class BufferAttribute {};
-      export const Float32BufferAttribute = T.Float32BufferAttribute || class Float32BufferAttribute {};
-      export const Uint16BufferAttribute = T.Uint16BufferAttribute || class Uint16BufferAttribute {};
-      export const Uint32BufferAttribute = T.Uint32BufferAttribute || class Uint32BufferAttribute {};
-      export const Box3 = T.Box3 || class Box3 {};
-      export const Sphere = T.Sphere || class Sphere {};
-      export const Ray = T.Ray || class Ray {};
-      export const Plane = T.Plane || class Plane {};
-      export const Frustum = T.Frustum || class Frustum {};
-      export const Triangle = T.Triangle || class Triangle {};
-      export const MathUtils = T.MathUtils || { degToRad: (d) => d * Math.PI / 180, radToDeg: (r) => r * 180 / Math.PI };
-      export const Uniform = T.Uniform || class Uniform {};
+      ${THREE_R128_EXPORTS.map(k => `export const ${k} = T[${JSON.stringify(k)}];`).join('\n')}
       export const OrbitControls = (typeof window !== 'undefined' && (window.THREE?.OrbitControls || window.OrbitControls)) || class OrbitControls {};
       export const PointerLockControls = (typeof window !== 'undefined' && (window.THREE?.PointerLockControls || window.PointerLockControls)) || class PointerLockControls {};
       export const GLTFLoader = (typeof window !== 'undefined' && (window.THREE?.GLTFLoader || window.GLTFLoader)) || class GLTFLoader {};
@@ -1011,6 +934,8 @@ export class VirtualMultiFileBundler {
       "chart.js": "https://esm.sh/chart.js@4.4.7",
       "chart.js/auto": "https://esm.sh/chart.js@4.4.7/auto"
     };
+
+    VirtualMultiFileBundler.modernThree = Object.values(normalizedFiles).some(c => /from\s+['"](@react-three\/|three-stdlib|postprocessing)/.test(c));
 
     // 3. Crear Data URIs para todos los módulos JS/TSX/TS del proyecto
     const moduleFileKeys = Object.keys(normalizedFiles).filter(p =>
@@ -1204,6 +1129,19 @@ export class VirtualMultiFileBundler {
       }
     }
 
+    if (VirtualMultiFileBundler.modernThree) {
+      const V = VirtualMultiFileBundler.THREE_VER;
+      for (const k of Object.keys(importMap)) if (k === 'three' || k.startsWith('three/')) delete importMap[k];
+      importMap['three'] = `https://esm.sh/three@${V}`;
+      importMap['three/addons/'] = `https://esm.sh/three@${V}/examples/jsm/`;
+      importMap['three/'] = `https://esm.sh/three@${V}/`;
+      // Versiones compatibles con React 18 y entre sí (misma instancia de three y de fiber)
+      importMap['@react-three/fiber'] = 'https://esm.sh/@react-three/fiber@8.17.10?external=react,react-dom,three';
+      importMap['@react-three/drei'] = 'https://esm.sh/@react-three/drei@9.117.3?external=react,react-dom,three,@react-three/fiber';
+      importMap['@react-three/postprocessing'] = 'https://esm.sh/@react-three/postprocessing@2.16.3?external=react,react-dom,three,@react-three/fiber';
+      importMap['three-stdlib'] = 'https://esm.sh/three-stdlib@2.34.0?external=three';
+    }
+
     // 3c. Auto-registro dinámico de paquetes npm externos (CDN esm.sh / shims)
     const allCodeText = Object.values(normalizedFiles).join('\n');
     const bareImportRegex = /(?:^|\n|\r)\s*(?:import|export)\s+(?:[^;'"]*?from\s+)?['"]([a-zA-Z0-9@][^'"]*)['"]/g;
@@ -1225,6 +1163,8 @@ export class VirtualMultiFileBundler {
         importMap[spec] = cannonShimUri;
       } else if (spec === 'tone') {
         importMap[spec] = toneShimUri;
+      } else if (VirtualMultiFileBundler.modernThree && (spec === 'three' || spec.startsWith('three/'))) {
+        continue; // resuelto por los prefijos three/ y three/addons/
       } else if (spec === 'three') {
         importMap[spec] = threeShimUri;
       } else if (spec.startsWith('three/')) {
