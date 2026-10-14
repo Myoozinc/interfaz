@@ -557,6 +557,44 @@ export function filesAsContext(files: Record<string, string>, maxChars = 120000)
   return out;
 }
 
+const STOP = new Set('que con por para los las del una uno unos unas este esta esto ese esa como cuando donde todo toda todos todas pon poner haz hacer cambia cambiar quiero agrega agregar añade añadir quita quitar mas más muy sus ser hay app juego aplicacion aplicación tambien también solo sobre entre desde hasta pero sin the and for with that this'.split(' '));
+const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/**
+ * Para editar proyectos grandes (p. ej. un juego de 1.800 líneas) no se manda todo el código a la IA:
+ * se eligen los archivos relacionados con el pedido hasta un presupuesto de caracteres. Así la petición
+ * cabe en los modelos rápidos gratuitos (Groq) en vez de depender solo de los de contexto enorme.
+ */
+export function selectEditContext(files: Record<string, string>, instruction: string, history = '', budget = 45000): { included: Record<string, string>; omitted: string[] } {
+  const total = Object.values(files).reduce((a, c) => a + c.length + 30, 0);
+  if (total <= budget) return { included: { ...files }, omitted: [] };
+  const text = fold(instruction + ' ' + history.slice(-600));
+  const terms = Array.from(new Set((text.match(/[a-z0-9_]{3,}/g) || []).filter(w => !STOP.has(w))));
+  const quoted = (instruction.match(/["'“”«»`]([^"'“”«»`]{2,60})["'“”«»`]/g) || []).map(q => fold(q.slice(1, -1)));
+  const scored = Object.entries(files).map(([p, c]) => {
+    const fc = fold(c), fp = fold(p);
+    let score = 0;
+    for (const t of terms) {
+      if (fp.includes(t)) score += 12;
+      let i = 0, n = 0;
+      while ((i = fc.indexOf(t, i)) !== -1 && n < 20) { n++; i += t.length; }
+      score += n;
+    }
+    for (const q of quoted) if (fc.includes(q)) score += 40;
+    if (/(^|\/)app\.tsx$/i.test(p)) score += 3;
+    if (/config|constants|theme|data|types?\./i.test(p)) score += 2;
+    return { p, c, score: score / Math.sqrt(1 + c.length / 4000) };
+  }).sort((a, b) => b.score - a.score);
+  const included: Record<string, string> = {};
+  let used = 0;
+  for (const f of scored) {
+    if (used + f.c.length + 30 > budget) continue;
+    if (f.score <= 0 && used > budget * 0.6) continue;
+    included[f.p] = f.c; used += f.c.length + 30;
+  }
+  return { included, omitted: Object.keys(files).filter(p => !(p in included)) };
+}
+
 export class AppBuilderAgent {
   private ai = new OllamaProvider('/api/agent', 'auto');
 
@@ -624,8 +662,15 @@ export class AppBuilderAgent {
       const lines = (s: string) => s.split('\n').length;
       const tree = Object.entries(current).map(([p, c]) => `- ${p} (${lines(c)} líneas${lines(c) > 120 ? ' → usa <edit>' : ''})`).join('\n');
       const system = isHtmlProject ? `${EDIT_SYSTEM}\n\n${HTML_PROJECT_RULES}` : EDIT_SYSTEM;
-      const user = `${history ? `CONVERSACIÓN RECIENTE:\n${history}\n\n` : ''}ARCHIVOS DEL PROYECTO:\n${tree}\n\nCONTENIDO ACTUAL:\n${filesAsContext(current)}\n\nCAMBIO PEDIDO POR EL USUARIO:\n"${instruction}"`;
+      const { included, omitted } = selectEditContext(current, instruction, history);
+      const omittedNote = omitted.length
+        ? `\n\n(Por tamaño solo se muestran los archivos relacionados con el pedido. No se muestran: ${omitted.join(', ')}. No los reescribas ni los borres; si el cambio exige tocarlos, edítalos con <edit> usando solo código que puedas deducir con seguridad, o resuelve el cambio en los archivos mostrados.)`
+        : '';
+      const user = `${history ? `CONVERSACIÓN RECIENTE:\n${history}\n\n` : ''}ARCHIVOS DEL PROYECTO:\n${tree}\n\nCONTENIDO ACTUAL:\n${filesAsContext(included)}${omittedNote}\n\nCAMBIO PEDIDO POR EL USUARIO:\n"${instruction}"`;
       parsed = await this.askWithRetry(system, user, 12000, onProgress, label, opts?.signal);
+      // La IA no vio los archivos omitidos: no puede reescribirlos enteros ni borrarlos (solo parches verificables)
+      for (const p of omitted) delete parsed.files[p];
+      parsed.deletes = parsed.deletes.filter(p => !omitted.includes(p));
       files = { ...current };
       patchProblems = applyParsed(files, parsed);
       if (isHtmlProject) {
