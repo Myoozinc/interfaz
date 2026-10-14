@@ -404,7 +404,9 @@ export default async function handler(req: any, res?: any) {
       const ordered = hint && models.includes(hint) ? [hint, ...models.filter(m => m !== hint)] : models;
       for (const m of ordered.slice(0, n)) {
         if (skipSet.has(`${kind}:${m}`)) continue;
-        for (const key of keys[kind]) attempts.push({ kind, key, model: m, maxOut: Math.min(want, maxOutFor(m)) });
+        // Los modelos que razonan (NVIDIA Nemotron/Kimi) gastan parte de la salida pensando: se les da el doble
+        const room = kind === 'nvidia' ? want * 2 : want;
+        for (const key of keys[kind]) attempts.push({ kind, key, model: m, maxOut: Math.min(room, maxOutFor(m)) });
       }
     };
 
