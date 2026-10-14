@@ -193,6 +193,57 @@ function planBatches(plan: AppPlan): string[][] {
   return batches;
 }
 
+/** App.tsx de respaldo: navegación entre las pantallas ya escritas (cuando ningún modelo pudo escribirlo). */
+function synthesizeApp(files: Record<string, string>, plan: AppPlan): string | null {
+  const views = Object.keys(files).filter(p => /^src\/(views|pages|screens)\/[^/]+\.tsx$/.test(p));
+  if (views.length === 0) return null;
+  const imports: string[] = [], tabs: string[] = [];
+  views.forEach((p, i) => {
+    const c = files[p];
+    const base = p.split('/').pop()!.replace(/\.tsx$/, '');
+    const comp = `View${i}`;
+    const named = c.match(/export\s+(?:default\s+)?function\s+([A-Z][\w$]*)/);
+    if (/export\s+default/.test(c)) imports.push(`import ${comp} from './${p.slice(4, -4)}';`);
+    else if (named) imports.push(`import { ${named[1]} as ${comp} } from './${p.slice(4, -4)}';`);
+    else return;
+    const label = base.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ');
+    tabs.push(`  { id: '${base}', label: ${JSON.stringify(label)}, C: ${comp} },`);
+  });
+  if (!tabs.length) return null;
+  const css = files['src/index.css'] ? "import './index.css';\n" : '';
+  const name = JSON.stringify(plan.name || 'Mi app');
+  return `${css}import { useState } from 'react';
+${imports.join('\n')}
+
+const SCREENS = [
+${tabs.join('\n')}
+];
+
+export default function App() {
+  const [tab, setTab] = useState(SCREENS[0].id);
+  const Current = (SCREENS.find(s => s.id === tab) || SCREENS[0]).C as any;
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4 overflow-x-auto">
+          <span className="font-semibold whitespace-nowrap">{${name}}</span>
+          <nav className="flex gap-1">
+            {SCREENS.map(s => (
+              <button key={s.id} onClick={() => setTab(s.id)}
+                className={\`px-3 h-9 rounded-lg text-sm whitespace-nowrap \${tab === s.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}\`}>
+                {s.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
+      <main className="max-w-6xl mx-auto px-4 py-6"><Current /></main>
+    </div>
+  );
+}
+`;
+}
+
 /** Resumen compacto de un archivo ya escrito: completo si es pequeño o es base; si no, solo sus exports e interfaces. */
 function fileDigest(path: string, content: string): string {
   const lines = content.split('\n');
@@ -953,7 +1004,7 @@ export class AppBuilderAgent {
           incomplete.push(...out.incomplete.filter(p => !(p in out.files)));
         } catch (e: any) {
           if (e?.name === 'AbortError') throw e;
-          if (attempt === 2) throw e;
+          // Una parte que falla 3 veces no tumba toda la app: la revisión posterior crea lo que falte
         }
         pending = pending.filter(p => !(p in files));
       }
@@ -974,6 +1025,12 @@ export class AppBuilderAgent {
     const worker = async (w: number) => { while (next < viewBatches.length) { const i = next++; await writeBatch(viewBatches[i], w + i); } };
     await Promise.all([0, 1, 2].slice(0, Math.min(3, viewBatches.length)).map(w => worker(w)));
     await writeBatch(['src/App.tsx'], 0);
+    // Si ningún modelo consiguió escribir App.tsx, se arma uno a partir de las pantallas ya escritas
+    // (antes se tiraba todo y se rehacía la app en una sola respuesta, mucho más pobre).
+    if (!files['src/App.tsx']) {
+      const app = synthesizeApp(files, plan);
+      if (app) { files['src/App.tsx'] = app; onProgress(`${label}\n🧩 Uniendo las pantallas…`, true); }
+    }
     if (!files['src/App.tsx']) return null;
     return { summary: plan.summary ? `${plan.name}: ${plan.summary}` : '', files, deletes: [], incomplete: [...new Set(incomplete)], edits: [] };
   }
