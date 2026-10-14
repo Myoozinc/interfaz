@@ -1,5 +1,14 @@
 export const config = { runtime: 'edge' };
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+/** Imagen de respaldo (degradado según el texto) para que una app nunca se rompa si el generador está saturado. */
+function fallbackSvg(prompt: string, w: number, h: number): string {
+  let x = 0; for (const ch of prompt) x = (x * 31 + ch.charCodeAt(0)) >>> 0;
+  const h1 = x % 360, h2 = (h1 + 40 + (x >> 8) % 80) % 360;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><radialGradient id="g" cx="35%" cy="35%" r="80%"><stop offset="0" stop-color="hsl(${h1},70%,62%)"/><stop offset="1" stop-color="hsl(${h2},55%,22%)"/></radialGradient></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>`;
+}
+
 /**
  * Imágenes generadas con IA para las apps de NONA (gratis, sin llave para el usuario).
  * GET /api/image?prompt=texto&w=800&h=600&seed=7
@@ -16,9 +25,16 @@ export default async function handler(req: Request) {
   const urls = key
     ? [`https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?${q}`, `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${q}`]
     : [`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${q}`];
-  for (const url of urls) {
+  // El plan gratuito limita peticiones simultáneas: se reintenta con espera (una app puede pedir 8-10 imágenes a la vez)
+  const tries = [...urls, ...urls, ...urls, ...urls].slice(0, 5);
+  const t0 = Date.now();
+  for (let i = 0; i < tries.length; i++) {
+    const url = tries[i];
+    if (i > 0) await sleep(1200 * i + Math.random() * 800);
+    const left = 22000 - (Date.now() - t0); // las funciones edge deben empezar a responder antes de ~25 s
+    if (left < 3000) break;
     try {
-      const r = await fetch(url, { headers: key && url.includes('gen.') ? { Authorization: `Bearer ${key}` } : {} });
+      const r = await fetch(url, { signal: AbortSignal.timeout(Math.min(left, 15000)), headers: key && url.includes('gen.') ? { Authorization: `Bearer ${key}` } : {} });
       const type = r.headers.get('content-type') || '';
       if (r.ok && type.startsWith('image/')) {
         return new Response(r.body, {
@@ -31,5 +47,7 @@ export default async function handler(req: Request) {
       }
     } catch {}
   }
-  return new Response('No se pudo generar la imagen', { status: 502, headers: { 'Access-Control-Allow-Origin': '*' } });
+  return new Response(fallbackSvg(prompt, w, h), {
+    headers: { 'Content-Type': 'image/svg+xml', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=60' },
+  });
 }
