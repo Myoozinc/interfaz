@@ -24,7 +24,8 @@ export const config = {
  *   {"error":"..."}                                     fallo a mitad del stream
  */
 
-type Kind = 'groq' | 'gemini' | 'cerebras' | 'sambanova' | 'openrouter' | 'mistral' | 'nvidia' | 'github' | 'pollinations';
+type Kind = 'groq' | 'gemini' | 'cerebras' | 'sambanova' | 'openrouter' | 'mistral' | 'nvidia' | 'github' | 'pollinations'
+  | 'openai' | 'anthropic' | 'deepseek'; // estas tres solo con la llave propia del usuario
 
 interface Attempt {
   kind: Kind;
@@ -49,6 +50,9 @@ const BASE: Record<Kind, string> = {
   nvidia: 'https://integrate.api.nvidia.com/v1', // build.nvidia.com: acceso gratuito para desarrolladores
   github: 'https://models.github.ai/inference',  // GitHub Models: gratis con un token de GitHub
   pollinations: 'https://text.pollinations.ai/openai', // sin llave (último recurso); con POLLINATIONS_API_KEY usa gen.pollinations.ai
+  openai: 'https://api.openai.com/v1',
+  anthropic: 'https://api.anthropic.com/v1', // compatibilidad OpenAI de la API de Claude
+  deepseek: 'https://api.deepseek.com/v1',
 };
 const chatUrl = (kind: Kind, key: string) =>
   kind === 'pollinations' ? (key === 'anon' ? BASE.pollinations : 'https://gen.pollinations.ai/v1/chat/completions') : `${BASE[kind]}/chat/completions`;
@@ -63,7 +67,10 @@ const STATIC_MODELS: Record<Kind, string[]> = {
   mistral: ['mistral-medium-latest', 'devstral-medium-latest', 'codestral-latest', 'mistral-large-latest'],
   nvidia: ['qwen/qwen3-coder-480b-a35b-instruct', 'deepseek-ai/deepseek-v3.1', 'moonshotai/kimi-k2-instruct', 'openai/gpt-oss-120b'],
   github: ['openai/gpt-4.1', 'deepseek/DeepSeek-V3-0324', 'openai/gpt-4.1-mini'],
-  pollinations: ['openai', 'qwen-coder'],
+  pollinations: ['openai'],
+  openai: ['gpt-5', 'gpt-4.1'],
+  anthropic: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5-20251001'],
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
 };
 
 // Límite de caracteres por mensaje: los proveedores con TPM bajo necesitan compactar; los de contexto grande no.
@@ -78,11 +85,14 @@ const MSG_LIMIT: Record<Kind, number> = {
   nvidia: 400000,
   github: 28000, // GitHub Models gratis: ~8k tokens de entrada
   pollinations: 60000,
+  openai: 400000,
+  anthropic: 400000,
+  deepseek: 400000,
 };
 
 // Tokens por minuto del plan gratuito de Groq (aprox.). Una petición (entrada + salida) debe caber en el TPM del modelo.
 const GROQ_TPM: Array<[RegExp, number]> = [
-  [/scout/i, 30000], [/llama-3\.3-70b/i, 12000], [/kimi/i, 10000], [/gpt-oss-120b/i, 8000],
+  [/scout/i, 30000], [/qwen3\.[5-9]/i, 8000], [/llama-3\.3-70b/i, 12000], [/kimi/i, 10000], [/gpt-oss-120b/i, 8000],
   [/gpt-oss-20b/i, 8000], [/qwen3?.*32b/i, 6000], [/maverick/i, 6000], [/llama-3\.1-8b/i, 6000],
 ];
 const groqTpm = (m: string) => (GROQ_TPM.find(([re]) => re.test(m)) || [null, 6000])[1];
@@ -144,7 +154,7 @@ function scoreBy(id: string, rules: Rule[], fallback: number): number {
 }
 
 const GROQ_RULES: Rule[] = [
-  [/gpt-oss-120b/i, 100], [/kimi-k2/i, 96], [/qwen3?-?.*32b/i, 90], [/llama-3\.3-70b/i, 86],
+  [/gpt-oss-120b/i, 100], [/qwen3\.[5-9]/i, 98], [/kimi-k2/i, 96], [/qwen3?-?.*32b/i, 90], [/llama-3\.3-70b/i, 86],
   [/maverick/i, 82], [/scout/i, 72], [/gpt-oss-20b/i, 60], [/llama-3\.1-8b/i, 30],
 ];
 const CEREBRAS_RULES: Rule[] = [
@@ -158,7 +168,7 @@ const SAMBA_RULES: Rule[] = [
 
 function rankGroq(list: any[], vision: boolean): string[] {
   const ids: string[] = list.map(m => m.id).filter(Boolean);
-  const bad = /whisper|tts|guard|orpheus|playai|distil|compound|embed|allam/i;
+  const bad = /whisper|tts|guard|orpheus|playai|distil|compound|embed|allam|safeguard/i;
   return ids
     .filter(id => !bad.test(id))
     .filter(id => (vision ? /vision|scout|maverick/i.test(id) : /llama|qwen|gpt-oss|kimi|deepseek|mixtral/i.test(id)))
@@ -179,7 +189,7 @@ function rankSamba(list: any[]): string[] {
 
 function rankGemini(list: any[]): string[] {
   const ids: string[] = list.map(m => String(m.id || m.name || '').replace(/^models\//, '')).filter(Boolean);
-  const bad = /embed|tts|image|imagen|veo|live|audio|aqa|gemma|robotics|computer|learnlm|exp|thinking|latest-|deep-research|customtools|nano|banana/i;
+  const bad = /embed|tts|image|imagen|veo|live|audio|aqa|gemma|robotics|computer|learnlm|exp|thinking|latest-|deep-research|customtools|nano|banana|transcribe|translate|omni|argon/i;
   // Plan gratuito: los modelos "Pro" casi nunca tienen cuota gratis (429 / 404), así que se prueban al final.
   // Primero Flash (rápido, gratis y muy bueno en código), luego Flash-Lite, y por último Pro.
   const scored = ids
@@ -195,7 +205,11 @@ function rankGemini(list: any[]): string[] {
 }
 
 function rankOpenRouter(list: any[]): string[] {
+  // Medido en NONA (oct 2026, componente React completo): nemotron-3-super 10 s, dots-3 17 s, nemotron-3.5-lightning 21 s,
+  // north-mini-code 33 s, nemotron-3-ultra 62 s (el más completo); laguna-s gasta la salida razonando; inkling da 403.
   const rules: Rule[] = [
+    [/nemotron-3-super/i, 75], [/dots-3/i, 68], [/nemotron-3-ultra/i, 66], [/nemotron-3\.5-lightning/i, 62],
+    [/north-mini-code/i, 55], [/laguna-s/i, 40], [/inkling/i, -40],
     [/coder/i, 60], [/(qwen3|qwen-3).*(235|480|next|max)/i, 58], [/kimi/i, 52], [/deepseek.*(v3|chat|r1)/i, 50],
     [/gpt-oss-120b/i, 50], [/glm-4/i, 46], [/gemini/i, 46], [/llama-3\.3-70b/i, 40], [/mistral.*(large|small-3|medium)/i, 32],
     [/nemotron/i, 25], [/gemma-?\d*-?(27|31)b/i, 22],
@@ -205,7 +219,7 @@ function rankOpenRouter(list: any[]): string[] {
       const id: string = m.id || '';
       const free = id.endsWith(':free') || (Number(m.pricing?.prompt) === 0 && Number(m.pricing?.completion) === 0);
       if (!free || id === 'openrouter/free') return false;
-      if (/embed|image|audio|lyria|guard|whisper|tts|vision-only/i.test(id)) return false;
+      if (/embed|image|audio|lyria|guard|whisper|tts|vision-only|safety|lfm-|nano|laguna-xs/i.test(id)) return false;
       return (m.context_length || 0) >= 16000;
     })
     .map(m => {
@@ -217,6 +231,19 @@ function rankOpenRouter(list: any[]): string[] {
     })
     .sort((a, b) => b.s - a.s);
   return rows.map(r => r.id);
+}
+
+function rankOpenAI(list: any[]): string[] {
+  const ids: string[] = list.map(m => m.id).filter(Boolean);
+  return ids
+    .filter(id => /^(gpt-|o\d)/.test(id) && !/audio|realtime|tts|transcribe|image|search|embed|instruct|chat-latest|codex|\d{4}-\d{2}-\d{2}/.test(id))
+    .map(id => {
+      const v = parseFloat((id.match(/^gpt-(\d+(?:\.\d+)?)/) || [])[1] || (/^o\d/.test(id) ? '4.5' : '3'));
+      const size = /nano/.test(id) ? -12 : /mini/.test(id) ? -6 : 0;
+      return { id, s: v * 10 + size };
+    })
+    .sort((a, b) => b.s - a.s)
+    .map(x => x.id);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -311,6 +338,9 @@ export default async function handler(req: any, res?: any) {
       : (req.headers?.get ? (req.headers.get('Authorization') || '') : '');
 
     const { model, messages = [], apiKey, openrouterKey, groqKey, maxTokensRequested, temperature, skip, prefer } = body;
+    // Llaves propias del usuario (opcionales; se guardan solo en su navegador): OpenAI, Anthropic, Gemini, DeepSeek
+    const uk = (body.userKeys && typeof body.userKeys === 'object') ? body.userKeys : {};
+    const userKey = (k: string) => (typeof uk[k] === 'string' ? uk[k].trim() : '');
     const safeMessages: any[] = Array.isArray(messages) ? messages : [];
     const hasImages = safeMessages.some((m: any) => m.images && m.images.length > 0);
     const clientBearer = authHeader ? String(authHeader).replace('Bearer ', '').trim() : '';
@@ -325,7 +355,7 @@ export default async function handler(req: any, res?: any) {
     const uniq = (a: string[]) => Array.from(new Set(a.filter(Boolean)));
     const keys: Record<Kind, string[]> = {
       groq: uniq([pickUser('gsk_'), ...envKeys('GROQ_API_KEY', 'GROQ_API_KEYS')]).slice(0, 3),
-      gemini: uniq(envKeys('GEMINI_API_KEY', 'GEMINI_API_KEYS')).slice(0, 3),
+      gemini: uniq([userKey('gemini'), ...envKeys('GEMINI_API_KEY', 'GEMINI_API_KEYS')]).slice(0, 4),
       cerebras: uniq(envKeys('CEREBRAS_API_KEY', 'CEREBRAS_API_KEYS')).slice(0, 2),
       sambanova: uniq(envKeys('SAMBANOVA_API_KEY', 'SAMBANOVA_API_KEYS')).slice(0, 2),
       openrouter: uniq([pickUser('sk-or-'), (process.env.OPENROUTER_API_KEY || '').trim()]).slice(0, 2),
@@ -334,6 +364,9 @@ export default async function handler(req: any, res?: any) {
       github: uniq(envKeys('GITHUB_MODELS_TOKEN', 'GITHUB_MODELS_TOKENS')).slice(0, 2),
       // Siempre disponible (sin llave): garantiza que NONA responda aunque todo lo demás esté al límite
       pollinations: uniq([(process.env.POLLINATIONS_API_KEY || '').trim() || 'anon']),
+      openai: uniq([userKey('openai')]),
+      anthropic: uniq([userKey('anthropic')]),
+      deepseek: uniq([userKey('deepseek')]),
     };
 
     const anyKey = (Object.values(keys) as string[][]).some(k => k.length > 0);
@@ -360,13 +393,15 @@ export default async function handler(req: any, res?: any) {
       }
     };
 
-    const [gList, gemList, cList, sList, oList] = await Promise.all([
+    const [gList, gemList, cList, sList, oList, aiList] = await Promise.all([
       keys.groq.length ? discover('groq', keys.groq[0]) : [],
       keys.gemini.length ? discover('gemini', keys.gemini[0]) : [],
       keys.cerebras.length ? discover('cerebras', keys.cerebras[0]) : [],
       keys.sambanova.length ? discover('sambanova', keys.sambanova[0]) : [],
       keys.openrouter.length ? discover('openrouter', '') : [],
+      keys.openai.length ? discover('openai', keys.openai[0]) : [],
     ]);
+    const oaModels = aiList.length ? rankOpenAI(aiList) : STATIC_MODELS.openai;
 
     const groqModels = gList.length ? rankGroq(gList, hasImages) : (hasImages ? ['llama-3.2-11b-vision-preview'] : STATIC_MODELS.groq);
     const gemModels = gemList.length ? rankGemini(gemList) : STATIC_MODELS.gemini;
@@ -386,6 +421,7 @@ export default async function handler(req: any, res?: any) {
         allGroq: gList.map((m: any) => m.id),
         allGemini: gemList.map((m: any) => String(m.id || m.name)),
         allOpenRouterFree: oList.filter((m: any) => String(m.id).endsWith(':free')).map((m: any) => `${m.id} (${m.context_length})`),
+        byok: { openai: keys.openai.length, anthropic: keys.anthropic.length, deepseek: keys.deepseek.length },
         cooling: [...cooldown.entries()].filter(([, t]) => t > Date.now()).map(([k, t]) => `${k} ${Math.round((t - Date.now()) / 1000)}s`),
       });
     }
@@ -401,60 +437,70 @@ export default async function handler(req: any, res?: any) {
       return inTokens < 4000 ? usual : Math.max(1000, Math.min(usual, groqTpm(m) - inTokens - 200));
     };
 
+    // -------- Plan de ejecución por papeles --------
+    // Cada etapa de NONA pide un papel: planificar (razonar), escribir código, corregir o conversar.
+    // Cada papel tiene su orden de proveedores (medido), y las partes que se escriben en paralelo
+    // llegan con un "carril" distinto para repartirse entre proveedores en vez de agotar uno solo.
+    type Role = 'plan' | 'code' | 'fix' | 'chat';
+    const role: Role = ['plan', 'code', 'fix', 'chat'].includes(body.role) ? body.role
+      : (prefer === 'quality' || big) ? 'code' : 'chat';
+    const lane = Math.max(0, Math.floor(Number(body.lane) || 0));
+    const geminiFlash = gemModels.filter(m => /flash/.test(m) && !/lite/.test(m));
+    const geminiLite = gemModels.filter(m => /lite/.test(m));
+
+    type Group = () => void;
+    const g = {
+      // Llaves propias del usuario (de pago): si las hay, van primero
+      anthropic: () => push('anthropic', STATIC_MODELS.anthropic, role === 'chat' ? 1 : 2, () => 16000),
+      openai: () => push('openai', oaModels, 2, () => 16000),
+      deepseek: () => push('deepseek', role === 'plan' ? ['deepseek-reasoner', 'deepseek-chat'] : ['deepseek-chat'], 1, () => 8000),
+      // Gratuitos
+      groq: () => push('groq', groqFit, 2, groqOut),
+      gemini: () => push('gemini', geminiFlash, 2, () => 16000),
+      nvidia: () => push('nvidia', nvModels, 2, () => 16000),
+      mistral: () => push('mistral', misModels, 2, () => 16000),
+      cerebras: () => push('cerebras', cerModels, 1, () => 8000),
+      sambanova: () => push('sambanova', samModels, 1, () => 8000),
+      openrouter: () => push('openrouter', orModels, role === 'code' ? 4 : 3, () => 16000),
+      github: () => { if (ghFits) push('github', ghModels, 2, () => 4000); },
+      geminiLite: () => push('gemini', geminiLite, 1, () => 16000),
+      pollinations: () => push('pollinations', poModels, 1, () => 12000),
+    };
+    const userFirst: Group[] = [g.anthropic, g.openai, g.deepseek];
+    const free: Record<Role, Group[]> = {
+      plan: [g.groq, g.gemini, g.nvidia, g.openrouter, g.mistral, g.cerebras, g.sambanova, g.github],
+      code: [g.nvidia, g.gemini, g.mistral, g.cerebras, g.groq, g.openrouter, g.sambanova, g.github],
+      fix: [g.groq, g.nvidia, g.gemini, g.mistral, g.cerebras, g.openrouter, g.sambanova, g.github],
+      chat: [g.groq, g.openrouter, g.gemini, g.github, g.mistral, g.nvidia, g.cerebras, g.sambanova],
+    };
+
     if (hasImages) {
-      // Visión: Gemini → OpenRouter (gemini) → Groq vision
-      push('gemini', gemModels.filter(m => !/lite/.test(m)), 3, () => 8000);
+      // Visión: Gemini → OpenRouter (gemini) → Groq vision (y los de pago del usuario si los hay)
+      if (keys.openai.length) push('openai', oaModels, 1, () => 8000);
+      if (keys.anthropic.length) push('anthropic', STATIC_MODELS.anthropic, 1, () => 8000);
+      push('gemini', geminiFlash, 3, () => 8000);
       if (keys.openrouter.length && !skipSet.has('openrouter')) {
         for (const key of keys.openrouter) attempts.push({ kind: 'openrouter', key, model: 'google/gemini-2.5-flash', maxOut: Math.min(want, 8000) });
       }
       push('groq', groqModels, 2, () => 2000);
-    } else if (big && prefer === 'quality') {
-      // Partes de una app construida por etapas: Gemini Flash escribe más y mejor en una respuesta;
-      // si está saturado, Groq (los modelos donde quepa) y OpenRouter.
-      push('gemini', gemModels.filter(m => /flash/.test(m) && !/lite/.test(m)), 2, () => 16000);
-      push('nvidia', nvModels, 2, () => 16000);
-      push('cerebras', cerModels, 1, () => 8000);
-      push('mistral', misModels, 2, () => 16000);
-      push('groq', groqFit, 2, groqOut);
-      push('sambanova', samModels, 1, () => 8000);
-      push('openrouter', orModels, 3, () => 16000);
-      push('gemini', gemModels.filter(m => /lite/.test(m)), 1, () => 16000);
-      if (ghFits) push('github', ghModels, 2, () => 4000);
-      push('pollinations', poModels, 2, () => 12000);
-    } else if (big) {
-      // Construcciones grandes. Orden medido en producción (sept 2026):
-      //  - Groq gpt-oss-120b: ~5 s por app completa, fiable → primero.
-      //  - Cerebras / SambaNova: rápidos cuando hay llave.
-      //  - OpenRouter free: funciona pero puede tardar >90 s.
-      //  - Gemini free: el stream se corta a mitad sin avisar → último recurso.
-      push('groq', groqFit, 2, groqOut);
-      push('cerebras', cerModels, 2, () => 8000);
-      push('nvidia', nvModels, 2, () => 16000);
-      push('mistral', misModels, 2, () => 16000);
-      push('sambanova', samModels, 2, () => 8000);
-      push('openrouter', orModels, 4, () => 16000);
-      push('gemini', gemModels, 3, () => 32000);
-      if (ghFits) push('github', ghModels, 2, () => 4000);
-      push('pollinations', poModels, 2, () => 12000);
     } else {
-      // Ediciones pequeñas: velocidad primero
-      push('groq', groqFit, 2, groqOut);
-      push('cerebras', cerModels, 1, () => 8000);
-      push('gemini', gemModels.filter(m => /flash/.test(m)), 3, () => 16000);
-      if (ghFits) push('github', ghModels, 2, () => 4000);
-      push('nvidia', nvModels, 1, () => 8000);
-      push('mistral', misModels, 1, () => 8000);
-      push('sambanova', samModels, 1, () => 8000);
-      push('openrouter', orModels, 3, () => 12000);
-      push('pollinations', poModels, 2, () => 8000);
+      for (const grp of userFirst) grp();
+      // Reparto: rotar los proveedores gratuitos según el carril (solo entre los que tienen llave)
+      const order = free[role].filter(grp => { const before = attempts.length; grp(); const added = attempts.length > before; attempts.length = before; return added; });
+      const k = order.length ? lane % order.length : 0;
+      for (const grp of [...order.slice(k), ...order.slice(0, k)]) grp();
+      g.geminiLite();
+      g.pollinations();
     }
+
+    if (body.diagOrder) return reply(200, { role, lane, order: attempts.map(a => `${a.kind}:${a.model}`) });
 
     // Prueba de un modelo concreto (diagnóstico/medición): body.only = "proveedor:modelo"
     if (typeof body.only === 'string' && body.only.includes(':')) {
       const i = body.only.indexOf(':');
       const kind = body.only.slice(0, i) as Kind, m = body.only.slice(i + 1);
       attempts.length = 0;
-      for (const key of keys[kind] || []) attempts.push({ kind, key, model: m, maxOut: want });
+      for (const key of (userKey(kind) ? [userKey(kind)] : keys[kind] || [])) attempts.push({ kind, key, model: m, maxOut: want });
     }
 
     // Si el cliente pidió omitir proveedores y eso deja la lista vacía (p. ej. solo hay Gemini),
@@ -505,6 +551,12 @@ export default async function handler(req: any, res?: any) {
             max_tokens: a.maxOut,
           };
           if (withReasoning && (a.kind === 'gemini' || /gpt-oss/.test(a.model))) payload.reasoning_effort = 'low';
+          if (a.kind === 'openai') {
+            // Los modelos recientes de OpenAI usan max_completion_tokens y solo la temperatura por defecto
+            payload.max_completion_tokens = payload.max_tokens;
+            delete payload.max_tokens;
+            if (/^(gpt-5|o\d)/.test(a.model)) { delete payload.temperature; if (withReasoning) payload.reasoning_effort = 'low'; }
+          }
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
           if (a.key !== 'anon') headers.Authorization = `Bearer ${a.key}`;
           if (a.kind === 'openrouter') {

@@ -24,6 +24,7 @@ export interface BuildResult {
 }
 
 type Progress = (text: string, isThinking?: boolean) => void;
+type Route = { role: 'plan' | 'code' | 'fix' | 'chat'; lane?: number };
 
 const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navegador, sin npm install ni servidor):
 - React 18 + TypeScript (.tsx). Importa hooks desde 'react' (import { useState } from 'react').
@@ -780,13 +781,13 @@ export class AppBuilderAgent {
 
   setEndpoint(url: string) { this.ai.setBaseUrl(url); }
 
-  private async ask(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal, prefer?: 'quality'): Promise<string> {
+  private async ask(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal, route?: Route): Promise<string> {
     // Los cupos gratuitos se renuevan cada minuto: si todos los proveedores están al límite, se espera y se sigue
     // (antes la construcción fallaba y se perdía todo lo hecho).
     const waits = [20, 35, 50, 60];
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.askOnce(system, user, maxTokens, onProgress, label, signal, prefer);
+        return await this.askOnce(system, user, maxTokens, onProgress, label, signal, route);
       } catch (e: any) {
         if (e?.name === 'AbortError') throw e;
         const capacity = /saturad|429|rate limit|quota|exceeded|high demand|503/i.test(String(e?.message));
@@ -801,7 +802,7 @@ export class AppBuilderAgent {
     }
   }
 
-  private async askOnce(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal, prefer?: 'quality'): Promise<string> {
+  private async askOnce(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal, route?: Route): Promise<string> {
     const seen = new Set<string>();
     return this.ai.streamChat(
       [{ role: 'system', content: system }, { role: 'user', content: user }],
@@ -814,18 +815,18 @@ export class AppBuilderAgent {
           if (!seen.has(key)) { seen.add(key); onProgress(`${label}\n✍️ ${m[1] === 'edit' ? 'Editando' : 'Escribiendo'} ${p}…`, true); }
         }
       },
-      { signal, model: 'auto', maxTokens, temperature: 0.2, prefer }
+      { signal, model: 'auto', maxTokens, temperature: 0.2, role: route?.role, lane: route?.lane }
     );
   }
 
   /** Llama a la IA con reintentos: si un proveedor corta la respuesta o falla, el siguiente intento usa otro. */
-  private async askWithRetry(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal): Promise<Parsed> {
+  private async askWithRetry(system: string, user: string, maxTokens: number, onProgress: Progress, label: string, signal?: AbortSignal, route: Route = { role: 'code' }): Promise<Parsed> {
     let lastErr = '';
     for (let i = 0; i < 3; i++) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       try {
         if (i > 0) onProgress(`${label}\n🔁 Reintentando con otro modelo (${lastErr.slice(0, 80)})…`, true);
-        const raw = await this.ask(system, user, maxTokens, onProgress, label, signal);
+        const raw = await this.ask(system, user, maxTokens, onProgress, label, signal, { ...route, lane: (route.lane || 0) + i });
         const parsed = parseBuilderOutput(raw);
         if (!hasOutput(parsed)) {
           lastErr = 'la IA no devolvió archivos ni parches';
@@ -847,7 +848,7 @@ export class AppBuilderAgent {
     const planUser = `${history ? `CONVERSACIÓN RECIENTE (contexto):\n${history}\n\n` : ''}PEDIDO DEL USUARIO:\n"${instruction}"`;
     for (let i = 0; i < 2 && !plan; i++) {
       try {
-        plan = parsePlan(await this.ask(PLAN_SYSTEM, planUser, 3000, onProgress, label, signal));
+        plan = parsePlan(await this.ask(PLAN_SYSTEM, planUser, 3000, onProgress, label, signal, { role: 'plan', lane: i }));
       } catch (e: any) {
         if (e?.name === 'AbortError') throw e;
       }
@@ -862,15 +863,17 @@ export class AppBuilderAgent {
       return `- ${p}: ${f?.purpose || ''}${f?.exports ? ` (exports: ${f.exports})` : ''}`;
     }).join('\n');
 
-    for (let i = 0; i < batches.length; i++) {
-      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      let pending = batches[i].filter(p => !(p in files));
-      onProgress(`${label}\n🧱 ${plan.name} · parte ${i + 1} de ${batches.length}: ${pending.map(p => p.split('/').pop()).join(', ')}`, true);
+    // Escribe una parte (con reintentos). Cada parte lleva un "carril" para que el gateway la reparta
+    // entre proveedores distintos cuando varias se escriben a la vez.
+    let done = 0;
+    const writeBatch = async (batch: string[], lane: number) => {
+      let pending = batch.filter(p => !(p in files));
       for (let attempt = 0; attempt < 3 && pending.length > 0; attempt++) {
-        const written = Object.entries(files).map(([p, c]) => fileDigest(p, c)).join('\n');
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        const written = Object.entries(files).filter(([p]) => !batch.includes(p)).map(([p, c]) => fileDigest(p, c)).join('\n');
         const user = `PEDIDO DEL USUARIO:\n"${instruction}"\n\nPLAN DE LA APP (síguelo al pie de la letra: nombres, paleta, tipografías, pantallas y rutas):\n${planText}\n\n${written ? `ARCHIVOS YA ESCRITOS:\n${written}\n\n` : ''}ESCRIBE AHORA SOLO ESTOS ARCHIVOS, completos y funcionales:\n${describe(pending)}`;
         try {
-          const out = parseBuilderOutput(await this.ask(STAGE_SYSTEM, user, 5500, onProgress, label, signal));
+          const out = parseBuilderOutput(await this.ask(STAGE_SYSTEM, user, 5500, onProgress, label, signal, { role: 'code', lane: lane + attempt }));
           for (const [p0, c] of Object.entries(out.files)) {
             // Solo se aceptan los archivos pedidos en esta parte (los modelos débiles a veces escriben otros
             // con rutas inventadas o un App.tsx prematuro); una ruta mal escrita se reasigna por nombre.
@@ -885,7 +888,23 @@ export class AppBuilderAgent {
         }
         pending = pending.filter(p => !(p in files));
       }
-    }
+      done++;
+      onProgress(`${label}\n🧱 ${plan!.name} · ${done} de ${batches.length} partes listas`, true);
+    };
+
+    // 1) Base (tipos, datos, estilos, lógica) en orden: el resto depende de ella.
+    // 2) Pantallas y componentes EN PARALELO (hasta 3 a la vez, cada una en un proveedor distinto).
+    // 3) App.tsx al final, viendo todo lo anterior.
+    const isBaseBatch = (b: string[]) => b.every(p => /index\.css$|(^|\/)(lib|data|hooks|types|utils|store)\/|types?\.ts$/.test(p));
+    const baseBatches = batches.filter(b => isBaseBatch(b) && !b.includes('src/App.tsx'));
+    const viewBatches = batches.filter(b => !isBaseBatch(b) && !b.includes('src/App.tsx'));
+    onProgress(`${label}\n🧱 ${plan.name}: escribiendo la base (${baseBatches.flat().map(p => p.split('/').pop()).join(', ')})`, true);
+    for (let i = 0; i < baseBatches.length; i++) await writeBatch(baseBatches[i], i);
+    if (viewBatches.length) onProgress(`${label}\n🧱 ${plan.name}: escribiendo ${viewBatches.flat().length} pantallas y componentes en paralelo…`, true);
+    let next = 0;
+    const worker = async (w: number) => { while (next < viewBatches.length) { const i = next++; await writeBatch(viewBatches[i], w + i); } };
+    await Promise.all([0, 1, 2].slice(0, Math.min(3, viewBatches.length)).map(w => worker(w)));
+    await writeBatch(['src/App.tsx'], 0);
     if (!files['src/App.tsx']) return null;
     return { summary: plan.summary ? `${plan.name}: ${plan.summary}` : '', files, deletes: [], incomplete: [...new Set(incomplete)], edits: [] };
   }
@@ -982,7 +1001,7 @@ export class AppBuilderAgent {
       for (const p of (broken.length ? broken : Object.keys(selectEditContext(files, problems.join(' '), '', 32000).included))) context[p] = files[p];
       const repairSystem = isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM;
       const user = `ARCHIVOS EXISTENTES: ${Object.keys(files).join(', ')}\n\nPROBLEMAS DETECTADOS:\n- ${problems.join('\n- ')}\n\nARCHIVOS CON PROBLEMAS (contenido actual):\n${filesAsContext(context, 40000)}\n\nPedido original del usuario: "${instruction}"`;
-      parsed = await this.askWithRetry(repairSystem, user, 8000, onProgress, label, opts?.signal);
+      parsed = await this.askWithRetry(repairSystem, user, 8000, onProgress, label, opts?.signal, { role: 'fix' });
       patchProblems = applyParsed(files, parsed);
     }
 
@@ -1011,7 +1030,7 @@ export class AppBuilderAgent {
       const repairSystem = isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM;
       let fix: Parsed;
       try {
-        fix = await this.askWithRetry(repairSystem, user, 8000, onProgress, label, opts?.signal);
+        fix = await this.askWithRetry(repairSystem, user, 8000, onProgress, label, opts?.signal, { role: 'fix', lane: 1 });
       } catch (e: any) {
         if (e?.name === 'AbortError') throw e;
         // Sin cupo para reparar: se entrega la app con un aviso en lugar de bloquear o perder el trabajo
@@ -1035,7 +1054,7 @@ export class AppBuilderAgent {
         onProgress(`${label}\n🎨 Ajustando el contraste (${design.length} texto(s) poco legibles)…`, true);
         const { included: dFiles, omitted: dOmitted } = selectEditContext(files, design.join(' '), '', 32000);
         const user = `La app funciona, pero la revisión visual encontró textos casi ilegibles:\n- ${design.join('\n- ')}\n\nCorrige SOLO los colores (clases de Tailwind) para que todo el texto tenga buen contraste con su fondo. No cambies la funcionalidad ni la estructura.\n\nARCHIVOS:\n${filesAsContext(dFiles, 40000)}`;
-        const fix = await this.askWithRetry(isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM, user, 8000, onProgress, label, opts?.signal);
+        const fix = await this.askWithRetry(isHtmlProject ? `${REPAIR_SYSTEM}\n\n${HTML_PROJECT_RULES}` : REPAIR_SYSTEM, user, 8000, onProgress, label, opts?.signal, { role: 'fix', lane: 2 });
         for (const p of dOmitted) delete fix.files[p];
         const candidate = { ...files };
         const fixProblems = applyParsed(candidate, fix);

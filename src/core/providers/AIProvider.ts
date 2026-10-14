@@ -16,6 +16,10 @@ export interface AICompletionOptions {
   signal?: AbortSignal;
   /** 'quality': para construir apps se prefieren los modelos con más capacidad de salida (Gemini Flash) */
   prefer?: 'quality' | 'speed';
+  /** Papel de la petición en el plan de ejecución del gateway (planificar, escribir código, corregir, conversar). */
+  role?: 'plan' | 'code' | 'fix' | 'chat';
+  /** Carril para repartir peticiones paralelas entre proveedores distintos. */
+  lane?: number;
 }
 
 export interface AIProvider {

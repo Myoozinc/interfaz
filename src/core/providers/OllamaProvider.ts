@@ -77,6 +77,16 @@ export class OllamaProvider implements AIProvider {
   /** Olvida los proveedores marcados como fallidos (tras esperar a que se renueve el cupo por minuto). */
   static clearSkips() { OllamaProvider.skipUntil.clear(); }
 
+  /** Llaves propias opcionales del usuario (OpenAI, Anthropic, Gemini, DeepSeek), guardadas solo en este navegador. */
+  static userKeys(): Record<string, string> | undefined {
+    try {
+      const raw = JSON.parse(localStorage.getItem('nona_user_keys') || '{}');
+      const out: Record<string, string> = {};
+      for (const k of ['openai', 'anthropic', 'gemini', 'deepseek']) if (typeof raw[k] === 'string' && raw[k].trim()) out[k] = raw[k].trim();
+      return Object.keys(out).length ? out : undefined;
+    } catch { return undefined; }
+  }
+
   private static activeSkips(): string[] {
     const now = Date.now();
     const out: string[] = [];
@@ -121,6 +131,9 @@ export class OllamaProvider implements AIProvider {
         temperature: options?.temperature,
         skip: OllamaProvider.activeSkips(),
         prefer: options?.prefer,
+        role: options?.role,
+        lane: options?.lane,
+        userKeys: OllamaProvider.userKeys(),
         stream: true,
       }),
       signal: options?.signal,

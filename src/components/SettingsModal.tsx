@@ -1,21 +1,5 @@
-import React, { useState } from 'react';
-import { 
-  X, 
-  Cpu, 
-  Globe, 
-  RefreshCw, 
-  CheckCircle2, 
-  AlertCircle, 
-  ExternalLink,
-  Key,
-  ShieldCheck,
-  ChevronDown,
-  ChevronRight,
-  Zap,
-  Layers,
-  Server
-} from 'lucide-react';
-import { NonaLogo } from './NonaLogo';
+import React, { useEffect, useState } from 'react';
+import { X, ChevronDown, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, Sparkles, KeyRound } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -24,288 +8,175 @@ interface SettingsModalProps {
   setOllamaUrl: (url: string) => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({
-  isOpen,
-  onClose,
-}) => {
-  const [openRouterKey, setOpenRouterKey] = useState(() => {
-    return localStorage.getItem('nona_openrouter_key') || localStorage.getItem('nona_cloud_api_key') || '';
-  });
-  const [groqKey, setGroqKey] = useState(() => {
-    return localStorage.getItem('nona_groq_key') || '';
-  });
-  const [showDevKeys, setShowDevKeys] = useState(false);
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'deepseek';
 
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+const PROVIDERS: { id: Provider; name: string; placeholder: string; test: string; where: string }[] = [
+  { id: 'anthropic', name: 'Anthropic (Claude)', placeholder: 'sk-ant-…', test: 'anthropic:claude-haiku-4-5-20251001', where: 'console.anthropic.com' },
+  { id: 'openai', name: 'OpenAI (ChatGPT)', placeholder: 'sk-…', test: 'openai:gpt-4.1-mini', where: 'platform.openai.com' },
+  { id: 'gemini', name: 'Google Gemini', placeholder: 'AIza…', test: 'gemini:gemini-2.5-flash', where: 'aistudio.google.com' },
+  { id: 'deepseek', name: 'DeepSeek', placeholder: 'sk-…', test: 'deepseek:deepseek-chat', where: 'platform.deepseek.com' },
+];
+
+const STORAGE = 'nona_user_keys';
+const load = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(STORAGE) || '{}') || {}; } catch { return {}; } };
+
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+  const [keys, setKeys] = useState<Record<string, string>>(load);
+  const [open, setOpen] = useState(false);
+  const [visible, setVisible] = useState<Record<string, boolean>>({});
+  const [status, setStatus] = useState<Record<string, { state: 'testing' | 'ok' | 'error'; msg?: string }>>({});
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setKeys(load());
+    setSaved(false);
+    setOpen(Object.values(load()).some(Boolean));
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
-  const handleSaveApiKey = () => {
-    if (openRouterKey.trim()) {
-      localStorage.setItem('nona_openrouter_key', openRouterKey.trim());
-      localStorage.setItem('nona_cloud_api_key', openRouterKey.trim());
-    } else {
-      localStorage.removeItem('nona_openrouter_key');
-      localStorage.removeItem('nona_cloud_api_key');
-    }
-    if (groqKey.trim()) {
-      localStorage.setItem('nona_groq_key', groqKey.trim());
-    } else {
-      localStorage.removeItem('nona_groq_key');
-    }
-    onClose();
+  const save = () => {
+    const clean: Record<string, string> = {};
+    for (const p of PROVIDERS) if (keys[p.id]?.trim()) clean[p.id] = keys[p.id].trim();
+    if (Object.keys(clean).length) localStorage.setItem(STORAGE, JSON.stringify(clean));
+    else localStorage.removeItem(STORAGE);
+    setSaved(true);
+    setTimeout(onClose, 600);
   };
 
-  const handleTestKey = async () => {
-    const keyToTest = openRouterKey.trim() || groqKey.trim();
-    if (!keyToTest) return;
-    setTesting(true);
-    setTestResult(null);
-
-    const isGroq = keyToTest.startsWith('gsk_');
-    const endpoint = isGroq 
-      ? 'https://api.groq.com/openai/v1/chat/completions'
-      : 'https://openrouter.ai/api/v1/chat/completions';
-
-    const model = isGroq ? 'qwen/qwen3.8-27b' : 'qwen/qwen3.8-27b';
-
+  const test = async (p: typeof PROVIDERS[number]) => {
+    const key = keys[p.id]?.trim();
+    if (!key) return;
+    setStatus(s => ({ ...s, [p.id]: { state: 'testing' } }));
     try {
-      const res = await fetch(endpoint, {
+      const r = await fetch('/api/agent', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${keyToTest}`,
-          'HTTP-Referer': 'https://interfaz-hazel.vercel.app',
-          'X-Title': 'NONA App',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: 'Ping' }],
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ only: p.test, userKeys: { [p.id]: key }, messages: [{ role: 'user', content: 'Responde solo: ok' }], maxTokensRequested: 300, stream: true }),
       });
-
-      if (res.ok) {
-        setTestResult({ 
-          ok: true, 
-          message: isGroq 
-            ? 'Conexión exitosa con Groq LPUs' 
-            : 'Conexión exitosa con OpenRouter AI' 
-        });
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setTestResult({ ok: false, message: `Error: ${err.error?.message || res.statusText}` });
+      const text = await r.text();
+      if (r.ok && /"message"/.test(text)) setStatus(s => ({ ...s, [p.id]: { state: 'ok', msg: 'Llave válida' } }));
+      else {
+        let msg = 'La llave no funciona';
+        if (/401|403|invalid|incorrect|unauthor/i.test(text)) msg = 'Llave no válida o sin permisos';
+        else if (/429|quota|credit|balance|billing/i.test(text)) msg = 'La cuenta no tiene saldo o cupo';
+        setStatus(s => ({ ...s, [p.id]: { state: 'error', msg } }));
       }
     } catch {
-      setTestResult({ ok: false, message: 'Error al conectar con el servidor cloud' });
-    } finally {
-      setTesting(false);
+      setStatus(s => ({ ...s, [p.id]: { state: 'error', msg: 'No se pudo comprobar (sin conexión)' } }));
     }
   };
 
+  const count = PROVIDERS.filter(p => keys[p.id]?.trim()).length;
+
   return (
-    <div className="fixed inset-0 z-50 bg-raised/40 backdrop-blur-xs flex items-center justify-center p-4 select-none">
-      <div className="bg-panel border border-line rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-fade-in text-xs font-sans">
-        
-        {/* Header */}
-        <div className="p-5 bg-canvas/80 border-b border-line flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <NonaLogo size={28} variant="badge" />
-            <div>
-              <h2 className="text-sm font-extrabold text-fg tracking-tight">
-                Centro de Inteligencia Cloud NONA
-              </h2>
-              <p className="text-[11px] text-muted font-medium">
-                Infraestructura multi-proveedor autónoma y pre-conectada
-              </p>
-            </div>
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label="Ajustes" className="w-full max-w-lg bg-panel border border-line rounded-2xl shadow-2xl shadow-black/50 overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 pt-5 pb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-display text-[22px] font-bold tracking-[-0.01em] text-fg">Ajustes</h2>
+            <p className="mt-0.5 text-[13px] text-fg-2">Cómo genera NONA tus apps.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-raised-2 text-muted hover:text-fg transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
+          <button onClick={onClose} aria-label="Cerrar" className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-raised transition-colors cursor-pointer">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-          
-          {/* Active Cloud Status Card (Zero-Key Experience) */}
-          <div className="bg-gradient-to-br from-emerald-500/10 via-teal-500/10 to-indigo-500/10 p-4 rounded-2xl border border-emerald-500/30 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-emerald-300 flex items-center gap-1.5 text-xs">
-                <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0" />
-                NONA Cloud Gateway: Pre-conectado
-              </span>
-              <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold shadow-2xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-panel animate-pulse" />
-                ONLINE
-              </span>
+        <div className="px-6 pb-5 space-y-4 overflow-y-auto">
+          <section className="rounded-xl border border-line bg-canvas p-4">
+            <div className="flex items-center gap-2 text-[14px] font-medium text-fg">
+              <Sparkles className="w-4 h-4 text-accent" /> IA gratuita incluida
             </div>
-
-            <p className="text-[11px] text-emerald-300/80 font-medium leading-relaxed">
-              No necesitas configurar ninguna clave API. NONA opera sobre una red distribuida de servidores cloud con conmutación por error automática (failover) y balanceo inteligente.
+            <p className="mt-1.5 text-[13px] leading-relaxed text-fg-2">
+              No necesitas configurar nada. NONA combina varios modelos gratuitos: uno planifica la app, varios escriben las pantallas
+              en paralelo y otro revisa y corrige los errores. Si un proveedor está ocupado, cambia solo a otro.
             </p>
+          </section>
 
-            {/* Providers Grid */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <div className="bg-panel/80 backdrop-blur-xs p-2.5 rounded-xl border border-emerald-500/30 flex items-center gap-2">
-                <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <div>
-                  <div className="font-bold text-fg text-[11px]">Groq LPUs</div>
-                  <div className="text-[10px] text-muted">Qwen 3.8 / Llama 3.3 (Ultra rápido)</div>
-                </div>
-              </div>
-
-              <div className="bg-panel/80 backdrop-blur-xs p-2.5 rounded-xl border border-emerald-500/30 flex items-center gap-2">
-                <Layers className="w-3.5 h-3.5 text-accent shrink-0" />
-                <div>
-                  <div className="font-bold text-fg text-[11px]">SambaNova Cloud</div>
-                  <div className="text-[10px] text-muted">16,000 tokens de contexto</div>
-                </div>
-              </div>
-
-              <div className="bg-panel/80 backdrop-blur-xs p-2.5 rounded-xl border border-emerald-500/30 flex items-center gap-2">
-                <Cpu className="w-3.5 h-3.5 text-accent shrink-0" />
-                <div>
-                  <div className="font-bold text-fg text-[11px]">Cerebras Cloud</div>
-                  <div className="text-[10px] text-muted">Inferencia a escala de oblea</div>
-                </div>
-              </div>
-
-              <div className="bg-panel/80 backdrop-blur-xs p-2.5 rounded-xl border border-emerald-500/30 flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                <div>
-                  <div className="font-bold text-fg text-[11px]">Google & OpenRouter</div>
-                  <div className="text-[10px] text-muted">Visión UI y respaldo 24/7</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Collapsible Developer Override Section */}
-          <div className="bg-canvas rounded-2xl border border-line overflow-hidden">
+          <section className="rounded-xl border border-line overflow-hidden">
             <button
-              onClick={() => setShowDevKeys(!showDevKeys)}
-              className="w-full p-3.5 flex items-center justify-between text-left hover:bg-raised/70 transition-colors cursor-pointer"
+              onClick={() => setOpen(o => !o)}
+              aria-expanded={open}
+              className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-raised/60 transition-colors cursor-pointer"
             >
-              <span className="font-bold text-fg flex items-center gap-2 text-xs">
-                <Key className="w-3.5 h-3.5 text-muted" />
-                Opciones Avanzadas de Desarrollador (Opcional)
+              <span className="flex items-center gap-2 text-[13px] text-fg-2">
+                <KeyRound className="w-4 h-4 text-muted" />
+                Usar tu propia llave de IA <span className="text-muted">(opcional)</span>
+                {count > 0 && <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded-md bg-accent/15 text-accent">{count} activa{count > 1 ? 's' : ''}</span>}
               </span>
-              {showDevKeys ? (
-                <ChevronDown className="w-4 h-4 text-muted" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-muted" />
-              )}
+              <ChevronDown className={`w-4 h-4 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
             </button>
 
-            {showDevKeys && (
-              <div className="p-4 pt-1 space-y-3 border-t border-line/80 bg-panel">
-                <p className="text-[11px] text-muted leading-relaxed">
-                  Solo necesario si deseas forzar el uso de tus propias cuentas privadas de API en lugar de la infraestructura en la nube administrada por NONA.
+            {open && (
+              <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line">
+                <p className="text-[12.5px] leading-relaxed text-muted">
+                  Si tienes cuenta de pago en alguno de estos servicios, NONA usará ese modelo primero para planificar y escribir tu app.
+                  La llave se guarda solo en este navegador y se usa únicamente para tus peticiones.
                 </p>
-
-                <div>
-                  <label className="text-[11px] font-semibold text-fg-2 block mb-1">
-                    OpenRouter API Key (`sk-or-...`):
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      value={openRouterKey}
-                      onChange={(e) => setOpenRouterKey(e.target.value)}
-                      placeholder="sk-or-v1-..."
-                      className="flex-1 px-3 py-1.5 bg-canvas border border-line rounded-xl text-xs outline-none focus:border-accent text-fg font-mono"
-                    />
-                    <button
-                      onClick={handleTestKey}
-                      disabled={testing || !openRouterKey.trim()}
-                      className="px-3 py-1.5 bg-raised-2 hover:bg-raised-2 text-white rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer text-[11px]"
-                    >
-                      {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Probar'}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-semibold text-fg-2 block mb-1">
-                    Groq API Key (`gsk_...`):
-                  </label>
-                  <input
-                    type="password"
-                    value={groqKey}
-                    onChange={(e) => setGroqKey(e.target.value)}
-                    placeholder="gsk_..."
-                    className="w-full px-3 py-1.5 bg-canvas border border-line rounded-xl text-xs outline-none focus:border-accent text-fg font-mono"
-                  />
-                </div>
-
-                {testResult && (
-                  <div className={`p-2.5 rounded-xl border flex items-center gap-2 ${
-                    testResult.ok 
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
-                      : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                  }`}>
-                    {testResult.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" /> : <AlertCircle className="w-4 h-4 text-amber-300 shrink-0" />}
-                    <span className="text-[11px] leading-tight font-medium">{testResult.message}</span>
-                  </div>
-                )}
+                {PROVIDERS.map(p => {
+                  const st = status[p.id];
+                  return (
+                    <div key={p.id}>
+                      <label htmlFor={`key-${p.id}`} className="flex items-baseline justify-between text-[12.5px] text-fg-2 mb-1">
+                        <span>{p.name}</span>
+                        <span className="text-[11px] text-faint">{p.where}</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            id={`key-${p.id}`}
+                            type={visible[p.id] ? 'text' : 'password'}
+                            autoComplete="off"
+                            spellCheck={false}
+                            value={keys[p.id] || ''}
+                            onChange={(e) => { setKeys(k => ({ ...k, [p.id]: e.target.value })); setStatus(s => ({ ...s, [p.id]: undefined as any })); }}
+                            placeholder={p.placeholder}
+                            className="w-full h-9 pl-3 pr-9 bg-canvas border border-line rounded-lg text-[13px] text-fg font-mono placeholder-faint outline-none focus:border-accent/70 transition-colors"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setVisible(v => ({ ...v, [p.id]: !v[p.id] }))}
+                            aria-label={visible[p.id] ? 'Ocultar llave' : 'Mostrar llave'}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded-md text-muted hover:text-fg cursor-pointer"
+                          >
+                            {visible[p.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => test(p)}
+                          disabled={!keys[p.id]?.trim() || st?.state === 'testing'}
+                          className="h-9 px-3 rounded-lg bg-raised hover:bg-raised-2 text-[12.5px] text-fg disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                          {st?.state === 'testing' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                          Probar
+                        </button>
+                      </div>
+                      {st && st.state !== 'testing' && (
+                        <p className={`mt-1 text-[12px] flex items-center gap-1.5 ${st.state === 'ok' ? 'text-emerald-300' : 'text-amber-300'}`}>
+                          {st.state === 'ok' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                          {st.msg}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </div>
-
-          {/* GitHub & Vercel Sync Info */}
-          <div className="bg-canvas p-4 rounded-2xl border border-line space-y-2.5 shadow-2xs">
-            <span className="font-bold text-fg flex items-center gap-1.5 text-xs">
-              <Server className="w-3.5 h-3.5 text-fg-2" />
-              Infraestructura & Despliegue
-            </span>
-
-            <div className="p-2.5 bg-panel border border-line rounded-xl flex items-center justify-between text-[11px]">
-              <span className="font-mono font-semibold text-fg">Myoozinc/interfaz</span>
-              <a
-                href="https://github.com/Myoozinc/interfaz"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent hover:underline flex items-center gap-1 font-semibold"
-              >
-                GitHub <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            <div className="p-2.5 bg-panel border border-line rounded-xl flex items-center justify-between text-[11px]">
-              <span className="text-fg-2 flex items-center gap-1.5 font-medium">
-                <Globe className="w-3.5 h-3.5 text-accent" />
-                Vercel Serverless Gateway
-              </span>
-              <span className="text-emerald-300 font-semibold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Sincronizado
-              </span>
-            </div>
-          </div>
-
+          </section>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 bg-canvas border-t border-line flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 border border-line hover:bg-raised text-fg-2 rounded-xl font-semibold transition-all cursor-pointer text-xs"
-          >
-            Cerrar
-          </button>
-          {showDevKeys && (
-            <button
-              onClick={handleSaveApiKey}
-              className="px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-semibold shadow-2xs transition-all cursor-pointer text-xs"
-            >
-              Guardar Claves
+        <div className="px-6 py-4 border-t border-line flex justify-end gap-2">
+          <button onClick={onClose} className="h-9 px-4 rounded-lg border border-line text-[13px] text-fg-2 hover:text-fg hover:bg-raised transition-colors cursor-pointer">Cerrar</button>
+          {open && (
+            <button onClick={save} className="h-9 px-4 rounded-lg bg-accent hover:bg-accent-strong text-accent-ink hover:text-white text-[13px] font-medium transition-colors cursor-pointer">
+              {saved ? 'Guardado' : 'Guardar'}
             </button>
           )}
         </div>
-
       </div>
     </div>
   );
