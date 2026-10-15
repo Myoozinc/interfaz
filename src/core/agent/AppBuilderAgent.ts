@@ -14,6 +14,7 @@ import type { FullStackProject } from '../types';
 import type { ChatMessage } from '../../types';
 import { OllamaProvider } from '../providers/OllamaProvider';
 import { fixInventedPhotos } from '../sandbox/photoLibrary';
+import { addKitFiles, ensureUiKit, guessTheme, isKitPath, THEME_MENU, UI_KIT_PROMPT } from './uiKit';
 import { VirtualMultiFileBundler } from '../sandbox/VirtualMultiFileBundler';
 import { formatConversationHistory } from './historyUtils';
 
@@ -34,6 +35,7 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
   · varias páginas/pantallas: react-router-dom (BrowserRouter, Routes, Route, Link, useNavigate) · iconos: lucide-react · animación: framer-motion · gráficos: recharts · estado: zustand · fechas: date-fns · 3D: @react-three/fiber + @react-three/drei (Canvas, useFrame, OrbitControls, Stars, Text, Html) o three directamente · audio: tone o howler · física 2D: matter-js · markdown: marked
   · AJEDREZ: usa SIEMPRE 'chess.js' (import { Chess } from 'chess.js') para reglas, movimientos legales, jaque y fin de partida; la IA rival elige entre chess.moves() con minimax sobre copias de Chess.
   · Damas, sudoku, tetris, etc.: implementa la lógica en un archivo aparte (src/lib/) con funciones puras y pruébala mentalmente con un caso antes de escribir la interfaz.
+- ${UI_KIT_PROMPT}
 - IA INCLUIDA (sin API keys): si la app necesita un modelo de lenguaje (chatbot, asistente, generar/resumir/traducir/clasificar texto, recomendaciones), usa el helper ya disponible:
     import { askAI, chatAI } from './lib/ai';   // ruta relativa desde el archivo que lo usa
     const texto = await askAI('prompt', { system: 'instrucciones opcionales' });
@@ -124,14 +126,16 @@ const DESIGN_RULES = `DISEÑO (nivel producto real, no demo):
 const PLAN_SYSTEM = `Eres NONA, director de producto y diseño. Antes de programar, planifica la app que pide el usuario.
 Responde SOLO con un objeto JSON válido (sin texto alrededor ni bloques de código), con esta forma:
 {"name":"nombre comercial en español","summary":"una frase de lo que hace",
- "design":{"style":"2-3 frases con la dirección visual concreta","palette":{"fondo":"#hex","superficie":"#hex","texto":"#hex","texto2":"#hex","acento":"#hex","acento2":"#hex"},"fonts":{"display":"Familia de Google Fonts","body":"Familia de Google Fonts"},"radius":"p. ej. 10px","darkMode":false},
+ "design":{"theme":"id del tema","style":"2-3 frases con la dirección visual concreta: composición, jerarquía, uso de fotos, densidad"},
  "screens":[{"name":"...","purpose":"qué se ve y qué se puede hacer"}],
  "data":"entidades, campos y cuántos datos de ejemplo",
  "files":[{"path":"src/...","purpose":"qué contiene","exports":"nombres exportados y sus props/firmas"}]}
 Reglas del plan:
 - Si el usuario da un nombre, colores o estilo, respétalos.
 - Apps sencillas (una calculadora, un temporizador): 3–5 archivos. Apps completas (tienda, panel, CRM, reservas, red social, juego elaborado…): 8–14 archivos.
-- Archivos pequeños (≤ 150 líneas cada uno) y con responsabilidades claras. Incluye siempre: src/index.css, src/lib/types.ts (si hay datos), src/data/... (datos de ejemplo), src/lib/store.ts (estado + localStorage) cuando haya persistencia, los componentes/vistas, y src/App.tsx (último).
+- Tema visual: elige el que mejor encaje de esta lista (escribe solo su id): ${THEME_MENU}.
+- NONA ya incluye un kit de componentes (src/components/ui/*: button, card, input, dialog, tabs, select, table…) y el tema: NO los pongas en "files".
+- Archivos pequeños (≤ 150 líneas cada uno) y con responsabilidades claras. Incluye: src/lib/types.ts (si hay datos), src/data/... (datos de ejemplo), src/lib/store.ts (estado + localStorage) cuando haya persistencia, los componentes/vistas, y src/App.tsx (último).
 - Nada de main.tsx ni index.html. Las rutas de imports deben coincidir con las rutas de "files".
 ${DESIGN_RULES}`;
 
@@ -140,8 +144,8 @@ const STAGE_RUNTIME = `ENTORNO: React 18 + TypeScript (.tsx) en el navegador, si
 - Fotos reales (Pexels): https://interfaz-hazel.vercel.app/api/photo?q=<tema en inglés>&orientation=landscape&i=<0-14> (crédito «Fotos: Pexels» en el pie).
 - Imágenes generadas con IA, gratis: https://interfaz-hazel.vercel.app/api/image?prompt=<descripción en inglés con encodeURIComponent>&w=800&h=600&seed=N (también para que la app genere imágenes al usuario). 3D: @react-three/fiber + @react-three/drei.
 - Fotos (solo si encajan con el tema): https://interfaz-hazel.vercel.app/templates/img/NOMBRE.jpg (NOMBRE: cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1, plato-2, plato-3, prod-reloj, prod-audifonos, prod-camara, moda-1, moda-2, tienda-1, persona-1…4, escritorio-1, barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1).
-- Google Fonts con @import en la primera línea de src/index.css; App.tsx importa './index.css'.
-- Paleta del plan: defínela en src/index.css como variables (:root { --color-fondo: #...; --color-acento: #...; }) y úsala con clases de Tailwind bg-fondo, text-acento, border-acento/40 (NONA registra esas variables en Tailwind). Tipografías: --font-display y --font-body → clases font-display y font-body.
+- ${UI_KIT_PROMPT}
+- src/index.css es opcional (solo animaciones o estilos muy concretos; sin @tailwind ni variables de color).
 - Todo import relativo debe apuntar a un archivo del plan. Exporta exactamente lo que dice el plan (exports nombrados salvo App, que es default).`;
 
 const STAGE_SYSTEM = `Eres NONA, ingeniero senior de front-end y diseñador. Estás construyendo UNA PARTE de una app siguiendo un plan ya decidido.
@@ -164,7 +168,7 @@ export function isFullAppRequest(instruction: string): boolean {
 
 interface AppPlan {
   name: string; summary?: string;
-  design?: { style?: string; palette?: Record<string, string>; fonts?: { display?: string; body?: string }; radius?: string; darkMode?: boolean };
+  design?: { theme?: string; style?: string; palette?: Record<string, string>; fonts?: { display?: string; body?: string }; radius?: string; darkMode?: boolean };
   screens?: { name: string; purpose: string }[];
   data?: string;
   files: { path: string; purpose: string; exports?: string }[];
@@ -1030,8 +1034,11 @@ export class AppBuilderAgent {
       }
     }
     if (!plan) return null;
+    // El kit de componentes y el tema los pone NONA: se quitan del plan si el modelo los incluyó
+    plan.files = plan.files.filter(f => !isKitPath(f.path) && !/^src\/components\/ui\//.test(f.path) && f.path !== 'src/lib/utils.ts');
     const planText = JSON.stringify({ ...plan, files: plan.files.map(f => `${f.path} — ${f.purpose}${f.exports ? ` [${f.exports}]` : ''}`) });
     const files: Record<string, string> = {};
+    addKitFiles(files, plan.design?.theme || guessTheme(instruction));
     const incomplete: string[] = [];
     const batches = planBatches(plan);
     const describe = (paths: string[]) => paths.map(p => {
@@ -1046,7 +1053,7 @@ export class AppBuilderAgent {
       let pending = batch.filter(p => !(p in files));
       for (let attempt = 0; attempt < 3 && pending.length > 0; attempt++) {
         if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-        const written = Object.entries(files).filter(([p]) => !batch.includes(p)).map(([p, c]) => fileDigest(p, c)).join('\n');
+        const written = Object.entries(files).filter(([p]) => !batch.includes(p) && !isKitPath(p)).map(([p, c]) => fileDigest(p, c)).join('\n');
         const user = `PEDIDO DEL USUARIO:\n"${instruction}"\n\nPLAN DE LA APP (síguelo al pie de la letra: nombres, paleta, tipografías, pantallas y rutas):\n${planText}\n\n${written ? `ARCHIVOS YA ESCRITOS:\n${written}\n\n` : ''}ESCRIBE AHORA SOLO ESTOS ARCHIVOS, completos y funcionales:\n${describe(pending)}`;
         try {
           const out = parseBuilderOutput(await this.ask(STAGE_SYSTEM, user, 5500, onProgress, label, signal, { role: 'code', lane: lane + attempt }));
@@ -1154,6 +1161,8 @@ export class AppBuilderAgent {
       files = { ...parsed.files };
       // Si el modelo creó main.tsx o index.html además de App.tsx, se descartan: la vista previa monta App.
       if (files['src/App.tsx']) { delete files['index.html']; }
+      // Kit de componentes + tema en toda app nueva
+      ensureUiKit(files, guessTheme(instruction));
     }
 
     const mainSummary = parsed.summary;
@@ -1163,6 +1172,7 @@ export class AppBuilderAgent {
     for (let round = 0; round < 3; round++) {
       for (const p of parsed.incomplete) if (!(p in parsed.files)) delete files[p];
       ensureRuntimeHelpers(files);
+      if (Object.entries(files).some(([p, c]) => !isKitPath(p) && /from\s+['"]@\/(components\/ui\/|lib\/utils['"])/.test(c))) ensureUiKit(files);
       dropMissingAssetImports(files);
       fixInventedPhotos(files);
       fixOptionalChainAssignments(files);

@@ -79,7 +79,7 @@ const STATIC_MODELS: Record<Kind, string[]> = {
   openai: ['gpt-5', 'gpt-4.1'],
   anthropic: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5-20251001'],
   deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-  llm7: ['DeepSeek-V4-Flash-0731', 'GLM-5.3-Flash', 'minimax-m2.7', 'codestral-latest'],
+  llm7: ['GLM-5.3-Flash', 'codestral-latest', 'DeepSeek-V4-Flash-0731', 'minimax-m2.7'], // medido: GLM responde en ~7 s; DeepSeek y MiniMax a veces tardan >25 s
   kilo: ['kilo-auto/free'],
   vercel: ['moonshotai/kimi-k2.7-code', 'nvidia/nemotron-3-super-120b-a12b', 'openai/gpt-oss-120b', 'google/gemini-2.5-flash'],
   cloudflare: ['@cf/openai/gpt-oss-120b', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/qwen/qwen2.5-coder-32b-instruct'],
