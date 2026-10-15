@@ -119,6 +119,21 @@ export class OllamaProvider implements AIProvider {
 
     onToken('⚡ Buscando el mejor modelo gratuito disponible...', '', false);
 
+    // Corte por inactividad: si un proveedor deja de enviar texto 45 s, se aborta y se reintenta con otro
+    // (antes una sola respuesta lenta dejaba toda la construcción esperando varios minutos).
+    const idleCtl = new AbortController();
+    const onOuterAbort = () => idleCtl.abort();
+    options?.signal?.addEventListener('abort', onOuterAbort);
+    let idleHit = false;
+    let lastActivity = Date.now();
+    const IDLE_MS = 45_000;
+    let streaming = false;
+    const idleTimer = setInterval(() => {
+      // Antes de la primera respuesta el gateway puede tardar hasta ~60 s buscando proveedor
+      if (Date.now() - lastActivity > (streaming ? IDLE_MS : 85_000)) { idleHit = true; idleCtl.abort(); }
+    }, 2000);
+    const cleanup = () => { clearInterval(idleTimer); options?.signal?.removeEventListener('abort', onOuterAbort); };
+
     const post = () => fetch('/api/agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -136,24 +151,33 @@ export class OllamaProvider implements AIProvider {
         userKeys: OllamaProvider.userKeys(),
         stream: true,
       }),
-      signal: options?.signal,
+      signal: idleCtl.signal,
     });
 
     let res: Response;
     try {
-      res = await post();
+      try {
+        res = await post();
+      } catch (e: any) {
+        if (e?.name === 'AbortError') throw e;
+        // Un único reintento ante fallo de red transitorio
+        await new Promise(r => setTimeout(r, 1200));
+        res = await post();
+      }
     } catch (e: any) {
-      if (e?.name === 'AbortError') throw e;
-      // Un único reintento ante fallo de red transitorio
-      await new Promise(r => setTimeout(r, 1200));
-      res = await post();
+      cleanup();
+      if (idleHit && !options?.signal?.aborted) throw new Error('Salida incompleta: el servidor de IA no respondió a tiempo. Reintentando con otro modelo.');
+      throw e;
     }
+    streaming = true;
+    lastActivity = Date.now();
     if (!res.ok && (res.status >= 500 || res.status === 429) && res.status !== 502) {
       await new Promise(r => setTimeout(r, 1500));
       res = await post();
     }
 
     if (!res.ok) {
+      cleanup();
       let errorDetail = '';
       try {
         const rawText = await res.text();
@@ -202,15 +226,26 @@ export class OllamaProvider implements AIProvider {
       }
     };
 
+    try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      lastActivity = Date.now();
       lineBuffer += decoder.decode(value, { stream: true });
       const lines = lineBuffer.split('\n');
       lineBuffer = lines.pop() || '';
       for (const line of lines) handleLine(line);
     }
     if (lineBuffer.trim()) handleLine(lineBuffer);
+    } catch (e: any) {
+      cleanup();
+      if (idleHit && !options?.signal?.aborted) {
+        if (provider) OllamaProvider.skipUntil.set(provider, Date.now() + 90_000);
+        throw new Error(`Salida incompleta: ${usedModel || provider || 'la IA'} dejó de responder. Reintentando con otro modelo.`);
+      }
+      throw e;
+    }
+    cleanup();
 
     // Salida incompleta o proveedor caído a mitad de respuesta: NUNCA se entrega código a medias.
     // Se marca el proveedor para que el siguiente intento use otro modelo.
