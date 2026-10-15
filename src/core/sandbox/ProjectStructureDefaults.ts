@@ -147,10 +147,20 @@ export const DEFAULT_INDEX_HTML = `<!DOCTYPE html>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NONA App</title>
+    <meta name="theme-color" content="#111827" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
   </head>
-  <body class="bg-slate-950 text-white min-h-screen">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Instalable como app (PWA): funciona sin conexión con lo último que se cargó
+      if ('serviceWorker' in navigator && location.protocol === 'https:') {
+        window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+      }
+    </script>
   </body>
 </html>
 `;
@@ -373,7 +383,7 @@ export function analyzeProjectStructure(files: Record<string, string>): ProjectA
  */
 export function ensureCompleteViteProject(
   files: Record<string, string>,
-  options?: { includeBaaS?: boolean }
+  options?: { includeBaaS?: boolean; name?: string }
 ): Record<string, string> {
   const result: Record<string, string> = { ...files };
   const hasCode = Object.keys(files).some(k => /\.(tsx|jsx|ts)$/.test(k) && !k.endsWith('.d.ts'));
@@ -403,6 +413,23 @@ export function ensureCompleteViteProject(
   }
   if (!result['index.html']) {
     result['index.html'] = DEFAULT_INDEX_HTML;
+    // PWA: manifiesto, icono y service worker para poder instalar la app en el móvil o el escritorio
+    const name = options?.name || 'Mi app';
+    if (!result['public/manifest.webmanifest']) result['public/manifest.webmanifest'] = JSON.stringify({
+      name, short_name: name.slice(0, 12), start_url: '/', display: 'standalone', background_color: '#ffffff', theme_color: '#111827',
+      icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
+    }, null, 2);
+    if (!result['public/icon.svg']) result['public/icon.svg'] = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#111827"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui, sans-serif" font-size="240" font-weight="700" fill="#ffffff">${(name.trim()[0] || 'A').toUpperCase()}</text></svg>`;
+    if (!result['public/sw.js']) result['public/sw.js'] = `// Service worker mínimo: red primero y, sin conexión, lo último guardado
+const CACHE = 'app-v1';
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
+  e.respondWith(fetch(e.request).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return res; })
+    .catch(() => caches.match(e.request).then((r) => r || caches.match('/'))));
+});
+`;
   }
   if (!result['src/main.tsx'] && !result['src/main.jsx'] && !result['src/main.js']) {
     result['src/main.tsx'] = DEFAULT_MAIN_TSX;

@@ -457,7 +457,7 @@ export function App() {
     files.forEach(f => {
       fileRecord[f.name] = f.content;
     });
-    const completeFiles = ensureCompleteViteProject(fileRecord);
+    const completeFiles = ensureCompleteViteProject(fileRecord, { name: projectName });
     const zip = new JSZip();
     Object.entries(completeFiles).forEach(([path, content]) => {
       const cleanPath = path.replace(/^\/+/, '');
