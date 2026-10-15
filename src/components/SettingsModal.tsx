@@ -1,5 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { X, ChevronDown, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, Sparkles, KeyRound } from 'lucide-react';
+import { 
+  X, 
+  ChevronDown, 
+  CheckCircle2, 
+  AlertCircle, 
+  Loader2, 
+  Eye, 
+  EyeOff, 
+  Sparkles, 
+  KeyRound,
+  Shield,
+  ExternalLink
+} from 'lucide-react';
+import { 
+  getFirebaseConfig, 
+  saveFirebaseConfig, 
+  clearFirebaseConfig, 
+  isFirebaseConfigured, 
+  type FirebaseConfig 
+} from '../core/services/firebaseClient';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -27,11 +46,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [status, setStatus] = useState<Record<string, { state: 'testing' | 'ok' | 'error'; msg?: string }>>({});
   const [saved, setSaved] = useState(false);
 
+  // Firebase Configuration State
+  const [firebaseOpen, setFirebaseOpen] = useState(false);
+  const [fbApiKey, setFbApiKey] = useState('');
+  const [fbProjectId, setFbProjectId] = useState('');
+  const [fbAuthDomain, setFbAuthDomain] = useState('');
+  const [isFbConfigured, setIsFbConfigured] = useState(false);
+
   useEffect(() => {
     if (!isOpen) return;
     setKeys(load());
     setSaved(false);
     setOpen(Object.values(load()).some(Boolean));
+
+    const fbCfg = getFirebaseConfig();
+    if (fbCfg) {
+      setFbApiKey(fbCfg.apiKey || '');
+      setFbProjectId(fbCfg.projectId || '');
+      setFbAuthDomain(fbCfg.authDomain || '');
+    } else {
+      setFbApiKey('');
+      setFbProjectId('');
+      setFbAuthDomain('');
+    }
+    setIsFbConfigured(isFirebaseConfigured());
+
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -40,10 +79,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   if (!isOpen) return null;
 
   const save = () => {
+    // 1. Save AI Keys
     const clean: Record<string, string> = {};
     for (const p of PROVIDERS) if (keys[p.id]?.trim()) clean[p.id] = keys[p.id].trim();
     if (Object.keys(clean).length) localStorage.setItem(STORAGE, JSON.stringify(clean));
     else localStorage.removeItem(STORAGE);
+
+    // 2. Save Firebase Configuration
+    if (fbApiKey.trim() && fbProjectId.trim()) {
+      const cfg: FirebaseConfig = {
+        apiKey: fbApiKey.trim(),
+        projectId: fbProjectId.trim(),
+        authDomain: fbAuthDomain.trim() || `${fbProjectId.trim()}.firebaseapp.com`,
+      };
+      saveFirebaseConfig(cfg);
+      setIsFbConfigured(true);
+    } else if (!fbApiKey.trim() && !fbProjectId.trim()) {
+      clearFirebaseConfig();
+      setIsFbConfigured(false);
+    }
+
     setSaved(true);
     setTimeout(onClose, 600);
   };
@@ -79,7 +134,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <div className="px-6 pt-5 pb-4 flex items-start justify-between gap-4">
           <div>
             <h2 className="font-display text-[22px] font-bold tracking-[-0.01em] text-fg">Ajustes</h2>
-            <p className="mt-0.5 text-[13px] text-fg-2">Cómo genera NONA tus apps.</p>
+            <p className="mt-0.5 text-[13px] text-fg-2">Configuración general y proveedores de NONA.</p>
           </div>
           <button onClick={onClose} aria-label="Cerrar" className="h-9 w-9 inline-flex items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-raised transition-colors cursor-pointer">
             <X className="w-5 h-5" />
@@ -87,6 +142,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
 
         <div className="px-6 pb-5 space-y-4 overflow-y-auto">
+          {/* Free AI Info */}
           <section className="rounded-xl border border-line bg-canvas p-4">
             <div className="flex items-center gap-2 text-[14px] font-medium text-fg">
               <Sparkles className="w-4 h-4 text-accent" /> IA gratuita incluida
@@ -97,6 +153,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </p>
           </section>
 
+          {/* Firebase Authentication Configuration */}
+          <section className="rounded-xl border border-line overflow-hidden">
+            <button
+              onClick={() => setFirebaseOpen(o => !o)}
+              aria-expanded={firebaseOpen}
+              className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-raised/60 transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-2 text-[13px] text-fg-2">
+                <Shield className="w-4 h-4 text-accent" />
+                <span>Firebase Authentication</span>
+                {isFbConfigured ? (
+                  <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/20">
+                    Conectado
+                  </span>
+                ) : (
+                  <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded-md bg-raised text-muted">
+                    Opcional
+                  </span>
+                )}
+              </span>
+              <ChevronDown className={`w-4 h-4 text-muted transition-transform ${firebaseOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {firebaseOpen && (
+              <div className="px-4 pb-4 pt-2 space-y-3 border-t border-line bg-canvas/30">
+                <p className="text-[12.5px] leading-relaxed text-muted">
+                  Habilita inicio de sesión real (Email, Google, GitHub) para guardar proyectos en la nube.{' '}
+                  <a
+                    href="https://console.firebase.google.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-accent inline-flex items-center gap-0.5 hover:underline"
+                  >
+                    Abrir Firebase Console <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                </p>
+
+                <div>
+                  <label htmlFor="fb-api-key" className="block text-[12px] text-fg-2 mb-1 font-medium">
+                    API Key
+                  </label>
+                  <input
+                    id="fb-api-key"
+                    type="text"
+                    value={fbApiKey}
+                    onChange={(e) => setFbApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full h-9 px-3 bg-canvas border border-line rounded-lg text-[13px] text-fg font-mono placeholder-faint outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="fb-project-id" className="block text-[12px] text-fg-2 mb-1 font-medium">
+                    Project ID
+                  </label>
+                  <input
+                    id="fb-project-id"
+                    type="text"
+                    value={fbProjectId}
+                    onChange={(e) => setFbProjectId(e.target.value)}
+                    placeholder="mi-proyecto-12345"
+                    className="w-full h-9 px-3 bg-canvas border border-line rounded-lg text-[13px] text-fg font-mono placeholder-faint outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="fb-auth-domain" className="block text-[12px] text-fg-2 mb-1 font-medium">
+                    Auth Domain <span className="text-muted">(opcional)</span>
+                  </label>
+                  <input
+                    id="fb-auth-domain"
+                    type="text"
+                    value={fbAuthDomain}
+                    onChange={(e) => setFbAuthDomain(e.target.value)}
+                    placeholder="mi-proyecto-12345.firebaseapp.com"
+                    className="w-full h-9 px-3 bg-canvas border border-line rounded-lg text-[13px] text-fg font-mono placeholder-faint outline-none focus:border-accent transition-colors"
+                  />
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* AI Custom Keys */}
           <section className="rounded-xl border border-line overflow-hidden">
             <button
               onClick={() => setOpen(o => !o)}
@@ -171,11 +310,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
         <div className="px-6 py-4 border-t border-line flex justify-end gap-2">
           <button onClick={onClose} className="h-9 px-4 rounded-lg border border-line text-[13px] text-fg-2 hover:text-fg hover:bg-raised transition-colors cursor-pointer">Cerrar</button>
-          {open && (
-            <button onClick={save} className="h-9 px-4 rounded-lg bg-accent hover:bg-accent-strong text-accent-ink hover:text-white text-[13px] font-medium transition-colors cursor-pointer">
-              {saved ? 'Guardado' : 'Guardar'}
-            </button>
-          )}
+          <button onClick={save} className="h-9 px-4 rounded-lg bg-accent hover:bg-accent-strong text-accent-ink hover:text-white text-[13px] font-medium transition-colors cursor-pointer">
+            {saved ? 'Guardado' : 'Guardar Ajustes'}
+          </button>
         </div>
       </div>
     </div>

@@ -1044,6 +1044,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToApp }) =
                         {evt.type === 'prompt_submit' ? <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> :
                          evt.type === 'export_zip' ? <Download className="w-3.5 h-3.5 text-emerald-400" /> :
                          evt.type === 'auto_fix_error' ? <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> :
+                         evt.type.startsWith('auth_') ? <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> :
                          <Activity className="w-3.5 h-3.5 text-muted" />}
                       </div>
                       <div>

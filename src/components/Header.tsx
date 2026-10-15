@@ -12,6 +12,7 @@ import {
   Database,
   MoreHorizontal,
   Share2,
+  User,
 } from 'lucide-react';
 import { NonaLogo } from './NonaLogo';
 import { GitHubIcon } from './icons/GitHubIcon';
@@ -79,10 +80,12 @@ const iconBtn = 'h-8 w-8 inline-flex items-center justify-center rounded-lg text
 export const Header: React.FC<HeaderProps> = ({
   projectName,
   credits: _credits,
+  currentUser,
   onOpenSettingsModal,
   onOpenProjectsModal,
   onOpenMediaModal,
   onOpenDiagnostics,
+  onOpenAuthModal,
   onOpenTemplatesModal,
   onOpenGitHubModal,
   onOpenSupabaseModal,
@@ -139,6 +142,34 @@ export const Header: React.FC<HeaderProps> = ({
 
 
 
+        {/* Usuario / Autenticación */}
+        {currentUser && currentUser.provider !== 'local' ? (
+          <button
+            onClick={onOpenAuthModal}
+            title={`Sesión iniciada: ${currentUser.name} (${currentUser.email || currentUser.provider})`}
+            className="inline-flex items-center gap-1.5 h-8 pl-1 pr-2.5 rounded-lg hover:bg-raised text-[13px] text-fg transition-colors cursor-pointer border border-line"
+          >
+            {currentUser.avatar ? (
+              <img src={currentUser.avatar} alt={currentUser.name} className="w-5 h-5 rounded-full object-cover" />
+            ) : (
+              <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-600 flex items-center justify-center text-white text-[10px] font-bold">
+                {currentUser.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="truncate max-w-[90px] font-medium hidden sm:inline">{currentUser.name}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          </button>
+        ) : (
+          <button
+            onClick={onOpenAuthModal}
+            title="Iniciar sesión o crear cuenta con Firebase"
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[13px] font-medium text-fg-2 hover:text-fg hover:bg-raised transition-colors cursor-pointer border border-line/60"
+          >
+            <User className="w-3.5 h-3.5 text-muted" />
+            <span className="hidden sm:inline">Iniciar Sesión</span>
+          </button>
+        )}
+
         <Menu
           trigger={(open) => (
             <button className={`inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 ml-1 rounded-lg text-[13px] font-medium transition-colors cursor-pointer ${open ? 'bg-accent-strong text-white' : 'bg-accent text-accent-ink hover:bg-accent-strong hover:text-white'}`}>
@@ -170,6 +201,12 @@ export const Header: React.FC<HeaderProps> = ({
         >
           {(close) => (
             <>
+              <MenuItem 
+                icon={<User className="w-4 h-4" />} 
+                label={currentUser && currentUser.provider !== 'local' ? "Cuenta de usuario" : "Iniciar sesión"} 
+                hint={currentUser && currentUser.provider !== 'local' ? (currentUser.email || currentUser.name) : "Guarda tus proyectos y vincula Firebase"} 
+                onClick={() => { close(); onOpenAuthModal(); }} 
+              />
               <MenuItem icon={<Wand2 className="w-4 h-4" />} label="Media Studio" hint="Genera imágenes y recursos para tu app" onClick={() => { close(); onOpenMediaModal(); }} />
               <MenuItem icon={<Activity className="w-4 h-4" />} label="Estado del sistema" hint="Comprueba los proveedores de IA" onClick={() => { close(); onOpenDiagnostics(); }} />
               <MenuItem icon={<Settings className="w-4 h-4" />} label="Ajustes" onClick={() => { close(); onOpenSettingsModal(); }} />

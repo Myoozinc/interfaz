@@ -44,6 +44,7 @@ import { aiEngine } from './services/aiGenerator';
 import { agentOrchestrator } from './core/agent/AgentOrchestrator';
 import { creditLedger } from './core/credits/CreditLedger';
 import { ensureCompleteViteProject } from './core/sandbox/ProjectStructureDefaults';
+import { authService } from './core/services/AuthService';
 
 export function App() {
   // Check if current URL route matches /admin, #/admin, or ?admin
@@ -144,8 +145,25 @@ export function App() {
   // User & Credits State
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     const saved = localStorage.getItem('nona_user');
-    return saved ? JSON.parse(saved) : { id: 'user_1', name: 'Invitado', email: '', provider: 'local' };
+    return saved ? JSON.parse(saved) : { id: 'guest_' + Date.now(), name: 'Invitado', email: '', provider: 'local' };
   });
+
+  useEffect(() => {
+    const unsub = authService.subscribe((user) => {
+      if (user) {
+        setCurrentUser(user);
+        localStorage.setItem('nona_user', JSON.stringify(user));
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    await authService.signOut();
+    const guest: UserAccount = { id: 'guest_' + Date.now(), name: 'Invitado', email: '', provider: 'local' };
+    setCurrentUser(guest);
+    localStorage.setItem('nona_user', JSON.stringify(guest));
+  }, []);
 
   const [credits, setCredits] = useState<UserCredits>(() => {
     const savedBal = localStorage.getItem('nona_credit_balance');
@@ -986,7 +1004,7 @@ export function App() {
         onClose={() => setIsAuthModalOpen(false)}
         currentUser={currentUser}
         onLogin={setCurrentUser}
-        onLogout={() => setCurrentUser(null)}
+        onLogout={handleLogout}
       />
 
       {/* GitHub Export & Sync Modal (Fase B) */}
