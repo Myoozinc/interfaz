@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* Tema «Claro índigo» de NONA. Cambia estos valores para cambiar el aspecto de toda la app. */
+:root {
+  --color-background: #F7F8FB;
+  --color-foreground: #0F172A;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #0F172A;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #0F172A;
+  --color-primary: #4F46E5;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #EEF0FF;
+  --color-secondary-foreground: #3730A3;
+  --color-muted: #F1F3F8;
+  --color-muted-foreground: #5B6478;
+  --color-accent: #E0F2FE;
+  --color-accent-foreground: #075985;
+  --color-destructive: #DC2626;
+  --color-destructive-foreground: #FFFFFF;
+  --color-success: #16A34A;
+  --color-warning: #D97706;
+  --color-border: #E3E7EF;
+  --color-input: #E3E7EF;
+  --color-ring: #4F46E5;
+  --radius: 0.75rem;
+  --font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+html, body { background: var(--color-background); color: var(--color-foreground); font-family: var(--font-sans); }
+h1, h2, h3, .font-display { font-family: var(--font-display); }
+::selection { background: color-mix(in srgb, var(--color-primary) 25%, transparent); }

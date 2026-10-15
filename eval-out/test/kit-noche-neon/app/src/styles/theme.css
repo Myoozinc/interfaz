@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+/* Tema «Noche neón» de NONA. Cambia estos valores para cambiar el aspecto de toda la app. */
+:root {
+  --color-background: #08070F;
+  --color-foreground: #F1EDFF;
+  --color-card: #131022;
+  --color-card-foreground: #F1EDFF;
+  --color-popover: #131022;
+  --color-popover-foreground: #F1EDFF;
+  --color-primary: #8B5CF6;
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #24193F;
+  --color-secondary-foreground: #E9D5FF;
+  --color-muted: #1A162D;
+  --color-muted-foreground: #9E96C4;
+  --color-accent: #3B0F2E;
+  --color-accent-foreground: #F9A8D4;
+  --color-destructive: #DC2626;
+  --color-destructive-foreground: #FFFFFF;
+  --color-success: #16A34A;
+  --color-warning: #D97706;
+  --color-border: #2A2348;
+  --color-input: #2A2348;
+  --color-ring: #8B5CF6;
+  --radius: 0.875rem;
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+}
+
+html, body { background: var(--color-background); color: var(--color-foreground); font-family: var(--font-sans); }
+h1, h2, h3, .font-display { font-family: var(--font-display); }
+::selection { background: color-mix(in srgb, var(--color-primary) 25%, transparent); }
