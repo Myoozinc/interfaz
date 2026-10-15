@@ -8,8 +8,8 @@ export function fixInventedPhotos(files: Record<string, string>) {
     if (!/\.(tsx|ts|jsx|js|css|html)$/.test(p)) continue;
     const next = c.replace(/(?:https:\/\/interfaz-hazel\.vercel\.app)?\/templates\/img\/([\w-]+)\.(?:jpg|jpeg|png|webp)/g, (m, name: string) => {
       if (LIBRARY_PHOTOS.has(name)) return m;
-      const prompt = `${name.replace(/[-_]+/g, ' ')}, high quality, detailed`;
-      return `https://interfaz-hazel.vercel.app/api/image?prompt=${encodeURIComponent(prompt)}&w=1024&h=768&seed=${name.length}`;
+      // Foto real del tema (Pexels); si no hay, el servicio responde con una imagen generada con IA
+      return `https://interfaz-hazel.vercel.app/api/photo?q=${encodeURIComponent(name.replace(/[-_]+/g, ' ').replace(/\d+/g, '').trim() || 'abstract')}&i=${name.length % 15}`;
     });
     if (next !== c) files[p] = next;
   }

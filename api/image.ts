@@ -20,6 +20,29 @@ export default async function handler(req: Request) {
   const w = Math.min(Math.max(parseInt(u.searchParams.get('w') || u.searchParams.get('width') || '800', 10) || 800, 64), 1536);
   const h = Math.min(Math.max(parseInt(u.searchParams.get('h') || u.searchParams.get('height') || '600', 10) || 600, 64), 1536);
   const seed = parseInt(u.searchParams.get('seed') || '7', 10) || 7;
+  // 1) Cloudflare Workers AI · FLUX.1 schnell (10.000 neuronas/día gratis): rápido y sin marca de agua
+  const cfAccount = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+  const cfToken = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
+  if (cfAccount && cfToken) {
+    try {
+      const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfAccount}/ai/run/@cf/black-forest-labs/flux-1-schnell`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${cfToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, steps: 4, seed }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const j: any = r.ok ? await r.json() : null;
+      const b64 = j?.result?.image;
+      if (b64) {
+        const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        return new Response(bin, {
+          headers: { 'Content-Type': 'image/jpeg', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=86400, s-maxage=31536000, immutable' },
+        });
+      }
+    } catch {}
+  }
+
+  // 2) Pollinations (respaldo)
   const key = (process.env.POLLINATIONS_API_KEY || '').trim();
   const q = `width=${w}&height=${h}&seed=${seed}&nologo=true`;
   const urls = key

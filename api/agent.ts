@@ -25,7 +25,8 @@ export const config = {
  */
 
 type Kind = 'groq' | 'gemini' | 'cerebras' | 'sambanova' | 'openrouter' | 'mistral' | 'nvidia' | 'github' | 'pollinations'
-  | 'openai' | 'anthropic' | 'deepseek'; // estas tres solo con la llave propia del usuario
+  | 'openai' | 'anthropic' | 'deepseek' // estas tres solo con la llave propia del usuario
+  | 'llm7' | 'kilo' | 'vercel' | 'cloudflare';
 
 interface Attempt {
   kind: Kind;
@@ -53,9 +54,16 @@ const BASE: Record<Kind, string> = {
   openai: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com/v1', // compatibilidad OpenAI de la API de Claude
   deepseek: 'https://api.deepseek.com/v1',
+  llm7: 'https://api.llm7.io/v1',              // sin llave (modelos "turbo"); con LLM7_API_KEY sube el límite
+  kilo: 'https://api.kilo.ai/api/gateway',      // sin llave: modelo kilo-auto/free
+  vercel: 'https://ai-gateway.vercel.sh/v1',    // Vercel AI Gateway: 5 USD gratis al mes (AI_GATEWAY_API_KEY)
+  cloudflare: '',                               // depende de la cuenta: ver baseOf()
 };
+const baseOf = (kind: Kind) => kind === 'cloudflare'
+  ? `https://api.cloudflare.com/client/v4/accounts/${(process.env.CLOUDFLARE_ACCOUNT_ID || '').trim()}/ai/v1`
+  : BASE[kind];
 const chatUrl = (kind: Kind, key: string) =>
-  kind === 'pollinations' ? (key === 'anon' ? BASE.pollinations : 'https://gen.pollinations.ai/v1/chat/completions') : `${BASE[kind]}/chat/completions`;
+  kind === 'pollinations' ? (key === 'anon' ? BASE.pollinations : 'https://gen.pollinations.ai/v1/chat/completions') : `${baseOf(kind)}/chat/completions`;
 
 // Respaldo si el descubrimiento de modelos falla (ids estables conocidos).
 const STATIC_MODELS: Record<Kind, string[]> = {
@@ -71,6 +79,10 @@ const STATIC_MODELS: Record<Kind, string[]> = {
   openai: ['gpt-5', 'gpt-4.1'],
   anthropic: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5-20251001'],
   deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+  llm7: ['DeepSeek-V4-Flash-0731', 'GLM-5.3-Flash', 'minimax-m2.7', 'codestral-latest'],
+  kilo: ['kilo-auto/free'],
+  vercel: ['moonshotai/kimi-k2.7-code', 'nvidia/nemotron-3-super-120b-a12b', 'openai/gpt-oss-120b', 'google/gemini-2.5-flash'],
+  cloudflare: ['@cf/openai/gpt-oss-120b', '@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/qwen/qwen2.5-coder-32b-instruct'],
 };
 
 // Límite de caracteres por mensaje: los proveedores con TPM bajo necesitan compactar; los de contexto grande no.
@@ -88,6 +100,10 @@ const MSG_LIMIT: Record<Kind, number> = {
   openai: 400000,
   anthropic: 400000,
   deepseek: 400000,
+  llm7: 120000,
+  kilo: 120000,
+  vercel: 400000,
+  cloudflare: 120000,
 };
 
 // Tokens por minuto del plan gratuito de Groq (aprox.). Una petición (entrada + salida) debe caber en el TPM del modelo.
@@ -137,7 +153,7 @@ async function fetchJson(url: string, key: string | null, ms = 3500): Promise<an
 async function discover(kind: Kind, key: string): Promise<any[]> {
   const hit = modelCache.get(kind);
   if (hit && Date.now() - hit.at < 10 * 60_000) return hit.models;
-  const data = await fetchJson(`${BASE[kind]}/models`, kind === 'openrouter' ? null : key);
+  const data = await fetchJson(`${baseOf(kind)}/models`, kind === 'openrouter' ? null : key);
   const list: any[] = Array.isArray(data?.data) ? data.data : Array.isArray(data?.models) ? data.models : [];
   if (list.length > 0) modelCache.set(kind, { at: Date.now(), models: list });
   return list;
@@ -382,6 +398,10 @@ export default async function handler(req: any, res?: any) {
       openai: uniq([userKey('openai')]),
       anthropic: uniq([userKey('anthropic')]),
       deepseek: uniq([userKey('deepseek')]),
+      llm7: uniq([(process.env.LLM7_API_KEY || '').trim() || 'anon']),
+      kilo: ['anonymous'],
+      vercel: uniq(envKeys('AI_GATEWAY_API_KEY', 'AI_GATEWAY_API_KEYS')).slice(0, 2),
+      cloudflare: process.env.CLOUDFLARE_ACCOUNT_ID ? uniq(envKeys('CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_TOKENS')).slice(0, 2) : [],
     };
 
     const anyKey = (Object.values(keys) as string[][]).some(k => k.length > 0);
@@ -484,13 +504,17 @@ export default async function handler(req: any, res?: any) {
       github: () => { if (ghFits) push('github', ghModels, 2, () => 4000); },
       geminiLite: () => push('gemini', geminiLite, 1, () => 16000),
       pollinations: () => push('pollinations', poModels, 1, () => 12000),
+      llm7: () => push('llm7', STATIC_MODELS.llm7, role === 'code' ? 3 : 2, () => 12000),
+      kilo: () => push('kilo', STATIC_MODELS.kilo, 1, () => 12000),
+      vercel: () => push('vercel', STATIC_MODELS.vercel, 2, () => 16000),
+      cloudflare: () => push('cloudflare', STATIC_MODELS.cloudflare, 2, () => 8000),
     };
     const userFirst: Group[] = [g.anthropic, g.openai, g.deepseek];
     const free: Record<Role, Group[]> = {
-      plan: [g.groq, g.gemini, g.nvidia, g.openrouter, g.mistral, g.cerebras, g.sambanova, g.github],
-      code: [g.nvidia, g.gemini, g.mistral, g.cerebras, g.groq, g.openrouter, g.sambanova, g.github],
-      fix: [g.groq, g.nvidia, g.gemini, g.mistral, g.cerebras, g.openrouter, g.sambanova, g.github],
-      chat: [g.groq, g.openrouter, g.gemini, g.github, g.mistral, g.nvidia, g.cerebras, g.sambanova],
+      plan: [g.groq, g.vercel, g.gemini, g.nvidia, g.llm7, g.openrouter, g.mistral, g.cloudflare, g.sambanova],
+      code: [g.nvidia, g.vercel, g.llm7, g.gemini, g.mistral, g.groq, g.openrouter, g.cloudflare, g.sambanova],
+      fix: [g.groq, g.llm7, g.nvidia, g.vercel, g.gemini, g.mistral, g.cloudflare, g.openrouter, g.sambanova],
+      chat: [g.groq, g.llm7, g.openrouter, g.gemini, g.vercel, g.mistral, g.nvidia, g.cloudflare, g.sambanova],
     };
 
     if (hasImages) {
@@ -509,6 +533,7 @@ export default async function handler(req: any, res?: any) {
       const k = order.length ? lane % order.length : 0;
       for (const grp of [...order.slice(k), ...order.slice(0, k)]) grp();
       g.geminiLite();
+      g.kilo();
       g.pollinations();
     }
 
@@ -590,7 +615,7 @@ export default async function handler(req: any, res?: any) {
             if (/^(gpt-5|o\d)/.test(a.model)) { delete payload.temperature; if (withReasoning) payload.reasoning_effort = 'low'; }
           }
           const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          if (a.key !== 'anon') headers.Authorization = `Bearer ${a.key}`;
+          if (a.key !== 'anon') headers.Authorization = `Bearer ${a.key}`; // Kilo: la llave literal "anonymous"
           if (a.kind === 'openrouter') {
             headers['HTTP-Referer'] = 'https://interfaz-hazel.vercel.app';
             headers['X-Title'] = 'NONA AI Software Factory';

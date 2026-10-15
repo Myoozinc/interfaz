@@ -48,6 +48,9 @@ const RUNTIME_RULES = `ENTORNO DE EJECUCIÓN (la vista previa corre en el navega
   cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1 (bandeja de platos), plato-2 (ensalada), plato-3 (pizza),
   prod-reloj (smartwatch), prod-audifonos, prod-camara, moda-1, moda-2, tienda-1, persona-1, persona-2, persona-3, persona-4, escritorio-1 (retrato de hombre joven),
   barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1. Úsalas solo si encajan con el tema, con object-cover y un fondo de color mientras cargan.
+- FOTOS REALES DE CUALQUIER TEMA (Pexels, gratis): \`https://interfaz-hazel.vercel.app/api/photo?q=\${encodeURIComponent('coffee shop interior')}&orientation=landscape&i=0\`
+  (q en inglés; i de 0 a 14 para fotos distintas del mismo tema; orientation landscape|portrait|square). Úsalas para productos, lugares, personas y portadas,
+  e incluye en el pie de la app un crédito discreto «Fotos: Pexels». Prefiere estas fotos reales a las ilustraciones.
 - IMÁGENES GENERADAS CON IA (gratis, sin API key) para cualquier tema que no cubran las fotos (ilustraciones, planetas, personajes, productos inventados, fondos):
   \`https://interfaz-hazel.vercel.app/api/image?prompt=\${encodeURIComponent('descripción detallada en inglés')}&w=800&h=600&seed=7\`
   Cambia seed para variar; tarda unos segundos en cargar: pon fondo de color o esqueleto mientras carga. Sirven también como textura en three/canvas (tienen CORS).
@@ -134,6 +137,7 @@ ${DESIGN_RULES}`;
 
 const STAGE_RUNTIME = `ENTORNO: React 18 + TypeScript (.tsx) en el navegador, sin npm install. Hooks con imports nombrados desde 'react'. Clases de Tailwind CSS (ya cargado). Iconos: lucide-react (imports nombrados). Paquetes npm por nombre si hacen falta (react-router-dom, zustand con import { create }, date-fns, recharts, framer-motion); nunca URLs de CDN en los imports.
 - IA sin API keys: import { askAI, chatAI } from './lib/ai' (ruta relativa); no crees ese archivo.
+- Fotos reales (Pexels): https://interfaz-hazel.vercel.app/api/photo?q=<tema en inglés>&orientation=landscape&i=<0-14> (crédito «Fotos: Pexels» en el pie).
 - Imágenes generadas con IA, gratis: https://interfaz-hazel.vercel.app/api/image?prompt=<descripción en inglés con encodeURIComponent>&w=800&h=600&seed=N (también para que la app genere imágenes al usuario). 3D: @react-three/fiber + @react-three/drei.
 - Fotos (solo si encajan con el tema): https://interfaz-hazel.vercel.app/templates/img/NOMBRE.jpg (NOMBRE: cafe-taza, cafe-interior, cafe-granos, cafe-barra, cafe-latte, resto-sala, resto-interior, plato-1, plato-2, plato-3, prod-reloj, prod-audifonos, prod-camara, moda-1, moda-2, tienda-1, persona-1…4, escritorio-1, barber-1, barber-2, gym-1, gym-2, paisaje-1, paisaje-2, oficina-1, estudio-1, interior-1, datos-1, codigo-1, equipo-1).
 - Google Fonts con @import en la primera línea de src/index.css; App.tsx importa './index.css'.
